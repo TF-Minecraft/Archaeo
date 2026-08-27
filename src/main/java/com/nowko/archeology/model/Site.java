@@ -219,6 +219,20 @@ public class Site {
     }
 
     /**
+     * @return block X of the chunk center used for tracker distance
+     */
+    public int centerBlockX() {
+        return (chunkX << 4) + 8;
+    }
+
+    /**
+     * @return block Z of the chunk center used for tracker distance
+     */
+    public int centerBlockZ() {
+        return (chunkZ << 4) + 8;
+    }
+
+    /**
      * @return serial plus name for command and log output
      */
     public String displayLabel() {

@@ -1,6 +1,7 @@
 package com.nowko.archeology.config;
 
 import com.nowko.archeology.model.InterestLevel;
+import org.bukkit.Particle;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -26,6 +27,9 @@ public class CatalogRegistry {
     private int maxShapeAttempts = 24;
     private boolean growVertically = true;
     private boolean useWorldSeed = true;
+    private TrackerSettings tracker = TrackerSettings.defaults();
+    private ItemMaterials items = ItemMaterials.defaults();
+    private String staffPermission = "archaeo.admin";
 
     /**
      * @param plugin owner used for data folder and {@link JavaPlugin#saveResource}
@@ -48,6 +52,9 @@ public class CatalogRegistry {
         plugin.reloadConfig();
         loadInterests(plugin.getConfig());
         loadGeneration(plugin.getConfig());
+        loadTracker(plugin.getConfig());
+        loadItems(plugin.getConfig());
+        loadStaffPermission(plugin.getConfig());
         loadStrata(yaml("strata.yml"));
         loadArtifacts(yaml("artifacts.yml"));
         loadHints(yaml("hints.yml"));
@@ -115,6 +122,27 @@ public class CatalogRegistry {
     }
 
     /**
+     * @return tracker radii, pip timing, and item copy
+     */
+    public TrackerSettings tracker() {
+        return tracker;
+    }
+
+    /**
+     * @return materials for tracker and excavation tools
+     */
+    public ItemMaterials items() {
+        return items;
+    }
+
+    /**
+     * @return Bukkit permission node required for {@code /archaeo} staff commands
+     */
+    public String staffPermission() {
+        return staffPermission;
+    }
+
+    /**
      * @return whether site generation should derive RNG from the world seed and chunk
      */
     public boolean useWorldSeed() {
@@ -134,6 +162,81 @@ public class CatalogRegistry {
         maxShapeAttempts = section.getInt("max-shape-attempts", 24);
         growVertically = section.getBoolean("grow-vertically", true);
         useWorldSeed = section.getBoolean("use-world-seed", true);
+    }
+
+    /**
+     * Reads tracker item and scan settings from {@code config.yml}.
+     *
+     * @param config root plugin config
+     */
+    private void loadTracker(org.bukkit.configuration.file.FileConfiguration config) {
+        ConfigurationSection section = config.getConfigurationSection("tracker");
+        if (section == null) {
+            return;
+        }
+        List<String> lore = section.getStringList("item-lore");
+        if (lore.isEmpty()) {
+            lore = List.of(
+                    "Walk. Faster pulses mean closer.",
+                    "Rings lean toward a heading; they are not a compass.",
+                    "More pips when you are near. No coordinates."
+            );
+        }
+        List<Double> radii = section.getDoubleList("wave-radii");
+        if (radii.size() < 3) {
+            radii = List.of(1.2, 2.6, 4.2);
+        } else {
+            radii = List.copyOf(radii.subList(0, 3));
+        }
+        tracker = new TrackerSettings(
+                section.getBoolean("enabled", true),
+                Math.max(1, section.getInt("default-max-range", 256)),
+                Math.max(1, section.getInt("near-range", 48)),
+                Math.max(1, section.getInt("detect-message-range", 16)),
+                Math.max(0, section.getInt("detect-message-share-range", 0)),
+                section.getBoolean("pulse-particles", true),
+                Math.max(1, section.getInt("beep-max-ticks", 70)),
+                Math.max(1, section.getInt("beep-min-ticks", 5)),
+                Math.max(1, section.getInt("detect-message-cooldown-ticks", 200)),
+                radii,
+                Math.max(1, section.getInt("wave-step-ticks", 3)),
+                ConfigEnums.particle(plugin, section.getString("wave-particle"), Particle.END_ROD, "tracker.wave-particle"),
+                Math.max(0.0, section.getDouble("wave-bias-blocks", 1.2)),
+                Math.max(0.0, section.getDouble("target-switch-margin", 16)),
+                section.getString("item-name", "Archaeological tracker"),
+                List.copyOf(lore)
+        );
+    }
+
+    /**
+     * Reads Bukkit materials for plugin tools.
+     *
+     * @param config root plugin config
+     */
+    private void loadItems(org.bukkit.configuration.file.FileConfiguration config) {
+        ConfigurationSection section = config.getConfigurationSection("items");
+        ItemMaterials fallback = ItemMaterials.defaults();
+        if (section == null) {
+            items = fallback;
+            return;
+        }
+        items = new ItemMaterials(
+                ConfigEnums.material(plugin, section.getString("tracker"), fallback.tracker(), "items.tracker"),
+                ConfigEnums.material(plugin, section.getString("pick"), fallback.pick(), "items.pick"),
+                ConfigEnums.material(plugin, section.getString("shovel"), fallback.shovel(), "items.shovel"),
+                ConfigEnums.material(plugin, section.getString("hammer"), fallback.hammer(), "items.hammer"),
+                ConfigEnums.material(plugin, section.getString("brush"), fallback.brush(), "items.brush")
+        );
+    }
+
+    /**
+     * Reads the LuckPerms / Bukkit node for staff commands.
+     *
+     * @param config root plugin config
+     */
+    private void loadStaffPermission(org.bukkit.configuration.file.FileConfiguration config) {
+        String node = config.getString("permissions.staff", "archaeo.admin");
+        staffPermission = node == null || node.isBlank() ? "archaeo.admin" : node.trim();
     }
 
     /**

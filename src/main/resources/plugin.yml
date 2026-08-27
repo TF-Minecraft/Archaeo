@@ -8,10 +8,10 @@ description: Persistent archaeology for a custom map.
 commands:
   archaeo:
     description: Archaeo admin commands
-    usage: /archaeo ruin <create|info> ...
-    permission: archaeo.admin
+    usage: /archaeo <ruin|tracker> ...
+    # Permission is config.yml permissions.staff (checked in code), default archaeo.admin.
 
 permissions:
   archaeo.admin:
-    description: Register and manage administered ruins
+    description: Default staff node; override the name in config.yml permissions.staff
     default: op

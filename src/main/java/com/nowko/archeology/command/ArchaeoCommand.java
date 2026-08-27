@@ -1,11 +1,14 @@
 package com.nowko.archeology.command;
 
+import com.nowko.archeology.config.CatalogRegistry;
+import com.nowko.archeology.item.TrackerItem;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.InterestLevel;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.StratumBand;
 import com.nowko.archeology.site.SiteGenerator;
 import com.nowko.archeology.site.SiteRepository;
+import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -24,24 +27,31 @@ import java.util.stream.Collectors;
  * Staff-only {@code /archaeo} commands. Players never use this; discovery is tracker and kits.
  */
 public class ArchaeoCommand implements CommandExecutor, TabCompleter {
-    private static final String PERMISSION = "archaeo.admin";
     private static final List<String> INTERESTS = List.of("low", "medium", "high", "exceptional");
+    private static final List<String> ROOT = List.of("ruin", "tracker");
     private static final List<String> RUIN_ACTIONS = List.of("create", "info");
+    private static final List<String> TRACKER_ACTIONS = List.of("give");
 
+    private final CatalogRegistry catalogs;
     private final SiteGenerator generator;
     private final SiteRepository sites;
+    private final TrackerItem trackerItem;
 
     /**
+     * @param catalogs staff permission node
      * @param generator used to persist a new managed ruin
      * @param sites lookup for {@code ruin info}
+     * @param trackerItem factory for {@code tracker give}
      */
-    public ArchaeoCommand(SiteGenerator generator, SiteRepository sites) {
+    public ArchaeoCommand(CatalogRegistry catalogs, SiteGenerator generator, SiteRepository sites, TrackerItem trackerItem) {
+        this.catalogs = catalogs;
         this.generator = generator;
         this.sites = sites;
+        this.trackerItem = trackerItem;
     }
 
     /**
-     * Dispatches {@code ruin create} and {@code ruin info}. Requires {@code archaeo.admin}.
+     * Dispatches ruin and tracker staff subcommands. Permission node comes from {@code config.yml}.
      *
      * @param sender command issuer
      * @param command Bukkit command metadata
@@ -51,9 +61,12 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      */
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.hasPermission(PERMISSION)) {
+        if (!sender.hasPermission(catalogs.staffPermission())) {
             sender.sendMessage("You do not have permission to use Archaeo staff commands.");
             return true;
+        }
+        if (args.length >= 1 && "tracker".equalsIgnoreCase(args[0])) {
+            return handleTracker(sender, args);
         }
         if (args.length < 2 || !"ruin".equalsIgnoreCase(args[0])) {
             sendUsage(sender);
@@ -66,6 +79,39 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             return handleInfo(sender, args);
         }
         sendUsage(sender);
+        return true;
+    }
+
+    /**
+     * Gives a tracker item. Players scan by holding it; they do not run this command.
+     *
+     * @param sender staff issuer
+     * @param args {@code tracker give [player]}
+     * @return {@code true} always (handled)
+     */
+    private boolean handleTracker(CommandSender sender, String[] args) {
+        if (args.length < 2 || !"give".equalsIgnoreCase(args[1])) {
+            sender.sendMessage("Usage: /archaeo tracker give [player]");
+            return true;
+        }
+        Player target;
+        if (args.length >= 3) {
+            target = Bukkit.getPlayerExact(args[2]);
+            if (target == null) {
+                sender.sendMessage("Player not online: " + args[2]);
+                return true;
+            }
+        } else if (sender instanceof Player player) {
+            target = player;
+        } else {
+            sender.sendMessage("Console must name a player: /archaeo tracker give <player>");
+            return true;
+        }
+        target.getInventory().addItem(trackerItem.create());
+        sender.sendMessage("Gave an archaeological tracker to " + target.getName() + ".");
+        if (target != sender) {
+            target.sendMessage("You received an archaeological tracker. Hold it to listen for hidden ruins.");
+        }
         return true;
     }
 
@@ -236,10 +282,11 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private void sendUsage(CommandSender sender) {
         sender.sendMessage("Usage: /archaeo ruin create <low|medium|high|exceptional> [name]");
         sender.sendMessage("       /archaeo ruin info [name|#serial]");
+        sender.sendMessage("       /archaeo tracker give [player]");
     }
 
     /**
-     * Completes {@code ruin}, {@code create}/{@code info}, interest keys, or site names.
+     * Completes ruin/tracker staff tokens.
      *
      * @param sender command issuer
      * @param command Bukkit command metadata
@@ -249,11 +296,34 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      */
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (!sender.hasPermission(PERMISSION)) {
+        if (!sender.hasPermission(catalogs.staffPermission())) {
             return List.of();
         }
         if (args.length == 1) {
-            return prefix("ruin", args[0]);
+            return ROOT.stream()
+                    .filter(value -> value.startsWith(args[0].toLowerCase(Locale.ROOT)))
+                    .toList();
+        }
+        if ("tracker".equalsIgnoreCase(args[0])) {
+            if (args.length == 2) {
+                return TRACKER_ACTIONS.stream()
+                        .filter(value -> value.startsWith(args[1].toLowerCase(Locale.ROOT)))
+                        .toList();
+            }
+            if (args.length == 3 && "give".equalsIgnoreCase(args[1])) {
+                String typed = args[2].toLowerCase(Locale.ROOT);
+                List<String> names = new ArrayList<>();
+                for (Player online : Bukkit.getOnlinePlayers()) {
+                    if (online.getName().toLowerCase(Locale.ROOT).startsWith(typed)) {
+                        names.add(online.getName());
+                    }
+                }
+                return names;
+            }
+            return List.of();
+        }
+        if (!"ruin".equalsIgnoreCase(args[0])) {
+            return List.of();
         }
         if (args.length == 2) {
             return RUIN_ACTIONS.stream()
@@ -283,14 +353,5 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             return names;
         }
         return List.of();
-    }
-
-    /**
-     * @param option full token to suggest
-     * @param typed current argument
-     * @return {@code option} if it starts with {@code typed}, otherwise empty
-     */
-    private List<String> prefix(String option, String typed) {
-        return option.startsWith(typed.toLowerCase(Locale.ROOT)) ? List.of(option) : List.of();
     }
 }

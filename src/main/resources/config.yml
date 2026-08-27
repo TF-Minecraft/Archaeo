@@ -1,11 +1,44 @@
 # General settings. Catalogs live in the other YAML files.
 
+permissions:
+  # Bukkit / LuckPerms node for /archaeo staff commands. Default op via plugin.yml archaeo.admin.
+  staff: archaeo.admin
+
+items:
+  tracker: RECOVERY_COMPASS
+  pick: IRON_PICKAXE
+  shovel: IRON_SHOVEL
+  hammer: MACE
+  brush: BRUSH
+
 tracker:
   enabled: true
+  # Radii in blocks. Effective range is the tighter of this cap and the site detection-radius.
   default-max-range: 256
+  # Medium band: two pips and two rings. Close band (detect-message-range): three.
   near-range: 48
+  # Chat fires when the holder is this close to the site center. Also the three-pip band.
   detect-message-range: 16
+  # Extra viewers around the holder (0 = only the scanner). Cooldown is per viewer.
+  detect-message-share-range: 0
   pulse-particles: true
+  # Ring sizes for the 1 / 2 / 3 pip bursts (far uses the first, close uses all three).
+  wave-radii: [1.2, 2.6, 4.2]
+  wave-step-ticks: 3
+  wave-particle: END_ROD
+  # Ring centre offset toward an 8-way heading (blocks). 0 = centred on the player.
+  wave-bias-blocks: 1.2
+  # Another site must be this many blocks closer before the lock switches.
+  target-switch-margin: 16
+  # Ticks between bursts: slow at the edge of range, fast next to the chunk.
+  beep-max-ticks: 70
+  beep-min-ticks: 5
+  detect-message-cooldown-ticks: 200
+  item-name: "Archaeological tracker"
+  item-lore:
+    - "Walk. Faster pulses mean closer."
+    - "Rings lean toward a heading; they are not a compass."
+    - "More pips when you are near. No coordinates."
 
 interest-levels:
   low:
