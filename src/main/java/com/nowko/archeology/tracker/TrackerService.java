@@ -332,12 +332,16 @@ public class TrackerService {
     }
 
     /**
+     * Minimum ticks from burst start to the next start: last ring plus fade time.
+     * Client particles cannot be despawned; we wait instead.
+     *
      * @param hit nearest in-range site
-     * @return ticks needed for this burst so the next one does not overlap
+     * @return ticks so bursts do not overlap on screen
      */
     private int burstTicks(ScanHit hit) {
         int bands = proximityBands(hit);
-        return Math.max(1, (bands - 1) * settings.waveStepTicks() + 4);
+        int fade = settings.pulseParticles() ? settings.particleFadeTicks() : 4;
+        return Math.max(1, (bands - 1) * settings.waveStepTicks() + fade);
     }
 
     /**

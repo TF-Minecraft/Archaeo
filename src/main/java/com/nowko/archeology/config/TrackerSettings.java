@@ -18,6 +18,7 @@ import java.util.List;
  * @param detectMessageCooldownTicks minimum ticks between detect chat lines, per viewer
  * @param waveRadii three ring sizes in blocks, drawn in order
  * @param waveStepTicks delay between consecutive rings (first ring is with the pip)
+ * @param particleFadeTicks extra ticks after the last ring so client sprites can vanish
  * @param waveParticle particle used on the rings
  * @param waveBiasBlocks how far the ring centre leans toward an 8-way heading
  * @param targetSwitchMargin extra blocks another site must beat before the lock switches
@@ -36,6 +37,7 @@ public record TrackerSettings(
         int detectMessageCooldownTicks,
         List<Double> waveRadii,
         int waveStepTicks,
+        int particleFadeTicks,
         Particle waveParticle,
         double waveBiasBlocks,
         double targetSwitchMargin,
@@ -58,6 +60,7 @@ public record TrackerSettings(
                 200,
                 List.of(1.2, 2.6, 4.2),
                 3,
+                10,
                 Particle.END_ROD,
                 1.2,
                 16,

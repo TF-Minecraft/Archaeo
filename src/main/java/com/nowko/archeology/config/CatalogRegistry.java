@@ -200,6 +200,7 @@ public class CatalogRegistry {
                 Math.max(1, section.getInt("detect-message-cooldown-ticks", 200)),
                 radii,
                 Math.max(1, section.getInt("wave-step-ticks", 3)),
+                Math.max(1, section.getInt("particle-fade-ticks", 10)),
                 ConfigEnums.particle(plugin, section.getString("wave-particle"), Particle.END_ROD, "tracker.wave-particle"),
                 Math.max(0.0, section.getDouble("wave-bias-blocks", 1.2)),
                 Math.max(0.0, section.getDouble("target-switch-margin", 16)),

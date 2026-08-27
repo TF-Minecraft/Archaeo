@@ -33,7 +33,7 @@ public class ArcheologyPlugin extends JavaPlugin {
         tracker = new TrackerService(this, sites, trackerItem, catalogs.tracker());
         tracker.start();
 
-        ArchaeoCommand command = new ArchaeoCommand(catalogs, generator, sites, trackerItem);
+        ArchaeoCommand command = new ArchaeoCommand(catalogs, generator, sites, trackerItem, tracker);
         PluginCommand pluginCommand = getCommand("archaeo");
         if (pluginCommand != null) {
             pluginCommand.setExecutor(command);

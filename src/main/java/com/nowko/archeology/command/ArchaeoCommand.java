@@ -8,6 +8,7 @@ import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.StratumBand;
 import com.nowko.archeology.site.SiteGenerator;
 import com.nowko.archeology.site.SiteRepository;
+import com.nowko.archeology.tracker.TrackerService;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.command.Command;
@@ -28,7 +29,7 @@ import java.util.stream.Collectors;
  */
 public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private static final List<String> INTERESTS = List.of("low", "medium", "high", "exceptional");
-    private static final List<String> ROOT = List.of("ruin", "tracker");
+    private static final List<String> ROOT = List.of("ruin", "tracker", "reload");
     private static final List<String> RUIN_ACTIONS = List.of("create", "info");
     private static final List<String> TRACKER_ACTIONS = List.of("give");
 
@@ -36,18 +37,27 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private final SiteGenerator generator;
     private final SiteRepository sites;
     private final TrackerItem trackerItem;
+    private final TrackerService tracker;
 
     /**
-     * @param catalogs staff permission node
+     * @param catalogs staff permission and YAML catalogs
      * @param generator used to persist a new managed ruin
-     * @param sites lookup for {@code ruin info}
+     * @param sites lookup for {@code ruin info} and reload
      * @param trackerItem factory for {@code tracker give}
+     * @param tracker live scan loop, updated on reload
      */
-    public ArchaeoCommand(CatalogRegistry catalogs, SiteGenerator generator, SiteRepository sites, TrackerItem trackerItem) {
+    public ArchaeoCommand(
+            CatalogRegistry catalogs,
+            SiteGenerator generator,
+            SiteRepository sites,
+            TrackerItem trackerItem,
+            TrackerService tracker
+    ) {
         this.catalogs = catalogs;
         this.generator = generator;
         this.sites = sites;
         this.trackerItem = trackerItem;
+        this.tracker = tracker;
     }
 
     /**
@@ -65,6 +75,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("You do not have permission to use Archaeo staff commands.");
             return true;
         }
+        if (args.length >= 1 && "reload".equalsIgnoreCase(args[0])) {
+            return handleReload(sender);
+        }
         if (args.length >= 1 && "tracker".equalsIgnoreCase(args[0])) {
             return handleTracker(sender, args);
         }
@@ -79,6 +92,25 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             return handleInfo(sender, args);
         }
         sendUsage(sender);
+        return true;
+    }
+
+    /**
+     * Re-reads catalog YAML from the data folder into memory. Does not overwrite existing files.
+     *
+     * @param sender staff issuer
+     * @return {@code true} always (handled)
+     */
+    private boolean handleReload(CommandSender sender) {
+        try {
+            catalogs.load();
+            trackerItem.update(catalogs.tracker(), catalogs.items().tracker());
+            tracker.setSettings(catalogs.tracker());
+            sites.loadAll();
+            sender.sendMessage("Reloaded Archaeo config, catalogs, and sites from disk.");
+        } catch (RuntimeException exception) {
+            sender.sendMessage("Reload failed: " + exception.getMessage());
+        }
         return true;
     }
 
@@ -283,6 +315,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("Usage: /archaeo ruin create <low|medium|high|exceptional> [name]");
         sender.sendMessage("       /archaeo ruin info [name|#serial]");
         sender.sendMessage("       /archaeo tracker give [player]");
+        sender.sendMessage("       /archaeo reload");
     }
 
     /**
