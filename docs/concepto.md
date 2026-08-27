@@ -7,6 +7,7 @@ Documento vivo. Las secciones marcan el estado de cada idea:
 - **acordado** — se da por bueno hasta que lo cambiemos
 
 Plugin: `archeology-plugin` (`com.nowko`). Nombre de producto tentativo: **Archaeo**.
+Documentación necesaria para el desarrollo en https://hub.spigotmc.org/javadocs/spigot/index.html
 
 ---
 
@@ -17,15 +18,15 @@ Ampliar la arqueología de Minecraft para que los jugadores descubran, excaven, 
 Arqueología vanilla vs Archaeo:
 
 1. **Vanilla** — recorrer el mundo, detectar algo, pincelar, llevarse un hallazgo. Corto, azaroso.
-2. **Archaeo** — habilitar un yacimiento como *lugar de trabajo*, volver a él, construirlo y excavarlo con calma, como una casa. Largo, laborioso, roleplay.
+2. **Archaeo** — encontrar una señal, confirmarla con catas, **plantar un campamento** y trabajarlo a lo largo de jornadas. No es un `/claim`.
 
 Experiencia vanilla (expedición):
 
-> Explorar → detectar algo extraño → investigar → descubrir un yacimiento → (opcional) habilitar campaña → excavar → encontrar un objeto → …
+> 📡 Rastreador → 🔎 cata (kit de prospección) → ⛺ kit de excavación (campamento) → 📖 panel → ⛏️ jornadas → 🏺 estudio / museo.
 
 Experiencia Archaeo (campaña):
 
-> Elegir / confirmar un sitio → montar el campamento → desbrozar → abrir estratos poco a poco → hallazgos espaciados → interpretar → nombrar → registrar → exponer.
+> 📡 Rastreador → 🔎 cata → ⛺ establecer excavación → 📖 panel y personal → ⛏️ minijuego → hallazgos al registro de la excavación → interpretar / museo.
 
 ---
 
@@ -65,12 +66,14 @@ Lo que vanilla **no** da, y Archaeo sí debe dar:
 ## Principios de diseño
 
 1. **Mapa personalizado primero.** Archaeo debe respetar el terreno existente y añadir contexto, persistencia e interpretación alrededor de los puntos de excavación definidos por el staff.
-2. **Descubrir, no consultar.** Las ruinas no se listan automáticamente; la comunidad debe desbloquear su investigación mediante fragmentos.
+2. **Descubrir, no consultar.** Las ruinas no se listan. Se buscan con un **rastreador** (pitidos y pulsos) y luego se prospectan. Nada de fragmentos de conocimiento ni libreta compartida.
 3. **El plugin no escribe la historia oficial.** Ofrece indicios e interpretaciones posibles. La historia canónica del servidor la marcan los admins.
 4. **Tres capas de verdad** (plugin / admin / jugador) coexisten y no se pisan.
-5. **Facciones opcionales.** Si el plugin de facciones está, se usa como dato de contexto (quién controla el territorio *ahora*). Si no está, Archaeo funciona igual.
+5. **Facciones opcionales.** Pueden recibir **acceso a excavar** (lista del site). No son dueñas del yacimiento ni Archaeo protege bloques: eso sigue siendo el plugin de claims.
 6. **La fragilidad importa.** El terreno y los restos deben poder alterarse o perderse; Archaeo no debe convertir una excavación en un generador de objetos sin riesgo.
-7. **Un yacimiento puede ser un sitio, no un loot.** Habilitar una campaña convierte un lugar en proyecto a medio plazo. No todo hallazgo tiene que ocurrir en una sola sesión.
+7. **Una excavación es un proyecto, no un loot ni un plot.** Se descubre, se confirma y se planta en el mundo. Queda **fija** a esa localización.
+8. **El minijuego es el mundo.** Pico / martillo / pincel en el chunk; HUD mínimo. La gestión (personal, visibilidad) vive en el **panel del campamento**, no en comandos de jugador.
+9. **Archaeo no es un plugin de protección.** Sin permiso arqueológico no se usan las herramientas del minijuego. Romper tierra “vanilla” lo deciden facciones/claims.
 
 ---
 
@@ -84,28 +87,27 @@ Un **yacimiento** es un lugar persistente con identidad, no un chunk anónimo.
 | --- | --- | --- |
 | **Vanilla** | Pirámide, fuente, ruinas oceánicas, ruinas perdidas | Fuera del alcance inicial: el mapa personalizado no las genera. |
 | **Ruina administrada** | Chunk seleccionado por el staff en el mapa personalizado | Se crea con un comando que registra el chunk, el nivel de interés y los datos iniciales del lugar. Es el tipo de la primera versión. |
-| **Campaña (habilitado por jugador)** | El jugador abre un frente de excavación en un sitio viable | No aparece magia de golpe: se *trabaja* a lo largo de días. Ver sección 1b. |
+| **Campaña (excavación del jugador)** | El jugador la **establece** con un kit en un chunk ya confirmado por cata | Proyecto persistente, visible en el mundo (§1d). |
 
-Una ruina administrada puede **pasar a campaña** si alguien la habilita. Las estructuras que existan en el mapa serán construidas por moderadores y registradas con el comando.
+Una ruina administrada pasa a **excavación** cuando alguien la confirma con cata y planta el kit. Las construcciones del mapa las ponen los moderadores; el comando de staff solo registra el chunk oculto.
 
 ### Descubrimiento
 
 - El staff registra manualmente los chunks que contienen una ruina mediante un comando; el plugin no intenta descubrirlos automáticamente en el mapa personalizado.
 - El comando permite asignar un nivel de interés inicial y, opcionalmente, nombre, tipo y descripción interna.
-- La localización para jugadores se resolverá mediante investigaciones y brújulas vinculadas.
-- Al descubrirse, el yacimiento queda **registrado para siempre**.
-- El descubridor puede **nombrarlo** (con reglas de longitud, uniquedad y moderación).
+- La localización para jugadores es **rastreo + prospección**, no una brújula al chunk ni un árbol de pistas.
+- Al **establecer** la excavación queda **registrada para siempre** en esas coords (no se borra ni se mueve a capricho).
+- El que planta el kit es el **director** inicial y puede nombrarla.
 - Si no lo nombra, el sistema usa un nombre provisional (`Yacimiento del desierto #14`, coordenadas ofuscadas o bioma + rumbo).
 
 Ficha mínima:
 
 ```
-Yacimiento: Las Ruinas del Este
-Tipo: ruina administrada | campaña
-Descubierto por: Alex
-Fecha: …
-Estratos conocidos: I–III (IV no excavado)
-Estado: activo / agotado / disturbado
+Excavación #027 — Ruinas del valle
+Director: Alex
+Estratos: I–III (IV no excavado)
+Visibilidad: privada | invitación | pública
+Estado: activa / agotada
 ```
 
 ### Registro administrativo — primera versión
@@ -122,9 +124,9 @@ Una sintaxis orientativa es:
 
 El comando `create` guarda mundo, coordenadas del chunk, nivel de interés,
 nombre, autor y fecha. El nombre puede omitirse para generar uno provisional.
-También prepara los bloques sospechosos de tierra o grava según el nivel de
-interés y los reparte entre las capas configuradas, sin sustituir aire, agua,
-lava, cofres, construcciones protegidas ni bloques colocados por jugadores.
+También guarda en el dossier una lista de **hallazgos** (plantilla, forma conectada
+de varias celdas, estrato). El terreno se ve normal hasta la jornada. No se
+colocan bloques sospechosos visibles.
 `info`, `set-interest` y `delete` requieren
 permisos de administración; cambiar el interés de una ruina con campaña activa
 debe estar restringido o dejar un registro explícito para no cambiar su dossier
@@ -132,68 +134,47 @@ retroactivamente.
 
 ### Cómo lo investiga el usuario
 
-En el mapa personalizado, el staff decide primero qué chunks son ruinas. El
-jugador no necesita saber las coordenadas. La localización se desbloquea mediante
-una investigación: al obtener conocimiento suficiente sobre una ruina, puede
-conseguir una brújula vinculada que le guía hasta ella. La investigación comienza
-con una pista, no con una lista de todos los yacimientos.
+El jugador **no** usa comandos. Flujo: rastreador → zona sospechosa → **cata** (confirma y da las primeras características) → **kit de excavación** (campamento persistente). Detalle §1d.
 
-#### Investigación y brújula — propuesta
+Se elimina el sistema de fragmentos de conocimiento, la libreta compartida, la brújula al chunk y cualquier `/claim` de jugador.
 
-Cada ruina registrada tiene una investigación asociada, pero permanece bloqueada
-para los jugadores. La investigación tiene tres estados:
+#### Rastreador — propuesta
 
-1. **Rumor:** el jugador recibe una pista incompleta, sin nombre exacto ni
-   coordenadas.
-2. **Conocimiento:** reúne las pruebas necesarias y desbloquea la ruina en su
-   cuaderno. Todavía no recibe su ubicación automáticamente.
-3. **Brújula:** canjea o fabrica una brújula vinculada a esa investigación. La
-   brújula apunta al chunk del yacimiento mientras exista y tenga permiso para
-   consultarlo.
+Ítem de plugin (detector / radar). Al usarlo, emite **pitidos** cuya frecuencia
+depende de la distancia al yacimiento **no descubierto** más cercano que esté
+dentro de su radio de detección.
 
-La brújula no descubre ruinas nuevas ni muestra un mapa. Es la recompensa por
-haber investigado una historia concreta. Si el jugador pierde la brújula, puede
-obtener otra mientras conserve el conocimiento desbloqueado.
+| Distancia | Señal |
+| --- | --- |
+| Muy lejos (o fuera de radio) | Silencio, o un pitido cada varios segundos si apenas entra en rango |
+| Media | Pitidos más seguidos |
+| Cerca | Pitidos rápidos |
+| Muy cerca | Casi continuos |
 
-El jugador comienza con un **cuaderno de campo** y una investigación general
-inicial, no con todas las ruinas disponibles. Esa investigación enseña el oficio
-o permite registrar la primera pista encontrada, pero no revela ningún yacimiento
-por sí misma.
+Cada pitido puede ir con un **pulso visual** en el terreno (onda desde el
+jugador, o sesgada hacia el rumbo aproximado). No marca el campamento ni las
+coordenadas. El jugador tiene que **moverse** y probar direcciones: si se
+aleja, los pitidos se espacian; si se acerca, se densifican.
 
-#### Cómo aparecen las pistas sin intervención del staff
+```
+📡 PIIP          onda débil
+(avanza al norte)
+📡 PIIP… PIIP…   ondas más frecuentes
+📡 PIIP-PIIP-PIIP  ya entra en la zona de interés
+```
 
-El cuaderno de conocimientos generales es común para todo el servidor. Se
-fabrica en la mesa de arqueología y no contiene las ubicaciones de las ruinas:
-solo permite consultar las investigaciones descubiertas por la comunidad.
+Cuando está lo bastante cerca (config, p. ej. borde del chunk o unos bloques):
 
-Al registrar una ruina, el plugin crea su investigación y divide la pista en un
-número configurable de fragmentos. Esos fragmentos no los entrega un admin: cada
-uno puede aparecer como recompensa aleatoria al realizar acciones configuradas
-en el mundo, por ejemplo excavar, explorar, pescar, abrir cofres o completar
-otras actividades arqueológicas. La dificultad controla la probabilidad de que
-aparezca el fragmento pertinente.
+> Señal arqueológica detectada.
+> Realiza una prospección para determinar la ubicación del yacimiento.
 
-El fragmento aparece como objeto en la mano del jugador. Al hacer clic derecho,
-se consume y se registra en el cuaderno común. El servidor guarda el progreso
-global, por ejemplo `3/5 pistas`, y un fragmento ya registrado no vuelve a
-contar. Para evitar mala suerte extrema, la probabilidad puede aumentar tras
-cada intento fallido o existir un límite de acciones antes de garantizar un
-hallazgo.
+Ahí **aún no** hay excavación oficial. El rastreador solo dice “por aquí hay algo”.
+Sigue la **cata** y, si se confirma, el **kit de excavación** (§1d).
 
-Cada ruina puede configurarse con un número de fragmentos y una dificultad
-distinta. El staff solo define esos parámetros al crearla; no tiene que colocar
-libros, escribir pistas ni dirigir la entrega a cada jugador.
+**Alcance.** Radio según tamaño/interés (`detection-radius`). Sitios **ya establecidos** o agotados no llaman al rastreador (o se silencian en config).
 
-Cuando se registran todos los fragmentos, la investigación queda disponible en
-la mesa de arqueología. En la primera versión consiste en leer durante un tiempo:
-una barra de progreso, sonido de páginas y una interrupción si el jugador se
-aleja. Más adelante este paso podrá sustituirse por un puzle de reconstrucción de
-mapa sin cambiar el progreso ni el cuaderno.
-
-Al completar la investigación, el jugador obtiene una brújula vinculada al
-`siteId`. La brújula guía hasta las coordenadas del yacimiento. Perderla no borra
-el conocimiento: se puede fabricar u obtener un reemplazo con el coste que defina
-la configuración.
+El objetivo: encontrar un yacimiento **es explorar**. Señal ambigua → interpretar
+intensidad → caminar el mapa → acotar → prospectar.
 
 #### Interés del chunk — propuesta
 
@@ -208,17 +189,15 @@ interno y debe ser configurable. El nivel no tiene que ser una verdad matemátic
 del terreno: es una decisión de diseño y de lore que el staff puede usar para
 equilibrar el mapa.
 
-La cata sirve para comunicar al jugador una estimación de ese interés. Puede
-incluir una pequeña variación controlada, de modo que dos catas no tengan que
-mostrar exactamente la misma lectura, pero nunca debe superar las condiciones
-del dossier que el staff asignó. Al habilitar la campaña, la riqueza efectiva se
-fija y se guarda.
+La cata **convierte una sospecha en yacimiento confirmado** y enseña las primeras
+características (interés, indicios). No es un trámite vacío ni el acto de
+“reclamar” el chunk: eso es plantar el kit.
 
-Habilitar no tiene por qué ser un claim de facciones. Es una ficha Archaeo: director, colaboradores, si es público o privado.
+Al **establecer** la excavación, la riqueza efectiva se fija en el dossier.
 
-- Si hay facciones, se puede exigir estar en territorio propio o aliado para habilitar.
-- El terreno sigue siendo el del otro plugin; Archaeo no duplica claims.
-- Alguien puede construir un campamento precioso y que otra facción dispute el chunk: eso es lore presente, no arqueología.
+La excavación es una **entidad Archaeo** sobre el mundo: no es un claim de
+facciones. El director no es dueño del terreno. Facciones/claims siguen
+protegiendo bloques; Archaeo solo dice quién puede usar herramientas de excavación.
 
 ---
 
@@ -246,37 +225,25 @@ Un bloque ≈ un metro. En arqueología real las cuadrículas suelen ser de 1×1
 | Tamaño | Por qué sí / no |
 | --- | --- |
 | Menos (8×8) | Corto de más; se acaba el solar como un sótano, no como un yacimiento. |
-| **Un chunk (16×16)** | Encaja con mapas, Dynmap y facciones (casi siempre claiman por chunk). El plugin comprueba “¿este bloque está en el chunk del atril?”. El jugador entiende el límite: el borde del chunk. |
+| **Un chunk (16×16)** | Encaja con mapas, Dynmap y facciones. Límite = chunk del **campamento**. |
 | Más (2×2 chunks) | Es una cantera. Vaciarlo a pala deja de sentirse arqueología. |
 
-Profundidad: no es un chunk hacia bedrock. Al habilitar, el plugin define **bandas de Y** a partir de la superficie de ese chunk (unos 3–5 bloques por estrato *presente* en el dossier).
+Profundidad: no es un chunk hacia bedrock. Al **establecer** la excavación, el plugin define **bandas de Y** a partir de la superficie (unos 3–5 bloques por estrato presente).
 
 ---
 
-### El atril del yacimiento (qué era el “mojón”)
+### Campamento
 
-*Mojón* era un hito de piedra de linde. Sobran dos objetos. **Un solo bloque hace de hito: un atril (lectern) vanilla.**
+El hito en el mundo es el **campamento** que sale al usar el kit de excavación:
+mesa de arqueología, tablón, cajas, quizá una carpa (§1d). El jugador puede
+construir más alrededor. El plugin no exige un atril.
 
-En una excavación de verdad se clava un **punto de datum**: origen desde el que se mide todo el yacimiento. En Minecraft ese datum es el atril.
-
-Qué hace el jugador:
-
-1. En zona de señal clara, coloca un **atril**.
-2. El plugin lo reconoce como “este chunk es ahora un yacimiento” y pide el **nombre** (cartel o anvil-GUI corto).
-3. Sobre el atril aparece (o se actualiza) un **libro escrito** vanilla. Eso es el diario de campo. El jugador pulsa el atril y **lee**, igual que un atril de pueblo.
-
-El libro **no** es un ítem que tenga que llevar encima. Vive en el atril. Si se lo lleva, el yacimiento sigue existiendo (datos en disco); el atril vacío se puede “reponer” el diario. Si rompe el atril, el sitio no se borra, pero deja de haber hito en el mundo hasta que ponga otro en el **mismo chunk**.
-
-El campamento (techo, vallas, cofres) lo construye el jugador **alrededor** del atril. El plugin no construye nada. Las vallas en el borde del chunk son opcionales y muy claras: “hasta aquí cava Archaeo”.
-
-Resumen: **atril = placa del yacimiento. Libro del atril = qué se sabe de este solar. Chunk del atril = el solar.**
+Clic en la **mesa o el tablón** = panel de la excavación. El chunk de ese
+campamento es el solar.
 
 ### Cómo lo investiga el usuario
 
-El jugador necesita saber si merece la pena invertir horas en un chunk antes de
-montar allí una excavación. En la primera versión el staff ya ha registrado la
-ruina y su interés; la prospección del jugador sirve para localizarla y decidir
-si quiere asumir el trabajo de la campaña.
+Ver **§1** (rastreador) y **§1d** (cata + kit). Aquí solo el cálculo de la cata.
 
 #### Interés del chunk — propuesta
 
@@ -323,18 +290,18 @@ lectura = base + variacionEstable(seed, chunkX, chunkZ, puntoDeCata, variacion)
 ```
 
 La variación solo afecta al mensaje que recibe el jugador. No cambia el nivel
-registrado ni la riqueza definitiva. Al habilitar la campaña, el plugin guarda
+registrado ni la riqueza definitiva. Al **establecer** la excavación, el plugin guarda
 el dossier generado desde el nivel administrativo.
 
 #### ¿Se guardan las coordenadas?
 
-No hace falta guardar candidatos automáticos, porque en esta versión no existen.
-El plugin registra las coordenadas al ejecutar el comando administrativo.
+El plugin registra el chunk al comando de staff. Tras establecer: coords del
+campamento + dossier.
 
 Sí se guardan:
 
-- el chunk y el atril de los yacimientos confirmados;
-- el dossier generado al habilitar una campaña;
+- el chunk y el campamento de las excavaciones establecidas;
+- el dossier al plantar el kit;
 
 #### Ejemplo de configuración
 
@@ -342,41 +309,41 @@ Los nombres son orientativos; lo importante es que el staff pueda ajustar el
 ritmo sin editar código:
 
 ```yaml
+tracker:
+   enabled: true
+   # radios en bloques; el más restrictivo entre esto y el de la ruina gana
+   default-max-range: 256
+   near-range: 48
+   detect-message-range: 16
+   pulse-particles: true
+interest-levels:
+   bajo:
+      base-wealth: 1
+      variation: 0
+      detection-radius: 64
+   medio:
+      base-wealth: 3
+      variation: 1
+      detection-radius: 128
+   alto:
+      base-wealth: 6
+      variation: 1
+      detection-radius: 256
+   excepcional:
+      base-wealth: 10
+      variation: 2
+      detection-radius: 512
 prospection:
    search-tool:
-      enabled: false
-      radius: 32
-      cooldown-seconds: 30
-   interest-levels:
-      bajo:
-         base-wealth: 1
-      medio:
-         base-wealth: 2
-      alto:
-         base-wealth: 4
-      excepcional:
-         base-wealth: 6
-   interest-levels:
-      bajo:
-         base-wealth: 1
-         variation: 0
-      medio:
-         base-wealth: 3
-         variation: 1
-      alto:
-         base-wealth: 6
-         variation: 1
-      excepcional:
-         base-wealth: 10
-         variation: 2
+      enabled: true
 ```
 
 La configuración define la riqueza base y la variación permitida para cada nivel.
 No hay multiplicadores ambientales ni cálculos sobre el terreno. Una campaña ya
 iniciada conserva el dossier que se generó al habilitarla.
 
-La configuración no contiene una lista de chunks. Contiene los niveles
-disponibles, su riqueza base, la variación, los textos y las reglas de la cata.
+La configuración no contiene una lista de chunks. Contiene radios del rastreador,
+niveles, riqueza, variación, textos y reglas de la cata.
 Las coordenadas y el nivel sí se guardan en el archivo de cada ruina registrada.
 Si se cambia la configuración, los sitios ya habilitados conservan su dossier.
 
@@ -394,57 +361,116 @@ cata, en cambio, no tiene por qué ser una respuesta exacta y repetible:
 - La herramienta debe tener durabilidad, tiempo de uso o un pequeño coste para
    que hacer clic repetidamente en el mismo bloque no sea la estrategia óptima.
 
-La variación de la lectura puede ser efímera y no necesita guardarse. El dato
-persistente empieza con el comando que registra la ruina; al habilitar la
-campaña se guarda el dossier definitivo.
+La variación de la lectura puede ser efímera. El dato persistente del staff es
+el comando de ruina; el de jugador empieza al **confirmar** catas y **establecer**.
 
 #### Cata de tierra
 
-Cuando el jugador llega al chunk registrado, hace una **cata** con pala, pincel
-o herramienta propia. La cata consulta únicamente el nivel de interés asignado
-por el staff y su variación configurada. Devuelve una riqueza orientativa:
+**No** es pala/pincel genéricos. Es el **kit de prospección arqueológica**.
 
-1. **Prometedor:** interés bajo o condiciones poco favorables.
-2. **Notable:** interés medio o varios factores favorables.
-3. **Excepcional:** interés alto o excepcional, reforzado por buenas condiciones.
+Se usa sobre **varios puntos** del terreno (unos segundos cada uno). Informa y
+**descubre**; no reclama el chunk.
 
-La cata puede variar ligeramente entre usos para representar una observación
-parcial, pero nunca rebaja el interés mínimo registrado. Al colocar el atril, el
-plugin calcula y guarda el dossier definitivo de la campaña.
+| Resultado | Qué significa |
+| --- | --- |
+| No se han encontrado indicios suficientes | Seguir catando u otro punto |
+| Indicios débiles de actividad humana | Hay algo; aún no basta para establecer |
+| Posible yacimiento | Cerca de confirmar |
+| Yacimiento arqueológico confirmado | Ya se puede plantar el kit |
 
-**Cata.** El jugador utiliza la herramienta definida por la ruina sobre un
-punto de excavación y recibe una lectura narrativa de su riqueza. No necesita
-encontrar un bloque vanilla concreto ni acumular señales en una base de datos.
+Ejemplos: *Muestra de tierra analizada. Se han detectado restos de actividad
+humana.* / *Yacimiento arqueológico confirmado.*
 
-Tras una cata positiva en un chunk registrado por el staff, el jugador puede
-proponer habilitar el yacimiento. La aceptación guarda el resultado final y no
-requiere acumular lecturas temporales en una base de datos.
+**¿Obligatoria?** Sí para **establecer** la excavación. No para saber que hay
+algo: eso lo hizo el rastreador.
 
-Las estructuras vanilla quedan fuera del alcance inicial porque el mapa
-personalizado no las genera. Las construcciones relevantes del mapa son creadas
-por moderadores y se registran como parte de una ruina.
+La lectura usa el interés del staff + variación. Nunca inventa un yacimiento
+donde el staff no registró chunk.
 
-### Habilitar (adueñarse)
+Las estructuras vanilla quedan fuera del alcance inicial.
 
-No es un claim de facciones. Es colocar el **atril del yacimiento** en el chunk.
+---
 
-1. Estar en el chunk registrado y completar una cata positiva.
-2. Colocar el atril y **nombrar** el yacimiento (`Las Ruinas del Este`).
-3. El plugin lee el interés asignado, calcula la riqueza según la configuración, registra al jugador como director y genera el libro del atril.
+## 1d. Establecer excavación, panel y acceso — propuesta
 
-Los bloques sospechosos se preparan al crear la ruina, no al habilitar la
-campaña. Al colocar el atril solo se guarda el dossier y el jugador ya puede
-construir el campamento alrededor.
+No hay comando de jugador. Tras **yacimiento confirmado**, se coloca el **kit
+de excavación arqueológica**.
+
+Aparece un campamento reconocible: mesa de arqueología, carpa, cajas,
+herramientas, tablón.
+
+> Has establecido una excavación arqueológica.
+
+```
+Excavación #027
+Ruinas del valle
+Descubierta por: Alex
+Director (Archaeo): Alex
+```
+
+El que planta el kit es el **director** inicial. Controla quién trabaja la
+excavación. **No** es dueño del terreno.
+
+**Permanencia.** No se borra ni se mueve a capricho. Queda atada a esas
+coordenadas. Puede ser un lugar del servidor. El jugador no se lleva el
+yacimiento en el inventario. Staff puede intervenir.
+
+### Panel
+
+Clic en mesa, tablón o campamento:
+
+```
+RUINAS DEL VALLE
+Director: Alex
+Estrato actual: III · 700–900 años
+Progreso: ██████░░░░
+Hallazgos: 7 · Evidencias: 12
+[EXCAVAR]  [PERSONAL]  [INFORMACIÓN]
+```
+
+**EXCAVAR** no es un menú del minijuego: el trabajo es en el corte con HUD (§2).
+**PERSONAL** y **INFORMACIÓN** sí abren gestión.
+
+### Personal (v1: puede excavar sí/no)
+
+El director añade jugadores. Roles más adelante si hacen falta: Director,
+Arqueólogo, Excavador, Visitante.
+
+### Facciones
+
+**Añadir facción** además de jugador. Archaeo pregunta al otro plugin los
+miembros. Una facción autorizada trabaja como proyecto colectivo.
+
+### Sin permiso
+
+*No tienes autorización para trabajar en esta excavación.* No hay jornada ni
+hallazgos. Archaeo **no** bloquea el minado vanilla.
+
+### Visibilidad
+
+| Estado | Quién excava |
+| --- | --- |
+| **Privada** | Director + autorizados |
+| **Por invitación** | Se puede solicitar acceso |
+| **Pública** | Cualquiera en el minijuego |
+
+### Secuencia
+
+1. Rastreador → zona sospechosa.
+2. Catas → confirmado.
+3. Kit → campamento + director + dossier.
+4. Formas ocultas en el chunk (§2).
+
+---
 
 ### Cómo se procesan los puntos de excavación (código)
 
-Los puntos de excavación se preparan al ejecutar el comando, conforme al diseño
-de cada ruina. Al habilitar una campaña se registra el estado del sitio y el
-jugador trabaja el terreno según sus reglas.
+Los hallazgos se sortean al **establecer** (plantilla + forma conexa en una banda
+de Y). El terreno no cambia hasta la jornada. **§2**.
 
 Minecraft **no** tiene estratos arqueológicos. Césped sobre tierra sobre piedra es geología tosca. La arcilla, la grava y el barro salen en **manchas**, no en capas continuas. **No** vamos a rellenar el chunk como un sándwich de arcilla ni a preguntar “¿el último bloque era grava?”.
 
-El estrato lo define el plugin, al habilitar, como **profundidad**:
+El estrato lo define el plugin, al establecer, como **profundidad**:
 
 ```
 superficie del chunk (césped, arena, lo que haya)
@@ -455,41 +481,17 @@ superficie del chunk (césped, arena, lo que haya)
 por debajo    fuera del yacimiento: picas piedra o lo que sea, no salen restos Archaeo
 ```
 
-Da igual que en un rincón haya piedra a −3 y en otro tierra a −12. Si el bloque está a **esa profundidad relativa**, es esa capa. Pala o pico según lo que haya *ahí*, no según un material impuesto.
+Da igual que en un rincón haya piedra a −3 y en otro tierra a −12. Si el bloque está a **esa profundidad relativa**, es esa capa. Pico y martillo retiran relleno; el pincel trabaja las celdas de un hallazgo ya tocado.
 
-Al realizar una acción de excavación válida dentro de un yacimiento registrado,
-Archaeo calcula su procedencia, capa y contexto, y aplica el presupuesto de
-artefactos de la campaña.
+Al realizar una acción de excavación válida dentro de un yacimiento en campaña,
+Archaeo calcula procedencia, capa y contexto, gasta una acción de la jornada y
+aplica el presupuesto de artefactos.
 
 ### Cómo conoce el usuario las capas
 
-No depende del último bloque ni de “ahora estás en modo estrato II”. Puedes abrir un pozo a la banda III y luego desbrozar la I: es válido (en la vida real es mala praxis; aquí puede marcar el hallazgo hondo como *secuencia invertida*, datación más floja). Cada hallazgo mira **la Y del punto excavado**, no el historial de picos.
+No depende del último bloque ni de “modo estrato II”. Puedes abrir un pozo a la banda III y luego desbrozar la I (mala praxis real; el hallazgo hondo puede marcarse *secuencia invertida*). Cada hallazgo mira **la Y de la celda trabajada**.
 
-**En el momento de excavación (lo importante):**
-
-Al **empezar a cepillar** (o al terminar), texto claro, una vez:
-
-*Las Ruinas del Este · capa II (300–500 años)*
-
-Eso va al lore del ítem en el acto. No hace falta volver al atril para saberlo.
-
-Si picas en una profundidad sin punto de excavación, no aparece ningún hallazgo.
-El presupuesto de artefactos limita el contenido adicional de la campaña.
-
-Si bajas **más hondo que la última banda**: *Ya no es el yacimiento.*
-
-**El atril no es un GPS de “dónde estás ahora”.** Es el estado del **solar**:
-
-- Capa I — quedan restos / agotada  
-- Capa II — quedan restos / agotada  
-- Capa IV — no se conserva en este sitio  
-
-Se actualiza cuando **sale un hallazgo** (baja el contador) o se agota una banda, no cada vez que picas tierra en un lado y piedra en otro. Puedes leerlo cuando quieras; no sustituye al mensaje al cepillar.
-
-Un pozo de 1×1 en la banda III puede activar un punto de excavación de esa cota,
-si la ruina lo define allí. La I sigue intacta hasta que caven a esa cota.
-Recorrer el chunk sigue sirviendo: los puntos y el presupuesto de artefactos se
-reparten por el solar, no en un único punto.
+**Mientras está en el chunk de una excavación establecida**, un HUD mínimo muestra el estrato y las acciones de hoy (§2). El **panel del campamento** es la ficha del solar, no el GPS.
 
 ---
 
@@ -554,14 +556,14 @@ Sin catalogar: puedes guardarlo en un cofre (la bolsa de campo). El museo no ens
 
 Acuerdo de persistencia:
 
-- **`sites/`** — sí. El solar, el dossier, presupuestos por capa, indicios del terreno, director, atril.
-- **`knowledge/`** — sí. El cuaderno común, investigaciones, fragmentos registrados y estados completados.
-- **Ítem (PDC)** — sí. Toda la ficha de esa pieza (procedencia, hints copiados, interpretación). Si se pierde el objeto, **se perdió**.
-- **`finds/`, `players/`, `museums/`** — no. Un museo es un edificio con marcos; el clic lee el PDC. No hay diario de servidor ni historial de piezas.
+- **`sites/`** — sí. Solar, campamento, dossier, hallazgos (formas + estado), jornada, personal, visibilidad, contadores del panel.
+- **Ítem (PDC)** — sí. Ficha de la pieza recuperada. Si se pierde, se perdió (el panel puede seguir el recuento).
+- **`knowledge/`, `finds/`, `players/`, `museums/`** — no.
 
-El atril guarda solo `siteId` (para saber qué JSON recargar en el libro).
-
-El JSON del site puede tener la **lista de restos que aún no han salido** (capa + tipo) y el estado de cada bloque sospechoso generado. Al cepillar, se escribe el ítem, se marca el bloque como procesado y se actualiza el yacimiento. Si el bloque se rompe, se marca como destruido y no se regenera.
+El JSON del site guarda cada hallazgo **aún en el corte** (plantilla, celdas,
+estado). Al recuperar: ítem con PDC, el hallazgo sale del corte, sube el
+contador del panel (y un nombre corto en el registro de la excavación). Eso no
+es un archivo `finds/` global.
 
 #### Qué va en el ítem (PDC + lore)
 
@@ -571,25 +573,27 @@ El JSON del site puede tener la **lista de restos que aún no han salido** (capa
 | capa / antigüedad |
 | descubridor, fecha |
 | estado de laboratorio |
-| indicios del yacimiento **copiados** al catalogar |
-| interpretación(es) del catalogador |
+| indicios copiados al catalogar |
+| interpretación(es) |
 | nombre de reliquia, si la hay |
-| material del artefacto, procedimiento actual y procedimientos completados |
+| material, procedimiento actual y completados |
+| tamaño/plantilla del hallazgo (opcional, lore) |
 
 #### Qué va en `sites/<id>.yml` o `.json`
 
 | Dato |
 | --- |
-| mundo, chunk, coords del atril |
-| tipo, nombre, director, fecha |
-| riqueza, indicios elegidos (ids del config) |
-| por capa: ¿existe?, banda de Y, restos pendientes, revuelto/ausente |
+| mundo, chunk, coords del campamento (mesa/tablón) |
+| tipo, nombre, nº de excavación, director, fecha |
+| visibilidad, jugadores y facciones con permiso de excavar |
+| riqueza, indicios, radio de detección |
+| hallazgos en corte + contadores recuperados / evidencias |
+| por capa: ¿existe?, banda de Y, revuelto/ausente |
+| jornada actual: pico / martillo / pincel restantes, id de día de mundo |
 | estado activo / agotado |
 
-`config.yml` (y opcional `hints.yml`, `interpretations.yml`, `research.yml`,
-`materials.yml`): textos, acciones que pueden generar fragmentos, dificultades,
-requisitos, loot, materiales y procedimientos.
-No es partida.
+`config.yml`, `hints.yml`, `interpretations.yml`, `materials.yml`, `finds.yml`
+(plantillas de forma), radios del rastreador. No es partida.
 
 ### Riqueza: interés configurado
 
@@ -614,7 +618,7 @@ Sí: **todo el catálogo sale de YAML** (`hints.yml` + `interpretations.yml`, o 
 
 Hay dos listas distintas:
 
-1. **Indicios del yacimiento** — los tira el plugin al habilitar (2–4). Van al libro del atril. Al **identificar** en la mesa/atril se **copian al PDC del objeto** (foto de ese momento).
+1. **Indicios del yacimiento** — al establecer (2–4). Van al panel. Al identificar en la **mesa del campamento** se copian al PDC.
 2. **Interpretaciones** — las elige el jugador sobre esa pieza. También al PDC. El plugin no dice cuál es correcta.
 3. **Artefactos o reliquias** - artefactos.yml para configurar objetos predefinidos? podrían venir con interpretaciones prestablecidas o dejarse en blanco y que las seleccione el jugador de forma estándar a partir de la config de interpretaciones. En la config de interpretaciones también se podría vincular la interpretación a objectos de artifacts, así al descubrir ese objeto solo se sugerirían esas interpretaciones. Al artefacto también se le podría configurar ya el sustrato al que pertenece, podría ser uno o varios.
 4. **Sustratos o capas** - se podrían configurar también, con su nombre, su época, y orden de profundidad para saber cuáles van por encima de cuáles. A un sustrato se podrían asignar los artefacts que es posible encontrar en ese sustrato. Faltaría definir qué hacer con las reliquias de minecraft vanilla, tendría sentido que sigan apareciendo y que si se quiere personalizar su información que se incluyan los id de los objetos que pueden encontrarse como reliquia en la config. Hay evento para saber cuándo un jugador descubre reliquia en minecraft vanilla? No parece, habría que ver cómo podemos saber cuándo el usuario obtiene un artefacto de forma vanilla.
@@ -675,47 +679,154 @@ No hay ficha de museo en disco. El jugador construye un edificio y cuelga marcos
 
 ---
 
-## 2. Excavar — propuesta
+## 2. Excavar — el minijuego en el chunk — propuesta
 
-### Mecánica principal
+La excavación de **campaña** no es una GUI ni un cooldown por clic. Se activa
+en el chunk de una excavación **establecida**. Solo quien tiene permiso
+arqueológico usa pico/martillo/pincel de jornada; si no: *No tienes autorización
+para trabajar en esta excavación.* Fuera del chunk, o sin permiso, Minecraft
+normal (claims aparte).
 
-El jugador usa la herramienta definida por la ruina sobre un punto de excavación. Archaeo registra el éxito y anota contexto (yacimiento, estrato, jugador, tiempo).
+Inspiración: el Subsuelo de Pokémon — no ves dónde están los hallazgos hasta
+que retiras material. El núcleo no es “picar menos por capricho”, sino **gastar
+un presupuesto de jornada** (pico preciso vs martillo rápido vs pincel de
+rescate).
 
-La pala puede servir para **desbrozar** tierra normal. La herramienta definida por la ruina se usa después en el punto de excavación, respetando las reglas del mapa.
+### HUD mínimo
 
-En una campaña, la pala puede ser el trabajo sucio (abrir el corte) y otra herramienta el trabajo fino. El plugin no debe recompensar el minado masivo fuera de los puntos definidos.
+Al entrar en una excavación activa aparece un HUD pequeño (action bar / bossbar
+discreta / título corto; no un inventario). Muestra el estrato de la
+profundidad actual y las acciones que quedan **hoy**:
 
-### Estratos
+```
+ESTRATO III · 700–900 años
+⛏️ 5    🔨 2    🖌️ 8
+```
 
-Minecraft no trae capas de ocupación. Las nuestras son **bandas de profundidad del plugin** en ese chunk (ver §1c), no arcilla/grava vanilla.
+Opcional: una barra `Jornada: ███████░░░`.
 
-El marco temporal (configurable; el lore puede usar eras):
+El HUD **cambia de estrato** al bajar (o subir) de banda de Y, sin abrir menús:
 
-| Estrato | Antigüedad (ejemplo) |
+```
+ESTRATO IV · 900–1200 años
+⛏️ 3    🔨 1    🖌️ 6
+```
+
+El resto de información solo cuando hace falta, un instante:
+
+- *Has encontrado parte de un objeto.*
+- *El objeto parece extenderse hacia el este.*
+- *Hallazgo descubierto: espada antigua.*
+- *Hallazgo recuperado.*
+- *La evidencia ha resultado dañada.*
+- *La jornada de excavación ha terminado.*
+
+### Herramientas y acciones
+
+| Acción | En el mundo | Efecto | Riesgo |
+| --- | --- | --- | --- |
+| **Pico** (`⛏️`) | Clic/romper 1 bloque de relleno | Área pequeña. Puede dejar tierra o **tocar una celda** de un hallazgo (pasa a parcial). | Bajo |
+| **Martillo** (`🔨`) | Un golpe en un punto | Varios bloques. Más riesgo de **dañar celdas** de un hallazgo. | Alto |
+| **Pincel** (`🖌️`) | Sobre celdas ya tocadas / expuestas | Revela más de la **forma**. Al estar *descubierto*, recupera la pieza. | Muy bajo; no abre tierra a ciegas |
+
+El pico es el **pico vanilla**. El pincel es el **pincel vanilla** (en campo =
+recuperar expuesto; en laboratorio = limpiar, §1c). El martillo es un **ítem de
+plugin** (o maza, si se prefiere vanilla 1.21) para no confundirlo con el pico.
+
+Las cantidades iniciales dependen del **tipo de excavación** y del **estrato**
+(YAML). Ejemplo de jornada:
+
+`⛏️ 8 · 🔨 3 · 🖌️ 10`
+
+Al cambiar de estrato, el presupuesto del día puede recortarse o reconfigurarse
+según config (el ejemplo del HUD IV con menos acciones). El jugador decide cómo
+gastar lo que le queda.
+
+Sin acciones de esa herramienta: el golpe no retira relleno arqueológico (no se
+puede bypassear sacando otro pico del inventario y minando a lo vanilla).
+
+### Hallazgos: forma, no un bloque-premio
+
+Un hallazgo **no** es un único bloque sospechoso que suelta el ítem. Es un
+conjunto de **celdas conectadas** (caras adyacentes) en una banda de estrato,
+dentro del chunk. El yacimiento contiene **varios** hallazgos independientes.
+
+```
+┌─────────────────────────┐
+│   🪙                    │  moneda (1)
+│          ⚔️⚔️⚔️         │  espada (3–5)
+│                🏺🏺      │  vasija (3–6)
+│                🏺🏺      │
+└─────────────────────────┘
+```
+
+Tamaños orientativos (`finds.yml`; el techo real es el chunk):
+
+| Plantilla | Bloques (aprox.) |
 | --- | --- |
-| I | reciente |
-| II | 300–500 años |
-| III | 700–900 años |
-| IV | 1000–1300 años |
+| Moneda | 1 |
+| Fragmento de cerámica | 1 |
+| Herramienta | 2–3 |
+| Espada | 3–5 |
+| Vasija | 3–6 |
+| Enterramiento | 8–15 |
+| Estructura | 20–50 |
 
-El marco no afirma hechos. Solo acota qué restos son verosímiles. Una capa puede estar ausente o revuelta **en el dossier**, aunque el terreno sea piedra o tierra a esa Y.
+El tamaño puede ser fijo o un rango. La silueta es irregular pero **conexa**.
+Al generar el site se eligen plantillas según interés/estrato y se colocan sin
+solaparse.
 
-### Conservación irregular
+**Tres estados** (por hallazgo, no por bloque suelto):
 
-No todos los estratos están intactos:
+| Estado | Qué sabe el jugador |
+| --- | --- |
+| **Oculto** | Nada. El terreno se ve normal. |
+| **Parcialmente expuesto** | Ha tocado al menos una celda. No conoce aún tamaño ni forma. |
+| **Descubierto** | Hay suficiente superficie despejada (todas las celdas o un % config) para identificarlo y **recuperarlo**. |
 
-- **Intacto** — datación más fiable.
-- **Alterado** — mezcla, datación amplia, hipótesis menos seguras.
-- **Revuelto** — objetos de varias épocas juntos; el plugin lo señala como contexto mezclado, no como error.
-- **Ausente** — esa época no se conserva (erosión, saqueo antiguo, nunca ocupado).
+Ejemplo de mensajes:
 
-Esto evita que cada yacimiento sea un sándwich perfecto de cuatro capas.
+1. Primer pincel/pico en una celda: *Has encontrado parte de un objeto.*
+2. Sigue alrededor: *El objeto parece extenderse hacia el este.*
+3. Forma completa: *Hallazgo descubierto: espada antigua.*
+4. Entonces el pincel **recupera** un solo ítem (la pieza), no un drop por bloque.
+
+Así descubrir la forma **es** el minijuego. Un martillo sobre esas celdas puede
+dañar el conjunto (peor estado al recuperar, o pérdida). Dos niveles: yacimiento
+→ muchos hallazgos → cada uno 1…N bloques.
+
+### La jornada
+
+No hay cooldown por acción. Hay **presupuesto diario de trabajo**.
+
+Cuando las acciones llegan a 0 (o se acaba el cupo definido): *La jornada de
+excavación ha terminado.* El terreno **queda como lo dejó**. Al día siguiente
+(día de mundo o día real, config) se recargan acciones y continúa.
+
+Una excavación grande son varios días, por ejemplo:
+
+1. Tocar las primeras celdas de un hallazgo.
+2. Seguir la forma con el pincel.
+3. Recuperar al estar descubierto.
+4. Bajar de estrato.
+5. Hallazgos grandes (enterramiento / estructura) en varios días.
+
+Construir el campamento **no** gasta la jornada.
+
+### Relación con pala y cata
+
+La **cata** (kit de prospección) va **después** del rastreador y **antes** del
+kit de excavación. No es el minijuego.
+
+### Estratos (recordatorio)
+
+Bandas de Y del plugin, no arcilla vanilla. El HUD dice en qué banda estás; el panel, cuáles quedan. Capas intactas / alteradas / revueltas / ausentes según el dossier.
 
 ---
 
 ## 3. Hallazgos — propuesta
 
-Todo objeto extraído en un yacimiento registrado (o en el acto que lo descubre) puede convertirse en un **hallazgo** con metadatos persistentes (PDC del ítem + archivo del plugin).
+Un **hallazgo** en el corte es una forma de celdas; al recuperarlo nace **un** ítem con PDC y sube el registro del **panel** de esa excavación.
 
 Pueden ser:
 
@@ -769,7 +880,7 @@ La reliquia:
 
 ## 5. Interpretación — propuesta
 
-Flujo concreto (indicios del libro → etiquetas al catalogar): **§1c**. El plugin no dice qué ocurrió; no hay respuesta correcta.
+Flujo concreto (indicios del panel → etiquetas en la mesa): **§1c**.
 
 Catálogo inicial (configurable):
 
@@ -795,12 +906,9 @@ Varios jugadores pueden interpretar el mismo objeto de formas distintas. Las hip
 
 ## 6. Registro arqueológico — propuesta
 
-No hay archivo de jugador en disco. Lo que “tienes” es:
-
-- los **sites** que diriges (en `sites/`)
-- las **piezas que aún existen** (PDC), en el inventario, cofres o marcos
-
-Perder un objeto es perder esa ficha. El yacimiento sigue.
+No hay diario de jugador en disco. Lo visible es el **panel de la excavación**
+(progreso, recuentos) y las **piezas que aún existen** (PDC). Perder un objeto
+pierde esa ficha detallada; el recuento del site puede quedar.
 
 ---
 
@@ -828,8 +936,9 @@ Compatible con lore propio: los años de ejemplo pueden ser eras (`Era de la Cen
 
 Integración **débil**:
 
-- Si hay plugin de facciones, Archaeo puede anotar “territorio actual: X” en la ficha del yacimiento.
-- No copia miembros, power ni claims.
+- Acceso: el director puede autorizar una **facción** entera a excavar (§1d); Archaeo pregunta quién es miembro, no copia el roster.
+- Contexto opcional: “territorio actual: X”.
+- El director Archaeo no es el claim. Archaeo no protege bloques.
 - El control *actual* no explica el pasado: es contexto presente (quién excava con permiso, quién disputa el terreno).
 - Sin facciones, esas líneas simplemente no aparecen.
 
@@ -839,8 +948,7 @@ Integración **débil**:
 
 Inventario completo de campos y sitio de guardado: **§1c Metadatos**.
 
-Resumen: en disco se guardan **yacimientos** y el progreso global del cuaderno. La ficha de la pieza vive en el **PDC**. El atril guarda `siteId`.
+Resumen: disco = **excavaciones** (`sites/`). PDC = pieza. Campamento (mesa) =
+`siteId`. Sin cuaderno global.
 
-Campaña: al **habilitar**, se conserva el dossier y se activan los puntos de
-excavación definidos para la ruina. El estrato del hallazgo es la **Y del punto
-excavado**.
+Flujo jugador: rastreador → cata → kit de campamento → panel / jornadas (§2).
