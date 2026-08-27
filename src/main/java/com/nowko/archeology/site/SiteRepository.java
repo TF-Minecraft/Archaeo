@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -88,6 +89,45 @@ public class SiteRepository {
                         && site.getChunkX() == chunkX
                         && site.getChunkZ() == chunkZ)
                 .findFirst();
+    }
+
+    /**
+     * @param serial human-facing site number
+     * @return site with that serial, if loaded
+     */
+    public Optional<Site> findBySerial(int serial) {
+        return byId.values().stream()
+                .filter(site -> site.getSerial() == serial)
+                .findFirst();
+    }
+
+    /**
+     * @param name site display name, compared case-insensitively
+     * @return all sites whose name equals {@code name}
+     */
+    public List<Site> findByName(String name) {
+        if (name == null || name.isBlank()) {
+            return List.of();
+        }
+        String needle = name.trim();
+        return byId.values().stream()
+                .filter(site -> site.getName() != null && site.getName().equalsIgnoreCase(needle))
+                .toList();
+    }
+
+    /**
+     * @param prefix start of a site name (case-insensitive)
+     * @return matching display names, unique, for tab completion
+     */
+    public List<String> namesStartingWith(String prefix) {
+        String needle = prefix == null ? "" : prefix.toLowerCase(Locale.ROOT);
+        return byId.values().stream()
+                .map(Site::getName)
+                .filter(name -> name != null && !name.isBlank())
+                .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(needle))
+                .distinct()
+                .sorted()
+                .toList();
     }
 
     /**

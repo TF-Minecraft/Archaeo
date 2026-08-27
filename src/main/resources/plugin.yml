@@ -8,7 +8,7 @@ description: Persistent archaeology for a custom map.
 commands:
   archaeo:
     description: Archaeo admin commands
-    usage: /archaeo ruin create <low|medium|high|exceptional> [name]
+    usage: /archaeo ruin <create|info> ...
     permission: archaeo.admin
 
 permissions:

@@ -1,36 +1,47 @@
 package com.nowko.archeology.command;
 
+import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.InterestLevel;
 import com.nowko.archeology.model.Site;
+import com.nowko.archeology.model.StratumBand;
 import com.nowko.archeology.site.SiteGenerator;
+import com.nowko.archeology.site.SiteRepository;
+import org.bukkit.Chunk;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Staff command {@code /archaeo}. Currently only {@code ruin create} in the player's chunk.
+ * Staff-only {@code /archaeo} commands. Players never use this; discovery is tracker and kits.
  */
 public class ArchaeoCommand implements CommandExecutor, TabCompleter {
+    private static final String PERMISSION = "archaeo.admin";
     private static final List<String> INTERESTS = List.of("low", "medium", "high", "exceptional");
+    private static final List<String> RUIN_ACTIONS = List.of("create", "info");
 
     private final SiteGenerator generator;
+    private final SiteRepository sites;
 
     /**
      * @param generator used to persist a new managed ruin
+     * @param sites lookup for {@code ruin info}
      */
-    public ArchaeoCommand(SiteGenerator generator) {
+    public ArchaeoCommand(SiteGenerator generator, SiteRepository sites) {
         this.generator = generator;
+        this.sites = sites;
     }
 
     /**
-     * Handles {@code /archaeo ruin create <interest> [name]}. Must be a player standing in the target chunk.
+     * Dispatches {@code ruin create} and {@code ruin info}. Requires {@code archaeo.admin}.
      *
      * @param sender command issuer
      * @param command Bukkit command metadata
@@ -40,11 +51,37 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      */
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage("This command must be used in the site chunk.");
+        if (!sender.hasPermission(PERMISSION)) {
+            sender.sendMessage("You do not have permission to use Archaeo staff commands.");
             return true;
         }
-        if (args.length < 3 || !"ruin".equalsIgnoreCase(args[0]) || !"create".equalsIgnoreCase(args[1])) {
+        if (args.length < 2 || !"ruin".equalsIgnoreCase(args[0])) {
+            sendUsage(sender);
+            return true;
+        }
+        if ("create".equalsIgnoreCase(args[1])) {
+            return handleCreate(sender, args);
+        }
+        if ("info".equalsIgnoreCase(args[1])) {
+            return handleInfo(sender, args);
+        }
+        sendUsage(sender);
+        return true;
+    }
+
+    /**
+     * Registers a ruin in the player's current chunk.
+     *
+     * @param sender command issuer
+     * @param args full argument list including {@code ruin create}
+     * @return {@code true} always (handled)
+     */
+    private boolean handleCreate(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("Ruin create must be used in the site chunk.");
+            return true;
+        }
+        if (args.length < 3) {
             sender.sendMessage("Usage: /archaeo ruin create <low|medium|high|exceptional> [name]");
             return true;
         }
@@ -70,7 +107,139 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * Completes {@code ruin}, {@code create}, and interest keys.
+     * Prints a site dossier. With no query, uses the player's chunk; otherwise name or serial ({@code 12} or {@code #12}).
+     *
+     * @param sender command issuer
+     * @param args full argument list including {@code ruin info}
+     * @return {@code true} always (handled)
+     */
+    private boolean handleInfo(CommandSender sender, String[] args) {
+        Optional<Site> resolved;
+        if (args.length == 2) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage("Console must pass a site name or serial: /archaeo ruin info <name|#serial>");
+                return true;
+            }
+            Chunk chunk = player.getLocation().getChunk();
+            resolved = sites.findByChunk(chunk.getWorld().getName(), chunk.getX(), chunk.getZ());
+            if (resolved.isEmpty()) {
+                sender.sendMessage("No site in this chunk (" + chunk.getX() + "," + chunk.getZ() + ").");
+                return true;
+            }
+        } else {
+            String query = Arrays.stream(args).skip(2).collect(Collectors.joining(" "));
+            resolved = resolveQuery(sender, query);
+        }
+        resolved.ifPresent(site -> sendSiteInfo(sender, site));
+        return true;
+    }
+
+    /**
+     * Resolves a staff query to one site, or sends an error and returns empty.
+     *
+     * @param sender who will receive ambiguity errors
+     * @param query name or serial
+     * @return the site, if exactly one match
+     */
+    private Optional<Site> resolveQuery(CommandSender sender, String query) {
+        Optional<Integer> serial = parseSerial(query);
+        if (serial.isPresent()) {
+            Optional<Site> bySerial = sites.findBySerial(serial.get());
+            if (bySerial.isEmpty()) {
+                sender.sendMessage("No site with serial #" + serial.get() + ".");
+            }
+            return bySerial;
+        }
+        List<Site> matches = sites.findByName(query);
+        if (matches.isEmpty()) {
+            sender.sendMessage("No site named \"" + query + "\". Try /archaeo ruin info #<serial>.");
+            return Optional.empty();
+        }
+        if (matches.size() > 1) {
+            sender.sendMessage("Several sites share that name. Use a serial:");
+            for (Site site : matches) {
+                sender.sendMessage("  " + site.displayLabel()
+                        + " · chunk " + site.getChunkX() + "," + site.getChunkZ());
+            }
+            return Optional.empty();
+        }
+        return Optional.of(matches.getFirst());
+    }
+
+    /**
+     * @param raw staff query such as {@code 14} or {@code #14}
+     * @return serial if the whole query is a number
+     */
+    private Optional<Integer> parseSerial(String raw) {
+        if (raw == null) {
+            return Optional.empty();
+        }
+        String trimmed = raw.trim();
+        if (trimmed.startsWith("#")) {
+            trimmed = trimmed.substring(1).trim();
+        }
+        if (trimmed.isEmpty() || !trimmed.chars().allMatch(Character::isDigit)) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(Integer.parseInt(trimmed));
+        } catch (NumberFormatException ignored) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Sends the dossier summary used by staff to verify generation without opening YAML.
+     *
+     * @param sender who receives the lines
+     * @param site loaded site
+     */
+    private void sendSiteInfo(CommandSender sender, Site site) {
+        sender.sendMessage("Site " + site.displayLabel());
+        sender.sendMessage("Id: " + site.getId());
+        sender.sendMessage("Type: " + site.getType().name()
+                + " · status: " + site.getStatus().name()
+                + " · interest: " + (site.getInterest() == null ? "none" : site.getInterest().yamlKey()));
+        sender.sendMessage("World: " + site.getWorldName()
+                + " · chunk " + site.getChunkX() + "," + site.getChunkZ()
+                + " · surface Y " + site.getSurfaceY()
+                + " · detection " + site.getDetectionRadius());
+        sender.sendMessage("Created by: " + (site.getCreatedBy() == null ? "unknown" : site.getCreatedBy())
+                + " · at " + (site.getCreatedAt() == null ? "unknown" : site.getCreatedAt()));
+        sender.sendMessage("Director: " + (site.getDirector() == null ? "none" : site.getDirector())
+                + " · visibility: " + site.getVisibility()
+                + " · recovered: " + site.getRecoveredCount());
+        sender.sendMessage("Strata:");
+        for (StratumBand band : site.getStrata().values()) {
+            if (!band.isPresent()) {
+                sender.sendMessage("  " + band.getId() + " · absent");
+                continue;
+            }
+            sender.sendMessage("  " + band.getId()
+                    + " · Y " + band.getMinY() + "–" + band.getMaxY()
+                    + (band.isDisturbed() ? " · disturbed" : ""));
+        }
+        sender.sendMessage("Hints: " + (site.getHintIds().isEmpty() ? "(none)" : String.join(", ", site.getHintIds())));
+        sender.sendMessage("Finds: " + site.getFinds().size());
+        for (BuriedFind find : site.getFinds()) {
+            sender.sendMessage("  " + find.getArtifactId()
+                    + " · stratum " + find.getStratumId()
+                    + " · " + find.getState().name()
+                    + " · " + find.getCells().size() + " cells"
+                    + (find.isDamaged() ? " · damaged" : ""));
+        }
+    }
+
+    /**
+     * @param sender who receives usage
+     */
+    private void sendUsage(CommandSender sender) {
+        sender.sendMessage("Usage: /archaeo ruin create <low|medium|high|exceptional> [name]");
+        sender.sendMessage("       /archaeo ruin info [name|#serial]");
+    }
+
+    /**
+     * Completes {@code ruin}, {@code create}/{@code info}, interest keys, or site names.
      *
      * @param sender command issuer
      * @param command Bukkit command metadata
@@ -80,16 +249,38 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      */
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (!sender.hasPermission(PERMISSION)) {
+            return List.of();
+        }
         if (args.length == 1) {
             return prefix("ruin", args[0]);
         }
         if (args.length == 2) {
-            return prefix("create", args[1]);
-        }
-        if (args.length == 3) {
-            return INTERESTS.stream()
-                    .filter(value -> value.startsWith(args[2].toLowerCase(Locale.ROOT)))
+            return RUIN_ACTIONS.stream()
+                    .filter(value -> value.startsWith(args[1].toLowerCase(Locale.ROOT)))
                     .toList();
+        }
+        if (args.length >= 3 && "create".equalsIgnoreCase(args[1])) {
+            if (args.length == 3) {
+                return INTERESTS.stream()
+                        .filter(value -> value.startsWith(args[2].toLowerCase(Locale.ROOT)))
+                        .toList();
+            }
+            return List.of();
+        }
+        if (args.length >= 3 && "info".equalsIgnoreCase(args[1])) {
+            String typed = Arrays.stream(args).skip(2).collect(Collectors.joining(" "));
+            List<String> names = new ArrayList<>(sites.namesStartingWith(typed));
+            if (args.length == 3) {
+                String token = args[2].toLowerCase(Locale.ROOT);
+                for (Site site : sites.all()) {
+                    String serial = "#" + site.getSerial();
+                    if (serial.startsWith(token) || String.valueOf(site.getSerial()).startsWith(token)) {
+                        names.add(serial);
+                    }
+                }
+            }
+            return names;
         }
         return List.of();
     }

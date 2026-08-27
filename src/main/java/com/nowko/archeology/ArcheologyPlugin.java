@@ -26,7 +26,7 @@ public class ArcheologyPlugin extends JavaPlugin {
         sites.loadAll();
         generator = new SiteGenerator(catalogs, sites);
 
-        ArchaeoCommand command = new ArchaeoCommand(generator);
+        ArchaeoCommand command = new ArchaeoCommand(generator, sites);
         PluginCommand pluginCommand = getCommand("archaeo");
         if (pluginCommand != null) {
             pluginCommand.setExecutor(command);
