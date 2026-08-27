@@ -1,0 +1,21 @@
+materials:
+  ceramic:
+    display-name: Ceramic
+    wash: true
+    steps: [clean, wash, dry, photograph, interpret]
+  metal:
+    display-name: Metal
+    wash: false
+    steps: [clean, stabilize, photograph, interpret]
+  bone:
+    display-name: Bone
+    wash: false
+    steps: [clean, dry, photograph, interpret]
+  organic:
+    display-name: Organic
+    wash: false
+    steps: [dry, conserve, photograph, interpret]
+  stone:
+    display-name: Stone
+    wash: true
+    steps: [clean, wash, dry, photograph, interpret]

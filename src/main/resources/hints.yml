@@ -1,0 +1,67 @@
+hints:
+  fire_multi:
+    text: "Traces of fire or charcoal at more than one depth."
+    tags: [fire, domestic]
+    weight: 10
+    require-tags-any: [fire]
+    min-strata: 2
+  pots_metal:
+    text: "Vessel fragments found together with metal."
+    tags: [ceramic, metal]
+    weight: 10
+    require-tags-all: [ceramic, metal]
+  clustered:
+    text: "The remains appear clustered, not scattered."
+    tags: [deposit, ceremonial]
+    weight: 8
+    min-wealth: 3
+  scattered:
+    text: "The remains are widely scattered across the layer."
+    tags: [abandonment, settlement]
+    weight: 8
+    max-wealth: 3
+  mixed_layer:
+    text: "One depth is mixed compared with the others."
+    tags: [mixed]
+    weight: 6
+    require-disturbed: true
+  bone:
+    text: "There is more bone than tool."
+    tags: [burial, food]
+    weight: 8
+    require-tags-any: [bone, burial]
+  seed_grain:
+    text: "Seeds or grain in the soil."
+    tags: [settlement, food]
+    weight: 5
+    require-tags-any: [food]
+  blade:
+    text: "A blade or weapon, little domestic assemblage."
+    tags: [conflict]
+    weight: 8
+    require-tags-any: [blade, conflict]
+  ornament:
+    text: "Small ornamental pieces."
+    tags: [ceremonial, trade]
+    weight: 7
+    require-tags-any: [ornament, ceremonial]
+  trade:
+    text: "Materials that do not quite fit this setting."
+    tags: [trade]
+    weight: 6
+    require-tags-any: [trade]
+  empty_iv:
+    text: "The deepest level is not preserved."
+    tags: [erosion]
+    weight: 12
+    require-missing-stratum: IV
+  recent_interrupt:
+    text: "The upper layer cuts into those below."
+    tags: [abandonment, disturbed]
+    weight: 6
+    require-strata-all: [I, III]
+  unknown:
+    text: "The assemblage does not suggest a clear use."
+    tags: [unknown]
+    weight: 4
+    max-wealth: 3

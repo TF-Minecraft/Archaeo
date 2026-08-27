@@ -1,0 +1,35 @@
+package com.nowko.archeology.config;
+
+import com.nowko.archeology.model.InterestLevel;
+
+/**
+ * Generation budget for one {@link InterestLevel}, loaded from {@code config.yml}.
+ *
+ * @param level enum this row belongs to
+ * @param displayName English label
+ * @param baseWealth wealth used by hint filters
+ * @param variation unused spare for later wealth jitter
+ * @param detectionRadius tracker range in blocks
+ * @param minFinds inclusive lower find count
+ * @param maxFinds inclusive upper find count
+ * @param minRelics inclusive lower relic count
+ * @param maxRelics inclusive upper relic count
+ * @param hintCount how many hints to attach
+ * @param stratumIvChance chance that stratum IV exists
+ * @param disturbedChance chance a present band is marked disturbed
+ */
+public record InterestSettings(
+        InterestLevel level,
+        String displayName,
+        int baseWealth,
+        int variation,
+        int detectionRadius,
+        int minFinds,
+        int maxFinds,
+        int minRelics,
+        int maxRelics,
+        int hintCount,
+        double stratumIvChance,
+        double disturbedChance
+) {
+}

@@ -1,0 +1,69 @@
+# General settings. Catalogs live in the other YAML files.
+
+tracker:
+  enabled: true
+  default-max-range: 256
+  near-range: 48
+  detect-message-range: 16
+  pulse-particles: true
+
+interest-levels:
+  low:
+    display-name: "low"
+    base-wealth: 1
+    variation: 0
+    detection-radius: 64
+    min-finds: 3
+    max-finds: 5
+    min-relics: 1
+    max-relics: 1
+    hint-count: 2
+    stratum-iv-chance: 0.0
+    disturbed-chance: 0.15
+  medium:
+    display-name: "medium"
+    base-wealth: 3
+    variation: 1
+    detection-radius: 128
+    min-finds: 5
+    max-finds: 8
+    min-relics: 1
+    max-relics: 1
+    hint-count: 3
+    stratum-iv-chance: 0.25
+    disturbed-chance: 0.2
+  high:
+    display-name: "high"
+    base-wealth: 6
+    variation: 1
+    detection-radius: 256
+    min-finds: 8
+    max-finds: 12
+    min-relics: 1
+    max-relics: 2
+    hint-count: 3
+    stratum-iv-chance: 0.6
+    disturbed-chance: 0.25
+  exceptional:
+    display-name: "exceptional"
+    base-wealth: 10
+    variation: 2
+    detection-radius: 512
+    min-finds: 12
+    max-finds: 18
+    min-relics: 2
+    max-relics: 3
+    hint-count: 4
+    stratum-iv-chance: 1.0
+    disturbed-chance: 0.3
+
+generation:
+  max-shape-attempts: 24
+  grow-vertically: true
+  # Extra seed per chunk so shapes are reproducible in the same world.
+  use-world-seed: true
+
+shift:
+  pick: 8
+  hammer: 3
+  brush: 10

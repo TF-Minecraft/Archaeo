@@ -1,0 +1,25 @@
+interpretations:
+  conflict:
+    display-name: "possible armed conflict"
+    suggested-by: [blade, conflict]
+  trade:
+    display-name: "possible commercial activity"
+    suggested-by: [trade]
+  ceremonial:
+    display-name: "possible ceremonial use"
+    suggested-by: [ceremonial, ornament, deposit]
+  settlement:
+    display-name: "possible settlement"
+    suggested-by: [settlement, domestic]
+  abandonment:
+    display-name: "possible abandonment"
+    suggested-by: [abandonment, scattered]
+  burial:
+    display-name: "possible burial"
+    suggested-by: [burial, bone]
+  deposit:
+    display-name: "possible deliberate deposit"
+    suggested-by: [deposit, clustered]
+  unknown:
+    display-name: "unknown function"
+    suggested-by: [unknown]

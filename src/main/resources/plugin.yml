@@ -1,0 +1,17 @@
+name: Archaeo
+main: com.nowko.archeology.ArcheologyPlugin
+version: 1.0
+api-version: "1.21"
+author: nowko
+description: Persistent archaeology for a custom map.
+
+commands:
+  archaeo:
+    description: Archaeo admin commands
+    usage: /archaeo ruin create <low|medium|high|exceptional> [name]
+    permission: archaeo.admin
+
+permissions:
+  archaeo.admin:
+    description: Register and manage administered ruins
+    default: op

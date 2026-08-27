@@ -1,0 +1,101 @@
+# Find templates. size-* = connected cells. relic = counts toward the relic quota.
+artifacts:
+  coin:
+    display-name: Coin
+    size-min: 1
+    size-max: 1
+    material: metal
+    rarity: common
+    relic: false
+    weight: 22
+    strata: [I, II, III]
+    tags: [trade, metal]
+    item: GOLD_NUGGET
+  pottery_sherd:
+    display-name: Pottery sherd
+    size-min: 1
+    size-max: 1
+    material: ceramic
+    rarity: common
+    relic: false
+    weight: 24
+    strata: [I, II, III, IV]
+    tags: [ceramic, settlement]
+    item: BRICK
+  tool:
+    display-name: Tool
+    size-min: 2
+    size-max: 3
+    material: metal
+    rarity: uncommon
+    relic: false
+    weight: 14
+    strata: [II, III]
+    tags: [settlement, metal]
+    item: IRON_HOE
+  sword:
+    display-name: Ancient sword
+    size-min: 3
+    size-max: 5
+    material: metal
+    rarity: rare
+    relic: true
+    weight: 6
+    strata: [II, III, IV]
+    tags: [conflict, metal, blade]
+    item: IRON_SWORD
+  vessel:
+    display-name: Vessel
+    size-min: 3
+    size-max: 6
+    material: ceramic
+    rarity: uncommon
+    relic: false
+    weight: 10
+    strata: [I, II, III]
+    tags: [ceramic, ceremonial, deposit]
+    item: DECORATED_POT
+  burial:
+    display-name: Burial
+    size-min: 8
+    size-max: 15
+    material: bone
+    rarity: rare
+    relic: true
+    weight: 4
+    strata: [III, IV]
+    tags: [burial, bone]
+    item: BONE
+  structure:
+    display-name: Buried structure
+    size-min: 20
+    size-max: 40
+    material: stone
+    rarity: exceptional
+    relic: true
+    weight: 2
+    strata: [III, IV]
+    tags: [settlement, deposit]
+    item: BRICKS
+  charcoal:
+    display-name: Fire remains
+    size-min: 1
+    size-max: 2
+    material: organic
+    rarity: common
+    relic: false
+    weight: 16
+    strata: [I, II, III]
+    tags: [fire, domestic]
+    item: CHARCOAL
+  ornament:
+    display-name: Ornament
+    size-min: 1
+    size-max: 2
+    material: metal
+    rarity: uncommon
+    relic: false
+    weight: 8
+    strata: [II, III]
+    tags: [ceremonial, trade, ornament]
+    item: GOLD_INGOT
