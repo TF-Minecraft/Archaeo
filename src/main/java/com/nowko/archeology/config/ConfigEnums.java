@@ -35,7 +35,7 @@ public final class ConfigEnums {
 
     /**
      * @param plugin logger owner
-     * @param raw YAML token such as {@code END_ROD}
+     * @param raw YAML token such as {@code ENCHANTED_HIT}
      * @param fallback used when {@code raw} is missing or invalid
      * @param path config path for the warning
      * @return particle type

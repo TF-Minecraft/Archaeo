@@ -186,9 +186,9 @@ public class CatalogRegistry {
         List<String> lore = section.getStringList("item-lore");
         if (lore.isEmpty()) {
             lore = List.of(
-                    "Walk. Faster pulses mean closer.",
-                    "Rings lean toward a heading; they are not a compass.",
-                    "More pips when you are near. No coordinates."
+                    "Turn. Stronger pulses mean you are facing a ruin.",
+                    "Arcs fire the way you look. A full ring means you are on it.",
+                    "No coordinates."
             );
         }
         List<Double> radii = section.getDoubleList("wave-radii");
@@ -200,8 +200,8 @@ public class CatalogRegistry {
         tracker = new TrackerSettings(
                 section.getBoolean("enabled", true),
                 Math.max(1, section.getInt("default-max-range", 256)),
-                Math.max(1, section.getInt("near-range", 48)),
-                Math.max(1, section.getInt("detect-message-range", 16)),
+                Math.max(1, section.getInt("near-range", 64)),
+                Math.max(1, section.getInt("detect-message-range", 32)),
                 Math.max(0, section.getInt("detect-message-share-range", 0)),
                 section.getBoolean("pulse-particles", true),
                 Math.max(1, section.getInt("beep-max-ticks", 70)),
@@ -210,7 +210,7 @@ public class CatalogRegistry {
                 radii,
                 Math.max(1, section.getInt("wave-step-ticks", 3)),
                 Math.max(1, section.getInt("particle-fade-ticks", 10)),
-                ConfigEnums.particle(plugin, section.getString("wave-particle"), Particle.END_ROD, "tracker.wave-particle"),
+                ConfigEnums.particle(plugin, section.getString("wave-particle"), Particle.ENCHANTED_HIT, "tracker.wave-particle"),
                 Math.max(0.0, section.getDouble("wave-bias-blocks", 1.2)),
                 Math.max(0.0, section.getDouble("target-switch-margin", 16)),
                 section.getString("item-name", "Archaeological tracker"),

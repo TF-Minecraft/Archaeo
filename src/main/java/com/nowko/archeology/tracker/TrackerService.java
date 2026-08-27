@@ -20,7 +20,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Hold-to-scan tracker: 1–3 pips, rings that lean toward an 8-way heading, lock with hysteresis.
+ * Hold-to-scan tracker: arcs fire the way the player looks; pulse strength follows
+ * how well that look lines up with a hidden ruin and how far it is.
  */
 public class TrackerService {
     private final JavaPlugin plugin;
@@ -116,27 +117,40 @@ public class TrackerService {
     }
 
     /**
-     * Keeps the current ruin until another is closer by {@code target-switch-margin}.
+     * Keeps the ruin the player is facing until another is clearly a stronger look.
      *
      * @param player scanner
-     * @return locked or newly acquired hit, or {@code null}
+     * @return locked or newly acquired hit, or {@code null} if nothing is ahead in range
      */
     ScanHit lockedTarget(Player player) {
-        ScanHit nearest = nearestHidden(player);
+        ScanHit best = strongestAhead(player);
         UUID locked = lockedSiteId.get(player.getUniqueId());
         if (locked == null) {
-            return nearest;
+            return best;
         }
         ScanHit current = hitIfInRange(player, locked);
         if (current == null) {
-            return nearest;
+            return best;
         }
-        if (nearest != null
-                && !nearest.site().getId().equals(current.site().getId())
-                && nearest.distance() + settings.targetSwitchMargin() < current.distance()) {
-            return nearest;
+        if (best != null
+                && !best.site().getId().equals(current.site().getId())
+                && betterLook(best, current)) {
+            return best;
         }
         return current;
+    }
+
+    /**
+     * @param candidate another in-range ruin ahead
+     * @param current locked ruin
+     * @return whether the player is aiming at {@code candidate} clearly enough to switch
+     */
+    private boolean betterLook(ScanHit candidate, ScanHit current) {
+        if (candidate.alignment() > current.alignment() + 0.12) {
+            return true;
+        }
+        boolean similarAim = Math.abs(candidate.alignment() - current.alignment()) < 0.08;
+        return similarAim && candidate.distance() + settings.targetSwitchMargin() < current.distance();
     }
 
     /**
@@ -152,19 +166,21 @@ public class TrackerService {
     }
 
     /**
-     * Picks the closest {@link SiteStatus#HIDDEN} site in range in the player's world.
+     * Picks the hidden ruin the player is aiming at most clearly, then the nearer one.
      *
      * @param player scanner
-     * @return hit, or {@code null} if nothing is in range
+     * @return hit, or {@code null} if nothing is in range and ahead
      */
-    ScanHit nearestHidden(Player player) {
+    ScanHit strongestAhead(Player player) {
         ScanHit best = null;
         for (Site site : sites.all()) {
             ScanHit hit = hitOrNull(player, site);
             if (hit == null) {
                 continue;
             }
-            if (best == null || hit.distance() < best.distance()) {
+            if (best == null
+                    || hit.alignment() > best.alignment() + 0.02
+                    || (Math.abs(hit.alignment() - best.alignment()) <= 0.02 && hit.distance() < best.distance())) {
                 best = hit;
             }
         }
@@ -174,7 +190,7 @@ public class TrackerService {
     /**
      * @param player scanner
      * @param site candidate ruin
-     * @return hit if hidden, same world, and inside combined range
+     * @return hit if hidden, same world, in range, and either on the chunk or looking toward it
      */
     private ScanHit hitOrNull(Player player, Site site) {
         if (site.getStatus() != SiteStatus.HIDDEN) {
@@ -188,7 +204,53 @@ public class TrackerService {
         if (distance > range) {
             return null;
         }
-        return new ScanHit(site, distance, range);
+        boolean onChunk = standingOnSite(player, site);
+        double alignment = onChunk ? 1.0 : lookAlignment(player, site);
+        if (alignment <= 0) {
+            return null;
+        }
+        return new ScanHit(site, distance, range, alignment, onChunk);
+    }
+
+    /**
+     * @param player scanner
+     * @param site ruin
+     * @return whether the player is already in the registered chunk (look no longer matters)
+     */
+    private boolean standingOnSite(Player player, Site site) {
+        Location here = player.getLocation();
+        return here.getWorld() != null
+                && here.getWorld().getName().equals(site.getWorldName())
+                && here.getChunk().getX() == site.getChunkX()
+                && here.getChunk().getZ() == site.getChunkZ();
+    }
+
+    /**
+     * Horizontal facing from yaw, ignoring pitch so looking up still scans the horizon.
+     *
+     * @param player scanner
+     * @return unit {@code {x, z}}
+     */
+    private double[] lookHeading(Player player) {
+        double yawRad = Math.toRadians(player.getLocation().getYaw());
+        return new double[] {-Math.sin(yawRad), Math.cos(yawRad)};
+    }
+
+    /**
+     * @param player scanner
+     * @param site ruin
+     * @return {@code 1} looking straight at the chunk, {@code 0} side-on or behind. Not used on-chunk.
+     */
+    private double lookAlignment(Player player, Site site) {
+        Location here = player.getLocation();
+        double dx = site.centerBlockX() + 0.5 - here.getX();
+        double dz = site.centerBlockZ() + 0.5 - here.getZ();
+        double length = Math.hypot(dx, dz);
+        if (length < 0.01) {
+            return 1.0;
+        }
+        double[] look = lookHeading(player);
+        return Math.max(0.0, (look[0] * dx + look[1] * dz) / length);
     }
 
     /**
@@ -214,9 +276,12 @@ public class TrackerService {
         int mid = (max + min) / 2;
         double close = closeBand();
         double medium = mediumBand();
-        double distance = hit.distance();
+        double distance = hit.sensedDistance();
         int range = hit.range();
         int bands = proximityBands(hit);
+        if (bands == 4) {
+            return Math.max(1, min - 2);
+        }
         if (bands == 3) {
             return min;
         }
@@ -232,25 +297,29 @@ public class TrackerService {
     }
 
     /**
-     * One burst: 1–3 pips and matching rings. Pitch is per band; rings are offset toward an 8-way heading.
+     * One burst: look-aimed arcs (1–3) or a centred full ring on the ruin chunk (same three radii, stronger).
      *
      * @param player scanner
      * @param hit locked site
      */
     private void pip(Player player, ScanHit hit) {
         Location feet = player.getLocation().clone().add(0, 0.12, 0);
-        double[] heading = snappedHeading(feet, hit.site());
-        Location origin = feet.clone().add(
-                heading[0] * settings.waveBiasBlocks(),
-                0,
-                heading[1] * settings.waveBiasBlocks()
-        );
         int bands = proximityBands(hit);
+        boolean onChunk = bands == 4;
+        double[] heading = lookHeading(player);
+        Location origin = onChunk
+                ? feet
+                : feet.clone().add(
+                        heading[0] * settings.waveBiasBlocks(),
+                        0,
+                        heading[1] * settings.waveBiasBlocks()
+                );
         float pitch = bandPitch(bands);
         List<Double> radii = settings.waveRadii();
-        int count = Math.min(bands, Math.max(1, radii.size()));
-        int step = settings.waveStepTicks();
+        int count = ringCount(bands, radii);
+        int step = onChunk ? 1 : settings.waveStepTicks();
         boolean dense = bands >= 2;
+        float volume = onChunk ? 0.75f : 0.5f;
         for (int index = 0; index < count; index++) {
             double radius = ringRadius(hit, bands, index, radii);
             float note = pitch + index * 0.06f;
@@ -260,9 +329,9 @@ public class TrackerService {
                 if (world == null) {
                     return;
                 }
-                world.playSound(origin, Sound.BLOCK_NOTE_BLOCK_CHIME, SoundCategory.PLAYERS, 0.5f, note);
+                world.playSound(origin, Sound.BLOCK_NOTE_BLOCK_CHIME, SoundCategory.PLAYERS, volume, note);
                 if (settings.pulseParticles()) {
-                    spawnRing(origin, radius, dense, heading);
+                    spawnRing(origin, radius, dense, heading, onChunk);
                 }
             }, delay);
         }
@@ -272,7 +341,7 @@ public class TrackerService {
      * Far band uses a single ring that grows toward the medium radius as the player walks in.
      *
      * @param hit locked site
-     * @param bands 1–3
+     * @param bands 1–4
      * @param index pip index inside the burst
      * @param radii configured sizes
      * @return ring radius in blocks
@@ -283,18 +352,19 @@ public class TrackerService {
             double outer = radii.size() > 1 ? radii.get(1) : inner * 2;
             double medium = mediumBand();
             double farSpan = Math.max(1.0, hit.range() - medium);
-            double t = Math.min(1.0, Math.max(0.0, (hit.distance() - medium) / farSpan));
+            double t = Math.min(1.0, Math.max(0.0, (hit.sensedDistance() - medium) / farSpan));
             return outer + (inner - outer) * (t * t);
         }
         return radii.get(Math.min(index, radii.size() - 1));
     }
 
     /**
-     * @param bands 1 far, 2 medium, 3 close
+     * @param bands 1 far cone, 2 medium, 3 close cone, 4 on-chunk circle
      * @return note-block pitch for that band
      */
     private float bandPitch(int bands) {
         return switch (bands) {
+            case 4 -> 1.85f;
             case 3 -> 1.55f;
             case 2 -> 1.12f;
             default -> 0.72f;
@@ -302,23 +372,27 @@ public class TrackerService {
     }
 
     /**
-     * Maps distance onto the three signal strengths: one, two, or three pips.
+     * Maps on-chunk presence or sensed distance onto 1–4 signal strengths.
      *
-     * @param hit nearest in-range site
-     * @return {@code 1} far, {@code 2} medium, {@code 3} close
+     * @param hit ruin ahead in range, or the chunk underfoot
+     * @return {@code 1} far, {@code 2} medium, {@code 3} close cone, {@code 4} on the ruin chunk
      */
     int proximityBands(ScanHit hit) {
-        if (hit.distance() <= closeBand()) {
+        if (hit.onChunk()) {
+            return 4;
+        }
+        double distance = hit.sensedDistance();
+        if (distance <= closeBand()) {
             return 3;
         }
-        if (hit.distance() <= mediumBand()) {
+        if (distance <= mediumBand()) {
             return 2;
         }
         return 1;
     }
 
     /**
-     * @return inner (three-pip) radius
+     * @return inner (three-pip cone) radius, outside the on-chunk circle
      */
     private double closeBand() {
         return Math.min(settings.detectMessageRange(), settings.nearRange());
@@ -340,69 +414,77 @@ public class TrackerService {
      */
     private int burstTicks(ScanHit hit) {
         int bands = proximityBands(hit);
+        int rings = ringCount(bands, settings.waveRadii());
         int fade = settings.pulseParticles() ? settings.particleFadeTicks() : 4;
-        return Math.max(1, (bands - 1) * settings.waveStepTicks() + fade);
+        int step = bands == 4 ? 1 : settings.waveStepTicks();
+        return Math.max(1, (rings - 1) * step + fade);
     }
 
     /**
-     * Draws one horizontal circle; points facing the snapped heading spawn a second particle.
+     * Never more than three rings; the on-chunk band reuses that set with a closed circle.
      *
-     * @param origin biased centre
+     * @param bands signal strength 1–4
+     * @param radii configured sizes
+     * @return how many rings this burst draws
+     */
+    private int ringCount(int bands, List<Double> radii) {
+        int available = Math.max(1, radii.size());
+        return Math.min(3, Math.min(Math.max(1, bands), available));
+    }
+
+    /**
+     * Draws a look-aimed arc, or a full circle when the scanner is on the ruin chunk.
+     * Each point is doubled a few centimetres out so the stroke reads slightly thicker.
+     *
+     * @param origin biased centre, or feet when on-chunk
      * @param radius blocks from origin
      * @param near denser points in medium/close bands
-     * @param heading unit 8-way {@code {x, z}}
+     * @param heading unit look {@code {x, z}}
+     * @param fullCircle whether to close the ring (on-chunk band)
      */
-    private void spawnRing(Location origin, double radius, boolean near, double[] heading) {
+    private void spawnRing(Location origin, double radius, boolean near, double[] heading, boolean fullCircle) {
         World world = origin.getWorld();
         if (world == null) {
             return;
         }
         Particle particle = settings.waveParticle();
-        int points = Math.max(12, (int) Math.round(radius * (near ? 14 : 10)));
+        int points = Math.max(12, (int) Math.round(radius * (fullCircle ? 16 : near ? 14 : 10)));
+        boolean clipArc = !fullCircle && (heading[0] != 0 || heading[1] != 0);
         double headingAngle = Math.atan2(heading[1], heading[0]);
         for (int i = 0; i < points; i++) {
             double angle = (2 * Math.PI * i) / points;
-            double x = origin.getX() + Math.cos(angle) * radius;
-            double z = origin.getZ() + Math.sin(angle) * radius;
-            world.spawnParticle(particle, x, origin.getY(), z, 1, 0, 0, 0, 0);
-            if (heading[0] == 0 && heading[1] == 0) {
+            if (clipArc && !onHeadingArc(angle, headingAngle)) {
                 continue;
             }
-            double delta = Math.abs(Math.atan2(Math.sin(angle - headingAngle), Math.cos(angle - headingAngle)));
-            if (delta < Math.PI / 5) {
-                world.spawnParticle(particle, x, origin.getY() + 0.08, z, 1, 0, 0, 0, 0);
-            }
+            double cos = Math.cos(angle);
+            double sin = Math.sin(angle);
+            double y = origin.getY();
+            world.spawnParticle(particle, origin.getX() + cos * radius, y, origin.getZ() + sin * radius, 1, 0, 0, 0, 0);
+            double outer = radius + 0.08;
+            world.spawnParticle(particle, origin.getX() + cos * outer, y, origin.getZ() + sin * outer, 1, 0, 0, 0, 0);
         }
     }
 
     /**
-     * Snaps the vector to the site onto eight compass points so the lean is a hint, not a needle.
+     * Open back of the pulse: about 170°, so it reads as a fat octant / near-semicircle.
      *
-     * @param here player location
-     * @param site target ruin
-     * @return unit {@code {x, z}} on a 45-degree step
+     * @param angle point on the would-be ring
+     * @param headingAngle look yaw on the XZ plane
+     * @return whether the point belongs on the visible arc
      */
-    private double[] snappedHeading(Location here, Site site) {
-        double dx = site.centerBlockX() + 0.5 - here.getX();
-        double dz = site.centerBlockZ() + 0.5 - here.getZ();
-        if (Math.abs(dx) < 0.01 && Math.abs(dz) < 0.01) {
-            return new double[] {0, 0};
-        }
-        double angle = Math.atan2(dz, dx);
-        double step = Math.PI / 4;
-        double snapped = Math.round(angle / step) * step;
-        return new double[] {Math.cos(snapped), Math.sin(snapped)};
+    private boolean onHeadingArc(double angle, double headingAngle) {
+        double delta = Math.abs(Math.atan2(Math.sin(angle - headingAngle), Math.cos(angle - headingAngle)));
+        return delta < Math.toRadians(85);
     }
 
     /**
-     * Sends the prospecting hint when the scanner is close enough to the site.
-     * Cooldown is per viewer (scanner, and optionally nearby players).
+     * Sends the prospecting hint when the scanner is close and facing the site.
      *
      * @param scanner holder of the tracker
-     * @param hit nearest in-range site
+     * @param hit ruin ahead
      */
     private void maybeDetectMessage(Player scanner, ScanHit hit) {
-        if (hit.distance() > settings.detectMessageRange()) {
+        if (hit.distance() > settings.detectMessageRange() || hit.alignment() < 0.65) {
             return;
         }
         sendDetectIfReady(scanner);
@@ -435,12 +517,23 @@ public class TrackerService {
     }
 
     /**
-     * Hidden site still inside its detection bubble.
+     * Hidden ruin still inside its detection bubble and in front of the scanner.
      *
      * @param site ruin
      * @param distance horizontal blocks to chunk center
      * @param range effective radius used for this hit
+     * @param alignment {@code 1} looking at the chunk, {@code 0} at the edge of the forward hemisphere
+     * @param onChunk whether the scanner is standing in the ruin chunk
      */
-    record ScanHit(Site site, double distance, int range) {
+    record ScanHit(Site site, double distance, int range, double alignment, boolean onChunk) {
+        /**
+         * Distance used for pips and tempo: real range when facing the site, stretched toward
+         * {@code range} when the look slides off-axis.
+         *
+         * @return blocks for band and interval math
+         */
+        double sensedDistance() {
+            return distance + (1.0 - alignment) * (range - distance);
+        }
     }
 }

@@ -29,22 +29,22 @@ tracker:
   enabled: true
   # Radii in blocks. Effective range is the tighter of this cap and the site detection-radius.
   default-max-range: 256
-  # Medium band: two pips and two rings. Close band (detect-message-range): three.
-  near-range: 48
-  # Chat fires when the holder is this close to the site center. Also the three-pip band.
-  detect-message-range: 16
+  # Medium cone: two pips. Close cone (detect-message-range): three. On-chunk: same three rings, full circle.
+  near-range: 64
+  # Chat when this close to the site centre and facing it. Also the three-pip cone (outside the chunk).
+  detect-message-range: 32
   # Extra viewers around the holder (0 = only the scanner). Cooldown is per viewer.
   detect-message-share-range: 0
   pulse-particles: true
-  # Ring sizes for the 1 / 2 / 3 pip bursts (far uses the first, close uses all three).
+  # Ring sizes for the 1 / 2 / 3 pip bursts (on-chunk reuses the first three as a full circle).
   wave-radii: [1.2, 2.6, 4.2]
   wave-step-ticks: 3
   # Extra ticks after the last ring before the next burst. Lower = snappier; higher = less overlap.
   particle-fade-ticks: 10
-  wave-particle: END_ROD
-  # Ring centre offset toward an 8-way heading (blocks). 0 = centred on the player.
+  wave-particle: ENCHANTED_HIT
+  # Arc centre offset along the look direction (blocks). 0 = centred on the player.
   wave-bias-blocks: 1.2
-  # Another site must be this many blocks closer before the lock switches.
+  # When two ruins are similarly ahead, another must be this many blocks closer to steal the lock.
   target-switch-margin: 16
   # Ticks between bursts: slow at the edge of range, fast next to the chunk.
   beep-max-ticks: 70
@@ -52,9 +52,9 @@ tracker:
   detect-message-cooldown-ticks: 200
   item-name: "Archaeological tracker"
   item-lore:
-    - "Walk. Faster pulses mean closer."
-    - "Rings lean toward a heading; they are not a compass."
-    - "More pips when you are near. No coordinates."
+    - "Turn. Stronger pulses mean you are facing a ruin."
+    - "Arcs fire the way you look. A full ring means you are on it."
+    - "No coordinates."
 
 interest-levels:
   low:

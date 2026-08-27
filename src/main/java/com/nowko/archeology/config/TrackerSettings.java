@@ -9,19 +9,19 @@ import java.util.List;
  *
  * @param enabled whether holding the item scans for hidden sites
  * @param defaultMaxRange global cap in blocks; the tighter of this and the site radius wins
- * @param nearRange medium proximity band (two pips / two rings)
- * @param detectMessageRange close band (three pips / three rings) and prospecting chat
+ * @param nearRange medium proximity band (two pips / two arcs)
+ * @param detectMessageRange close cone (three pips / three arcs) and prospecting chat; on-chunk is a fourth band
  * @param detectMessageShareRange extra blocks around the scanner who also see that chat; {@code 0} = holder only
  * @param pulseParticles whether each pip spawns expanding rings
  * @param beepMaxTicks ticks between bursts at the edge of range
- * @param beepMinTicks ticks between bursts next to the site
+ * @param beepMinTicks ticks between bursts in the close cone (on-chunk is slightly faster)
  * @param detectMessageCooldownTicks minimum ticks between detect chat lines, per viewer
- * @param waveRadii three ring sizes in blocks, drawn in order
+ * @param waveRadii ring sizes in blocks; at most the first three are drawn
  * @param waveStepTicks delay between consecutive rings (first ring is with the pip)
  * @param particleFadeTicks extra ticks after the last ring so client sprites can vanish
  * @param waveParticle particle used on the rings
- * @param waveBiasBlocks how far the ring centre leans toward an 8-way heading
- * @param targetSwitchMargin extra blocks another site must beat before the lock switches
+ * @param waveBiasBlocks how far the arc centre is pushed along the look vector
+ * @param targetSwitchMargin extra blocks another site must beat, when aim is similar, before the lock switches
  * @param itemName English display name of the item
  * @param itemLore English lore lines
  */
@@ -51,8 +51,8 @@ public record TrackerSettings(
         return new TrackerSettings(
                 true,
                 256,
-                48,
-                16,
+                64,
+                32,
                 0,
                 true,
                 70,
@@ -61,14 +61,14 @@ public record TrackerSettings(
                 List.of(1.2, 2.6, 4.2),
                 3,
                 10,
-                Particle.END_ROD,
+                Particle.ENCHANTED_HIT,
                 1.2,
                 16,
                 "Archaeological tracker",
                 List.of(
-                        "Walk. Faster pulses mean closer.",
-                        "Rings lean toward a heading; they are not a compass.",
-                        "More pips when you are near. No coordinates."
+                        "Turn. Stronger pulses mean you are facing a ruin.",
+                        "Arcs fire the way you look. A full ring means you are on it.",
+                        "No coordinates."
                 )
         );
     }
