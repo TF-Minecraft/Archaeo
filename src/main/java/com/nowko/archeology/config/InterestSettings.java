@@ -8,7 +8,7 @@ import com.nowko.archeology.model.InterestLevel;
  * @param level enum this row belongs to
  * @param displayName English label
  * @param baseWealth wealth used by hint filters
- * @param variation unused spare for later wealth jitter
+     * @param variation extra wealth used only for prospecting flavour (never below {@code baseWealth})
  * @param detectionRadius tracker range in blocks
  * @param minFinds inclusive lower find count
  * @param maxFinds inclusive upper find count

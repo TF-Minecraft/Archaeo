@@ -28,6 +28,7 @@ public class CatalogRegistry {
     private boolean growVertically = true;
     private boolean useWorldSeed = true;
     private TrackerSettings tracker = TrackerSettings.defaults();
+    private ProspectSettings prospect = ProspectSettings.defaults();
     private ItemMaterials items = ItemMaterials.defaults();
     private String staffPermission = "archaeo.admin";
 
@@ -53,6 +54,7 @@ public class CatalogRegistry {
         loadInterests(plugin.getConfig());
         loadGeneration(plugin.getConfig());
         loadTracker(plugin.getConfig());
+        loadProspect(plugin.getConfig());
         loadItems(plugin.getConfig());
         loadStaffPermission(plugin.getConfig());
         loadStrata(yaml("strata.yml"));
@@ -126,6 +128,13 @@ public class CatalogRegistry {
      */
     public TrackerSettings tracker() {
         return tracker;
+    }
+
+    /**
+     * @return prospecting kit sample rules and copy
+     */
+    public ProspectSettings prospect() {
+        return prospect;
     }
 
     /**
@@ -223,10 +232,37 @@ public class CatalogRegistry {
         }
         items = new ItemMaterials(
                 ConfigEnums.material(plugin, section.getString("tracker"), fallback.tracker(), "items.tracker"),
+                ConfigEnums.material(plugin, section.getString("prospect"), fallback.prospect(), "items.prospect"),
                 ConfigEnums.material(plugin, section.getString("pick"), fallback.pick(), "items.pick"),
                 ConfigEnums.material(plugin, section.getString("shovel"), fallback.shovel(), "items.shovel"),
                 ConfigEnums.material(plugin, section.getString("hammer"), fallback.hammer(), "items.hammer"),
                 ConfigEnums.material(plugin, section.getString("brush"), fallback.brush(), "items.brush")
+        );
+    }
+
+    /**
+     * Reads prospecting-kit sample rules and item copy.
+     *
+     * @param config root plugin config
+     */
+    private void loadProspect(org.bukkit.configuration.file.FileConfiguration config) {
+        ConfigurationSection section = config.getConfigurationSection("prospect");
+        ProspectSettings fallback = ProspectSettings.defaults();
+        if (section == null) {
+            prospect = fallback;
+            return;
+        }
+        List<String> lore = section.getStringList("item-lore");
+        if (lore.isEmpty()) {
+            lore = fallback.itemLore();
+        }
+        prospect = new ProspectSettings(
+                section.getBoolean("enabled", true),
+                Math.max(1, section.getInt("points-required", 4)),
+                Math.max(1, section.getInt("use-ticks", 40)),
+                Math.max(1, section.getInt("min-sample-distance", 3)),
+                section.getString("item-name", fallback.itemName()),
+                List.copyOf(lore)
         );
     }
 

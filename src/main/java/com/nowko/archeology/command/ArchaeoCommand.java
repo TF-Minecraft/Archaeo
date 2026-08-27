@@ -1,11 +1,13 @@
 package com.nowko.archeology.command;
 
 import com.nowko.archeology.config.CatalogRegistry;
+import com.nowko.archeology.item.ProspectItem;
 import com.nowko.archeology.item.TrackerItem;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.InterestLevel;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.StratumBand;
+import com.nowko.archeology.prospect.ProspectService;
 import com.nowko.archeology.site.SiteGenerator;
 import com.nowko.archeology.site.SiteRepository;
 import com.nowko.archeology.tracker.TrackerService;
@@ -29,15 +31,17 @@ import java.util.stream.Collectors;
  */
 public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private static final List<String> INTERESTS = List.of("low", "medium", "high", "exceptional");
-    private static final List<String> ROOT = List.of("ruin", "tracker", "reload");
+    private static final List<String> ROOT = List.of("ruin", "tracker", "prospect", "reload");
     private static final List<String> RUIN_ACTIONS = List.of("create", "info");
-    private static final List<String> TRACKER_ACTIONS = List.of("give");
+    private static final List<String> GIVE_ACTIONS = List.of("give");
 
     private final CatalogRegistry catalogs;
     private final SiteGenerator generator;
     private final SiteRepository sites;
     private final TrackerItem trackerItem;
     private final TrackerService tracker;
+    private final ProspectItem prospectItem;
+    private final ProspectService prospect;
 
     /**
      * @param catalogs staff permission and YAML catalogs
@@ -45,19 +49,25 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      * @param sites lookup for {@code ruin info} and reload
      * @param trackerItem factory for {@code tracker give}
      * @param tracker live scan loop, updated on reload
+     * @param prospectItem factory for {@code prospect give}
+     * @param prospect sample loop, updated on reload
      */
     public ArchaeoCommand(
             CatalogRegistry catalogs,
             SiteGenerator generator,
             SiteRepository sites,
             TrackerItem trackerItem,
-            TrackerService tracker
+            TrackerService tracker,
+            ProspectItem prospectItem,
+            ProspectService prospect
     ) {
         this.catalogs = catalogs;
         this.generator = generator;
         this.sites = sites;
         this.trackerItem = trackerItem;
         this.tracker = tracker;
+        this.prospectItem = prospectItem;
+        this.prospect = prospect;
     }
 
     /**
@@ -80,6 +90,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length >= 1 && "tracker".equalsIgnoreCase(args[0])) {
             return handleTracker(sender, args);
+        }
+        if (args.length >= 1 && "prospect".equalsIgnoreCase(args[0])) {
+            return handleProspect(sender, args);
         }
         if (args.length < 2 || !"ruin".equalsIgnoreCase(args[0])) {
             sendUsage(sender);
@@ -106,6 +119,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             catalogs.load();
             trackerItem.update(catalogs.tracker(), catalogs.items().tracker());
             tracker.setSettings(catalogs.tracker());
+            prospectItem.update(catalogs.prospect(), catalogs.items().prospect());
+            prospect.setSettings(catalogs.prospect());
             sites.loadAll();
             sender.sendMessage("Reloaded Archaeo config, catalogs, and sites from disk.");
         } catch (RuntimeException exception) {
@@ -143,6 +158,39 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("Gave an archaeological tracker to " + target.getName() + ".");
         if (target != sender) {
             target.sendMessage("You received an archaeological tracker. Hold it to listen for hidden ruins.");
+        }
+        return true;
+    }
+
+    /**
+     * Gives a prospecting kit. Players sample by right-clicking ground; they do not run this command.
+     *
+     * @param sender staff issuer
+     * @param args {@code prospect give [player]}
+     * @return {@code true} always (handled)
+     */
+    private boolean handleProspect(CommandSender sender, String[] args) {
+        if (args.length < 2 || !"give".equalsIgnoreCase(args[1])) {
+            sender.sendMessage("Usage: /archaeo prospect give [player]");
+            return true;
+        }
+        Player target;
+        if (args.length >= 3) {
+            target = Bukkit.getPlayerExact(args[2]);
+            if (target == null) {
+                sender.sendMessage("Player not online: " + args[2]);
+                return true;
+            }
+        } else if (sender instanceof Player player) {
+            target = player;
+        } else {
+            sender.sendMessage("Console must name a player: /archaeo prospect give <player>");
+            return true;
+        }
+        target.getInventory().addItem(prospectItem.create());
+        sender.sendMessage("Gave a prospecting kit to " + target.getName() + ".");
+        if (target != sender) {
+            target.sendMessage("You received a prospecting kit. Right-click ground in a suspected chunk.");
         }
         return true;
     }
@@ -298,6 +346,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     + (band.isDisturbed() ? " · disturbed" : ""));
         }
         sender.sendMessage("Hints: " + (site.getHintIds().isEmpty() ? "(none)" : String.join(", ", site.getHintIds())));
+        sender.sendMessage("Prospect confirmed: " + site.getProspectConfirmed().size()
+                + " · samplers: " + site.allProspectSamples().size());
         sender.sendMessage("Finds: " + site.getFinds().size());
         for (BuriedFind find : site.getFinds()) {
             sender.sendMessage("  " + find.getArtifactId()
@@ -315,6 +365,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("Usage: /archaeo ruin create <low|medium|high|exceptional> [name]");
         sender.sendMessage("       /archaeo ruin info [name|#serial]");
         sender.sendMessage("       /archaeo tracker give [player]");
+        sender.sendMessage("       /archaeo prospect give [player]");
         sender.sendMessage("       /archaeo reload");
     }
 
@@ -337,21 +388,14 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     .filter(value -> value.startsWith(args[0].toLowerCase(Locale.ROOT)))
                     .toList();
         }
-        if ("tracker".equalsIgnoreCase(args[0])) {
+        if ("tracker".equalsIgnoreCase(args[0]) || "prospect".equalsIgnoreCase(args[0])) {
             if (args.length == 2) {
-                return TRACKER_ACTIONS.stream()
+                return GIVE_ACTIONS.stream()
                         .filter(value -> value.startsWith(args[1].toLowerCase(Locale.ROOT)))
                         .toList();
             }
             if (args.length == 3 && "give".equalsIgnoreCase(args[1])) {
-                String typed = args[2].toLowerCase(Locale.ROOT);
-                List<String> names = new ArrayList<>();
-                for (Player online : Bukkit.getOnlinePlayers()) {
-                    if (online.getName().toLowerCase(Locale.ROOT).startsWith(typed)) {
-                        names.add(online.getName());
-                    }
-                }
-                return names;
+                return onlineNamesStartingWith(args[2]);
             }
             return List.of();
         }
@@ -386,5 +430,20 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             return names;
         }
         return List.of();
+    }
+
+    /**
+     * @param prefix player-name prefix already typed
+     * @return online names that start with {@code prefix}
+     */
+    private List<String> onlineNamesStartingWith(String prefix) {
+        String typed = prefix.toLowerCase(Locale.ROOT);
+        List<String> names = new ArrayList<>();
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            if (online.getName().toLowerCase(Locale.ROOT).startsWith(typed)) {
+                names.add(online.getName());
+            }
+        }
+        return names;
     }
 }

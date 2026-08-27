@@ -6,6 +6,7 @@ import org.bukkit.Material;
  * Bukkit materials for tools the plugin issues or will bind to later.
  *
  * @param tracker held scanner
+     * @param prospect soil probe / cata (not the excavation brush)
  * @param pick excavation pick (minigame, later)
  * @param shovel excavation shovel (minigame, later)
  * @param hammer excavation hammer / mace (minigame, later)
@@ -13,17 +14,19 @@ import org.bukkit.Material;
  */
 public record ItemMaterials(
         Material tracker,
+        Material prospect,
         Material pick,
         Material shovel,
         Material hammer,
         Material brush
 ) {
     /**
-     * @return packaged defaults (recovery compass, iron pick/shovel, mace, brush)
+     * @return packaged defaults
      */
     public static ItemMaterials defaults() {
         return new ItemMaterials(
                 Material.RECOVERY_COMPASS,
+                Material.STONE_HOE,
                 Material.IRON_PICKAXE,
                 Material.IRON_SHOVEL,
                 Material.MACE,

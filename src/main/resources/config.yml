@@ -6,10 +6,24 @@ permissions:
 
 items:
   tracker: RECOVERY_COMPASS
+  # Soil probe (cata). Keep this different from items.brush (excavation minigame).
+  prospect: STONE_HOE
   pick: IRON_PICKAXE
   shovel: IRON_SHOVEL
   hammer: MACE
   brush: BRUSH
+
+prospect:
+  enabled: true
+  # Distinct ground points in the ruin chunk before the site is confirmed.
+  points-required: 4
+  # Channel time per sample and action-bar duration (20 ticks = 1 second). Moving more than 2 blocks cancels.
+  use-ticks: 40
+  min-sample-distance: 3
+  item-name: "Prospecting kit"
+  item-lore:
+    - "Right-click several ground points in a suspected chunk."
+    - "Confirm the site before you can plant a camp."
 
 tracker:
   enabled: true

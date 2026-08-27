@@ -3,12 +3,14 @@ package com.nowko.archeology.model;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
- * One administered ruin or excavation: chunk, strata, hidden finds, and camp metadata.
+ * One administered ruin or excavation: chunk, strata, hidden finds, prospecting, and camp metadata.
  */
 public class Site {
     private UUID id;
@@ -32,6 +34,8 @@ public class Site {
     private final List<BuriedFind> finds = new ArrayList<>();
     private final List<UUID> excavators = new ArrayList<>();
     private final List<String> factions = new ArrayList<>();
+    private final Map<UUID, List<BlockCell>> prospectSamples = new LinkedHashMap<>();
+    private final Set<UUID> prospectConfirmed = new LinkedHashSet<>();
 
     /** @return persistent site UUID */
     public UUID getId() {
@@ -216,6 +220,67 @@ public class Site {
     /** @return faction ids granted access */
     public List<String> getFactions() {
         return factions;
+    }
+
+    /**
+     * @param playerId sampler
+     * @return unique ground points this player has sampled; empty if none
+     */
+    public List<BlockCell> prospectSamples(UUID playerId) {
+        List<BlockCell> list = prospectSamples.get(playerId);
+        return list == null ? List.of() : list;
+    }
+
+    /**
+     * @return all per-player sample lists (for persistence)
+     */
+    public Map<UUID, List<BlockCell>> allProspectSamples() {
+        return prospectSamples;
+    }
+
+    /**
+     * @param playerId sampler
+     * @param cell ground point
+     * @return whether that player already sampled this cell
+     */
+    public boolean hasProspectSample(UUID playerId, BlockCell cell) {
+        return prospectSamples(playerId).contains(cell);
+    }
+
+    /**
+     * @param playerId sampler
+     * @param cell ground point
+     * @return {@code true} if the point was new
+     */
+    public boolean addProspectSample(UUID playerId, BlockCell cell) {
+        List<BlockCell> list = prospectSamples.computeIfAbsent(playerId, id -> new ArrayList<>());
+        if (list.contains(cell)) {
+            return false;
+        }
+        list.add(cell);
+        return true;
+    }
+
+    /**
+     * @return players who have confirmed this hidden ruin
+     */
+    public Set<UUID> getProspectConfirmed() {
+        return prospectConfirmed;
+    }
+
+    /**
+     * @param playerId sampler
+     * @return whether that player has finished prospecting
+     */
+    public boolean isProspectConfirmed(UUID playerId) {
+        return prospectConfirmed.contains(playerId);
+    }
+
+    /**
+     * @param playerId player who reached the sample quota
+     */
+    public void confirmProspect(UUID playerId) {
+        prospectConfirmed.add(playerId);
     }
 
     /**

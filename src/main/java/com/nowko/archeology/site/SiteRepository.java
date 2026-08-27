@@ -206,6 +206,16 @@ public class SiteRepository {
         yaml.set("hint-ids", site.getHintIds());
         yaml.set("excavators", site.getExcavators().stream().map(UUID::toString).toList());
         yaml.set("factions", site.getFactions());
+        yaml.set("prospect.confirmed", site.getProspectConfirmed().stream().map(UUID::toString).toList());
+        for (Map.Entry<UUID, List<BlockCell>> entry : site.allProspectSamples().entrySet()) {
+            if (entry.getValue().isEmpty()) {
+                continue;
+            }
+            List<String> cells = entry.getValue().stream()
+                    .map(cell -> cell.x() + "," + cell.y() + "," + cell.z())
+                    .toList();
+            yaml.set("prospect.samples." + entry.getKey(), cells);
+        }
 
         for (StratumBand band : site.getStrata().values()) {
             String path = "strata." + band.getId();
@@ -307,6 +317,27 @@ public class SiteRepository {
                 }
             }
             site.getFinds().add(find);
+        }
+
+        for (String raw : yaml.getStringList("prospect.confirmed")) {
+            site.confirmProspect(UUID.fromString(raw));
+        }
+        ConfigurationSection samples = yaml.getConfigurationSection("prospect.samples");
+        if (samples != null) {
+            for (String key : samples.getKeys(false)) {
+                UUID playerId = UUID.fromString(key);
+                for (String cell : samples.getStringList(key)) {
+                    String[] parts = cell.split(",");
+                    if (parts.length < 3) {
+                        continue;
+                    }
+                    site.addProspectSample(playerId, new BlockCell(
+                            Integer.parseInt(parts[0]),
+                            Integer.parseInt(parts[1]),
+                            Integer.parseInt(parts[2])
+                    ));
+                }
+            }
         }
         return site;
     }
