@@ -528,7 +528,7 @@ public class SiteGenerator {
                     world.getSeaLevel(),
                     (chunk.getZ() << 4) + 8
             );
-            NamespacedKey key = biome.getKeyOrNull();
+            NamespacedKey key = biomeKey(biome);
             if (key != null) {
                 biomeName = key.getKey().replace('_', ' ');
             }
@@ -536,6 +536,28 @@ public class SiteGenerator {
             // keep fallback
         }
         return "Site in " + biomeName + " #" + serial;
+    }
+
+    /**
+     * Reads a biome id on Paper 1.21.10 ({@code Keyed.getKey}) and on later APIs
+     * ({@code getKeyOrNull}). The Maven {@code 1.21.10-R0.1-SNAPSHOT} javadoc already
+     * deprecates {@code getKey} and documents {@code getKeyOrNull}; that method is not
+     * on Paper 1.21.10 builds, so a direct call crashes at runtime.
+     *
+     * @param biome chunk biome
+     * @return namespaced key, or {@code null} if the biome is unregistered
+     */
+    @SuppressWarnings("deprecation")
+    private static NamespacedKey biomeKey(Biome biome) {
+        try {
+            Object value = biome.getClass().getMethod("getKeyOrNull").invoke(biome);
+            if (value instanceof NamespacedKey key) {
+                return key;
+            }
+        } catch (ReflectiveOperationException ignored) {
+            // Paper 1.21.10: RegistryAware helpers are absent
+        }
+        return biome.getKey();
     }
 
     /**
