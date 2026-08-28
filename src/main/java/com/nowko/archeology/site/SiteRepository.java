@@ -92,6 +92,32 @@ public class SiteRepository {
     }
 
     /**
+     * @param world world name
+     * @param chunkX chunk X
+     * @param chunkZ chunk Z
+     * @return site whose camp occupies that chunk, if any
+     */
+    public Optional<Site> findByEstablishmentChunk(String world, int chunkX, int chunkZ) {
+        return byId.values().stream()
+                .filter(site -> site.hasEstablishment()
+                        && site.getWorldName().equals(world)
+                        && site.getEstablishmentChunkX() == chunkX
+                        && site.getEstablishmentChunkZ() == chunkZ)
+                .findFirst();
+    }
+
+    /**
+     * @param world world name
+     * @param chunkX chunk X
+     * @param chunkZ chunk Z
+     * @return whether a ruin or a camp already uses that chunk
+     */
+    public boolean chunkOccupied(String world, int chunkX, int chunkZ) {
+        return findByChunk(world, chunkX, chunkZ).isPresent()
+                || findByEstablishmentChunk(world, chunkX, chunkZ).isPresent();
+    }
+
+    /**
      * @param serial human-facing site number
      * @return site with that serial, if loaded
      */
@@ -206,6 +232,13 @@ public class SiteRepository {
         yaml.set("hint-ids", site.getHintIds());
         yaml.set("excavators", site.getExcavators().stream().map(UUID::toString).toList());
         yaml.set("factions", site.getFactions());
+        if (site.hasEstablishment()) {
+            yaml.set("establishment.chunk-x", site.getEstablishmentChunkX());
+            yaml.set("establishment.chunk-z", site.getEstablishmentChunkZ());
+            yaml.set("establishment.camp-x", site.getCampX());
+            yaml.set("establishment.camp-y", site.getCampY());
+            yaml.set("establishment.camp-z", site.getCampZ());
+        }
         yaml.set("prospect.confirmed", site.getProspectConfirmed().stream().map(UUID::toString).toList());
         for (Map.Entry<UUID, List<BlockCell>> entry : site.allProspectSamples().entrySet()) {
             if (entry.getValue().isEmpty()) {
@@ -276,6 +309,15 @@ public class SiteRepository {
             site.getExcavators().add(UUID.fromString(raw));
         }
         site.getFactions().addAll(yaml.getStringList("factions"));
+        if (yaml.contains("establishment.chunk-x")) {
+            site.setEstablishmentChunkX(yaml.getInt("establishment.chunk-x"));
+            site.setEstablishmentChunkZ(yaml.getInt("establishment.chunk-z"));
+            if (yaml.contains("establishment.camp-x")) {
+                site.setCampX(yaml.getInt("establishment.camp-x"));
+                site.setCampY(yaml.getInt("establishment.camp-y"));
+                site.setCampZ(yaml.getInt("establishment.camp-z"));
+            }
+        }
 
         ConfigurationSection strata = yaml.getConfigurationSection("strata");
         if (strata != null) {

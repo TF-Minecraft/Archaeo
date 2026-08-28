@@ -18,15 +18,15 @@ Ampliar la arqueología de Minecraft para que los jugadores descubran, excaven, 
 Arqueología vanilla vs Archaeo:
 
 1. **Vanilla** — recorrer el mundo, detectar algo, pincelar, llevarse un hallazgo. Corto, azaroso.
-2. **Archaeo** — encontrar una señal, confirmarla con catas, **plantar un campamento** y trabajarlo a lo largo de jornadas. No es un `/claim`.
+2. **Archaeo** — encontrar una señal, confirmarla con catas, **establecer un campamento junto al yacimiento** y trabajarlo a lo largo de jornadas. No es un `/claim` de jugador.
 
 Experiencia vanilla (expedición):
 
-> 📡 Rastreador → 🔎 cata (kit de prospección) → ⛺ kit de excavación (campamento) → 📖 panel → ⛏️ jornadas → 🏺 estudio / museo.
+> 📡 Rastreador → 🔎 cata (kit de prospección) → ⛺ kit de establecimiento (campamento) → 📖 panel → ⛏️ jornadas → 🏺 estudio / museo.
 
 Experiencia Archaeo (campaña):
 
-> 📡 Rastreador → 🔎 cata → ⛺ establecer excavación → 📖 panel y personal → ⛏️ minijuego → hallazgos al registro de la excavación → interpretar / museo.
+> 📡 Rastreador → 🔎 cata → ⛺ kit de establecimiento (chunk + orientación) → 📖 panel y personal → ⛏️ minijuego → hallazgos al registro de la excavación → interpretar / museo.
 
 ---
 
@@ -71,9 +71,9 @@ Lo que vanilla **no** da, y Archaeo sí debe dar:
 4. **Tres capas de verdad** (plugin / admin / jugador) coexisten y no se pisan.
 5. **Facciones opcionales.** Pueden recibir **acceso a excavar** (lista del site). No son dueñas del yacimiento ni Archaeo protege bloques: eso sigue siendo el plugin de claims.
 6. **La fragilidad importa.** El terreno y los restos deben poder alterarse o perderse; Archaeo no debe convertir una excavación en un generador de objetos sin riesgo.
-7. **Una excavación es un proyecto, no un loot ni un plot.** Se descubre, se confirma y se planta en el mundo. Queda **fija** a esa localización.
-8. **El minijuego es el mundo.** Pico / martillo / pincel en el chunk; HUD mínimo. La gestión (personal, visibilidad) vive en el **panel del campamento**, no en comandos de jugador.
-9. **Archaeo no es un plugin de protección.** Sin permiso arqueológico no se usan las herramientas del minijuego. Romper tierra “vanilla” lo deciden facciones/claims.
+7. **Una excavación es un proyecto, no un loot ni un plot.** Se descubre, se confirma y se **establece en el mundo** (campamento en un chunk vecino). Queda **fija**. El campamento no se planta sobre el corte.
+8. **El minijuego es el mundo.** Pico / martillo / pincel en el **área arqueológica**; HUD mínimo. La gestión vive en el **panel del campamento**, no en comandos de jugador.
+9. **Archaeo no es un plugin de protección genérico.** Sin permiso arqueológico no se usan las herramientas del minijuego. Romper tierra “vanilla” lo deciden facciones/claims. El **chunk de establecimiento** sí puede quedar protegido mientras la excavación esté activa (eso no sustituye un `/claim` de jugador).
 
 ---
 
@@ -87,17 +87,17 @@ Un **yacimiento** es un lugar persistente con identidad, no un chunk anónimo.
 | --- | --- | --- |
 | **Vanilla** | Pirámide, fuente, ruinas oceánicas, ruinas perdidas | Fuera del alcance inicial: el mapa personalizado no las genera. |
 | **Ruina administrada** | Chunk seleccionado por el staff en el mapa personalizado | Se crea con un comando que registra el chunk, el nivel de interés y los datos iniciales del lugar. Es el tipo de la primera versión. |
-| **Campaña (excavación del jugador)** | El jugador la **establece** con un kit en un chunk ya confirmado por cata | Proyecto persistente, visible en el mundo (§1d). |
+| **Campaña (excavación del jugador)** | El jugador la **establece** con el kit en un chunk **vecino** al yacimiento ya confirmado por cata | Proyecto persistente; campamento visible; corte en el chunk arqueológico (§1d). |
 
-Una ruina administrada pasa a **excavación** cuando alguien la confirma con cata y planta el kit. Las construcciones del mapa las ponen los moderadores; el comando de staff solo registra el chunk oculto.
+Una ruina administrada pasa a **excavación** cuando alguien confirma con cata y **confirma la colocación del kit**. Las construcciones del mapa las ponen los moderadores; el comando de staff solo registra el chunk oculto.
 
 ### Descubrimiento
 
 - El staff registra manualmente los chunks que contienen una ruina mediante un comando; el plugin no intenta descubrirlos automáticamente en el mapa personalizado.
 - El comando permite asignar un nivel de interés inicial y, opcionalmente, nombre, tipo y descripción interna.
 - La localización para jugadores es **rastreo + prospección**, no una brújula al chunk ni un árbol de pistas.
-- Al **establecer** la excavación queda **registrada para siempre** en esas coords (no se borra ni se mueve a capricho).
-- El que planta el kit es el **director** inicial y puede nombrarla.
+- Al **establecer** la excavación queda **registrada para siempre**: chunk arqueológico + chunk de establecimiento (no se borra ni se mueve a capricho).
+- El que confirma el kit es el **director** inicial y puede nombrarla.
 - Si no lo nombra, el sistema usa un nombre provisional (`Yacimiento del desierto #14`, coordenadas ofuscadas o bioma + rumbo).
 
 Ficha mínima:
@@ -134,14 +134,14 @@ retroactivamente.
 
 ### Cómo lo investiga el usuario
 
-El jugador **no** usa comandos. Flujo: rastreador → zona sospechosa → **cata** (confirma y da las primeras características) → **kit de excavación** (campamento persistente). Detalle §1d.
+El jugador **no** usa comandos. Flujo: rastreador → zona sospechosa → **cata** (confirma) → **kit de establecimiento** (elige chunk vecino + orientación, confirma) → excavación. Detalle §1d.
 
-Se elimina el sistema de fragmentos de conocimiento, la libreta compartida, la brújula al chunk y cualquier `/claim` de jugador.
+Se elimina el sistema de fragmentos de conocimiento, la libreta compartida, la brújula al chunk y cualquier `/claim` de jugador para “quedarse” el yacimiento.
 
 #### Rastreador — propuesta
 
 Ítem de plugin (detector / radar). Al usarlo, emite **pitidos** cuya frecuencia
-depende de la distancia al yacimiento **no descubierto** más cercano que esté
+depende de la distancia al yacimiento **aún no reclamado** más cercano que esté
 dentro de su radio de detección.
 
 | Distancia | Señal |
@@ -169,9 +169,9 @@ Cuando está lo bastante cerca (config, p. ej. borde del chunk o unos bloques):
 > Realiza una prospección para determinar la ubicación del yacimiento.
 
 Ahí **aún no** hay excavación oficial. El rastreador solo dice “por aquí hay algo”.
-Sigue la **cata** y, si se confirma, el **kit de excavación** (§1d).
+Sigue la **cata** y, si se confirma, el **kit de establecimiento** (§1d).
 
-**Alcance.** Radio según tamaño/interés (`detection-radius`). Sitios **ya establecidos** o agotados no llaman al rastreador (o se silencian en config).
+**Alcance.** Radio según tamaño/interés (`detection-radius`). Sitios **ya establecidos** o agotados no llaman al rastreador: la excavación se vuelve a encontrar por el campamento, marcadores y límites temporales (§1d), no por el radar.
 
 El objetivo: encontrar un yacimiento **es explorar**. Señal ambigua → interpretar
 intensidad → caminar el mapa → acotar → prospectar.
@@ -191,13 +191,14 @@ equilibrar el mapa.
 
 La cata **convierte una sospecha en yacimiento confirmado** y enseña las primeras
 características (interés, indicios). No es un trámite vacío ni el acto de
-“reclamar” el chunk: eso es plantar el kit.
+reclamar: eso es **confirmar el kit de establecimiento**.
 
 Al **establecer** la excavación, la riqueza efectiva se fija en el dossier.
 
-La excavación es una **entidad Archaeo** sobre el mundo: no es un claim de
-facciones. El director no es dueño del terreno. Facciones/claims siguen
-protegiendo bloques; Archaeo solo dice quién puede usar herramientas de excavación.
+La excavación queda **registrada a nombre del jugador** (director). Eso no es un
+claim de facciones ni un `/claim` de terreno. El director dirige el proyecto;
+facciones/claims siguen decidiendo el minado vanilla salvo, si se activa, la
+protección del **chunk de establecimiento**.
 
 ---
 
@@ -212,11 +213,12 @@ Un yacimiento es un **volumen persistente** en el plugin, no “cualquier bloque
 Datos mínimos:
 
 - `id`
-- mundo + **caja** (cuboide): p. ej. 16×16 hasta 32×32 en planta, y un rango de Y (desde la superficie del campamento hasta N bloques hacia abajo)
-- tipo, nombre, descubridor
+- mundo + **caja** del área arqueológica (el chunk registrado por el staff, más bandas de Y)
+- chunk de **establecimiento** (campamento), distinto del corte
+- tipo, nombre, descubridor / director
 - dossier: estratos, presupuesto, indicios, estado
 
-Un punto de excavación está “en el yacimiento” si sus coordenadas caen **dentro de esa caja**. Fuera de la caja el plugin no genera hallazgos de campaña.
+Un punto de excavación está “en el yacimiento” si cae **dentro de la caja arqueológica**. Fuera de ella el plugin no genera hallazgos de campaña. El campamento está **fuera** de esa caja.
 
 **Tamaño de campaña — un chunk (16×16), alineado a la cuadrícula de Minecraft.**
 
@@ -225,7 +227,7 @@ Un bloque ≈ un metro. En arqueología real las cuadrículas suelen ser de 1×1
 | Tamaño | Por qué sí / no |
 | --- | --- |
 | Menos (8×8) | Corto de más; se acaba el solar como un sótano, no como un yacimiento. |
-| **Un chunk (16×16)** | Encaja con mapas, Dynmap y facciones. Límite = chunk del **campamento**. |
+| **Un chunk (16×16)** | Encaja con mapas, Dynmap y facciones. El **corte** = chunk de la ruina. El **campamento** = chunk vecino (§1d). |
 | Más (2×2 chunks) | Es una cantera. Vaciarlo a pala deja de sentirse arqueología. |
 
 Profundidad: no es un chunk hacia bedrock. Al **establecer** la excavación, el plugin define **bandas de Y** a partir de la superficie (unos 3–5 bloques por estrato presente).
@@ -234,12 +236,12 @@ Profundidad: no es un chunk hacia bedrock. Al **establecer** la excavación, el 
 
 ### Campamento
 
-El hito en el mundo es el **campamento** que sale al usar el kit de excavación:
-mesa de arqueología, tablón, cajas, quizá una carpa (§1d). El jugador puede
-construir más alrededor. El plugin no exige un atril.
+El hito en el mundo es el **campamento** que sale al confirmar el kit de
+establecimiento: mesa de arqueología, tablón, cajas, quizá una carpa (§1d). El
+jugador puede construir más alrededor. El plugin no exige un atril.
 
-Clic en la **mesa o el tablón** = panel de la excavación. El chunk de ese
-campamento es el solar.
+Clic en la **mesa o el tablón** = panel de la excavación. Ese chunk es el área
+de establecimiento, **no** el solar excavable.
 
 ### Cómo lo investiga el usuario
 
@@ -295,13 +297,13 @@ el dossier generado desde el nivel administrativo.
 
 #### ¿Se guardan las coordenadas?
 
-El plugin registra el chunk al comando de staff. Tras establecer: coords del
-campamento + dossier.
+El plugin registra el chunk arqueológico al comando de staff. Tras establecer:
+chunk de establecimiento, coords del campamento y dossier.
 
 Sí se guardan:
 
-- el chunk y el campamento de las excavaciones establecidas;
-- el dossier al plantar el kit;
+- el chunk arqueológico, el chunk de establecimiento y las coords del campamento;
+- el dossier al confirmar el kit;
 
 #### Ejemplo de configuración
 
@@ -376,7 +378,7 @@ Se usa sobre **varios puntos** del terreno (unos segundos cada uno). Informa y
 | No se han encontrado indicios suficientes | Seguir catando u otro punto |
 | Indicios débiles de actividad humana | Hay algo; aún no basta para establecer |
 | Posible yacimiento | Cerca de confirmar |
-| Yacimiento arqueológico confirmado | Ya se puede plantar el kit |
+| Yacimiento arqueológico confirmado | Ya se puede usar el kit de establecimiento |
 
 Ejemplos: *Muestra de tierra analizada. Se han detectado restos de actividad
 humana.* / *Yacimiento arqueológico confirmado.*
@@ -393,11 +395,28 @@ Las estructuras vanilla quedan fuera del alcance inicial.
 
 ## 1d. Establecer excavación, panel y acceso — propuesta
 
-No hay comando de jugador. Tras **yacimiento confirmado**, se coloca el **kit
-de excavación arqueológica**.
+No hay comando de jugador. Tras **yacimiento confirmado** por cata, el jugador
+usa un **kit de establecimiento** (palo / `STICK` personalizado en la primera
+versión). No representa una estaca clavada: es la herramienta de replanteo.
 
-Aparece un campamento reconocible: mesa de arqueología, carpa, cajas,
-herramientas, tablón.
+Mientras el yacimiento **no** esté reclamado, cualquiera puede detectarlo con el
+radar, prospectarlo y establecerlo. No hay excavación activa ni dueño Archaeo.
+Al confirmar la colocación del kit, el yacimiento **pasa a su nombre** en un
+solo gesto: no hay un segundo comando de “reclamar”.
+
+```
+📡 Rastreador
+    ↓
+🔎 Catas → yacimiento confirmado
+    ↓
+⛺ Kit de establecimiento
+    ↓
+Elegir chunk vecino + orientación
+    ↓
+Confirmar colocación
+    ↓
+🏺 Yacimiento reclamado · excavación creada
+```
 
 > Has establecido una excavación arqueológica.
 
@@ -408,12 +427,119 @@ Descubierta por: Alex
 Director (Archaeo): Alex
 ```
 
-El que planta el kit es el **director** inicial. Controla quién trabaja la
-excavación. **No** es dueño del terreno.
+El que confirma el kit es el **director** inicial. Controla quién trabaja la
+excavación. **Permanencia:** no se borra ni se mueve a capricho. Staff puede
+intervenir.
 
-**Permanencia.** No se borra ni se mueve a capricho. Queda atada a esas
-coordenadas. Puede ser un lugar del servidor. El jugador no se lleva el
-yacimiento en el inventario. Staff puede intervenir.
+### Tres piezas
+
+| Concepto | Qué es | Dónde |
+| --- | --- | --- |
+| **Yacimiento** | Zona con evidencias; dónde se puede excavar | Chunk (caja) registrado por el staff |
+| **Excavación** | Ese yacimiento reclamado: progreso, hallazgos, permisos | Datos persistentes (`sites/`) |
+| **Área de establecimiento** | Sitio del campamento; no se excava | Un **chunk distinto**, fuera del corte |
+
+```
+        ÁREA DE ESTABLECIMIENTO
+   ┌───────────────────────────┐
+   │       ⛺ 📦 🏺 📦         │
+   └─────────────┬─────────────┘
+                 │
+   ┌─────────────┴─────────────┐
+   │    ÁREA ARQUEOLÓGICA      │
+   │           ⛏️              │
+   └───────────────────────────┘
+```
+
+El campamento **no** ocupa la superficie excavable.
+
+### Kit y plantilla
+
+El kit lleva una **plantilla de campamento** (ejemplo: campamento básico) con
+piezas y posiciones relativas:
+
+```
+Campamento básico
+
+   ⛺
+📦 🏺 📦
+🚧   🚧
+```
+
+Mesa, cajas, tablón, carpa, etc. El jugador puede construir más alrededor
+después. Construir el campamento **no** gasta la jornada (§2).
+
+### Chunk válido y previsualización
+
+Al usar el kit, el jugador elige un **chunk completo** alrededor del área
+arqueológica, no una coordenada suelta. Los chunks válidos se marcan en el
+mundo. Tienen que quedar **fuera** del terreno que se va a excavar.
+
+Al apuntar a un chunk válido, el plugin muestra una **previsualización** de la
+plantilla, adaptada a ese chunk. La **orientación** sigue la mirada del
+jugador:
+
+```
+Orientación A              Orientación B
+
+      ⛺                      📦
+   📦 🏺 📦                 📦 🏺 ⛺
+      🚧
+```
+
+El jugador se mueve y gira hasta que chunk + orientación encajen en el terreno.
+La preview debe delatar problemas **antes** de confirmar:
+
+- terreno insuficiente, agua, bloques incompatibles;
+- construcciones existentes;
+- conflicto con claims;
+- piezas de la plantilla fuera del chunk elegido.
+
+Si no es válido: indicación visual y **no** se puede confirmar.
+
+### Al confirmar
+
+En el mismo instante:
+
+- el yacimiento queda registrado a su nombre;
+- el jugador es director;
+- nace la excavación (dossier, riqueza fijada);
+- se guarda el chunk de establecimiento;
+- se genera el campamento de la plantilla;
+- ese chunk **puede** protegerse mientras la excavación esté activa;
+- nadie más puede reclamar ese yacimiento;
+- el radar deja de usarse para localizarlo.
+
+### Cómo se vuelve a encontrar
+
+Tras marcharse días, sin campamento “custom” o sin recordar coords, el radar
+ya no es el medio principal. Sirven:
+
+- el **campamento** (referencia física permanente);
+- **marcadores** visuales propios de la excavación;
+- **límites temporales** del área arqueológica.
+
+Los bordes del corte **no** tienen que estar siempre visibles. Si el dueño o un
+autorizado está cerca y mira hacia el yacimiento, el plugin puede mostrarlos un
+rato (partículas, líneas, bloques fantasma u otro sistema). Se ocultan al dejar
+de mirar o al alejarse. Desde el panel del campamento: **«Mostrar límites»**
+para forzar esa vista.
+
+```
+       ✨──────────✨
+      /              \
+     /                \
+    ✨   EXCAVACIÓN   ✨
+     \                /
+      \______/
+```
+
+### Principio
+
+Debe sentirse como **instalar una excavación en el mundo**, no como un comando
+de protección. Encontrar → confirmar (cata) → elegir emplazamiento → colocar →
+excavar. El radar queda para **yacimientos nuevos**; las excavaciones propias
+se reencuentran por campamento, marcadores y límites.
 
 ### Panel
 
@@ -425,7 +551,7 @@ Director: Alex
 Estrato actual: III · 700–900 años
 Progreso: ██████░░░░
 Hallazgos: 7 · Evidencias: 12
-[EXCAVAR]  [PERSONAL]  [INFORMACIÓN]
+[EXCAVAR]  [PERSONAL]  [INFORMACIÓN]  [Mostrar límites]
 ```
 
 **EXCAVAR** no es un menú del minijuego: el trabajo es en el corte con HUD (§2).
@@ -444,7 +570,9 @@ miembros. Una facción autorizada trabaja como proyecto colectivo.
 ### Sin permiso
 
 *No tienes autorización para trabajar en esta excavación.* No hay jornada ni
-hallazgos. Archaeo **no** bloquea el minado vanilla.
+hallazgos. Archaeo **no** bloquea el minado vanilla en el área arqueológica
+(salvo reglas del servidor / claims). El chunk de establecimiento puede estar
+protegido por el propio establecimiento.
 
 ### Visibilidad
 
@@ -456,10 +584,11 @@ hallazgos. Archaeo **no** bloquea el minado vanilla.
 
 ### Secuencia
 
-1. Rastreador → zona sospechosa.
-2. Catas → confirmado.
-3. Kit → campamento + director + dossier.
-4. Formas ocultas en el chunk (§2).
+1. Rastreador → zona sospechosa (yacimiento no reclamado).
+2. Catas → confirmado; aún sin dueño.
+3. Kit → preview en chunk vecino + orientación.
+4. Confirmar → campamento, director, dossier, yacimiento reclamado.
+5. Formas ocultas en el **chunk arqueológico** (§2).
 
 ---
 
@@ -491,7 +620,7 @@ aplica el presupuesto de artefactos.
 
 No depende del último bloque ni de “modo estrato II”. Puedes abrir un pozo a la banda III y luego desbrozar la I (mala praxis real; el hallazgo hondo puede marcarse *secuencia invertida*). Cada hallazgo mira **la Y de la celda trabajada**.
 
-**Mientras está en el chunk de una excavación establecida**, un HUD mínimo muestra el estrato y las acciones de hoy (§2). El **panel del campamento** es la ficha del solar, no el GPS.
+**Mientras está en el área arqueológica de una excavación establecida**, un HUD mínimo muestra el estrato y las acciones de hoy (§2). El **panel del campamento** es la ficha del proyecto, no el GPS.
 
 ---
 
@@ -583,7 +712,7 @@ es un archivo `finds/` global.
 
 | Dato |
 | --- |
-| mundo, chunk, coords del campamento (mesa/tablón) |
+| mundo, chunk arqueológico, chunk de establecimiento, coords del campamento (mesa/tablón) |
 | tipo, nombre, nº de excavación, director, fecha |
 | visibilidad, jugadores y facciones con permiso de excavar |
 | riqueza, indicios, radio de detección |
@@ -816,7 +945,7 @@ Construir el campamento **no** gasta la jornada.
 ### Relación con pala y cata
 
 La **cata** (kit de prospección) va **después** del rastreador y **antes** del
-kit de excavación. No es el minijuego.
+kit de establecimiento. No es el minijuego.
 
 ### Estratos (recordatorio)
 
@@ -938,7 +1067,7 @@ Integración **débil**:
 
 - Acceso: el director puede autorizar una **facción** entera a excavar (§1d); Archaeo pregunta quién es miembro, no copia el roster.
 - Contexto opcional: “territorio actual: X”.
-- El director Archaeo no es el claim. Archaeo no protege bloques.
+- El director Archaeo no es el claim de facciones. El chunk de **establecimiento** puede protegerse mientras la excavación esté activa; el corte no es un plot.
 - El control *actual* no explica el pasado: es contexto presente (quién excava con permiso, quién disputa el terreno).
 - Sin facciones, esas líneas simplemente no aparecen.
 
@@ -951,4 +1080,4 @@ Inventario completo de campos y sitio de guardado: **§1c Metadatos**.
 Resumen: disco = **excavaciones** (`sites/`). PDC = pieza. Campamento (mesa) =
 `siteId`. Sin cuaderno global.
 
-Flujo jugador: rastreador → cata → kit de campamento → panel / jornadas (§2).
+Flujo jugador: rastreador → cata → kit de establecimiento → panel / jornadas (§2).

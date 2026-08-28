@@ -36,6 +36,11 @@ public class Site {
     private final List<String> factions = new ArrayList<>();
     private final Map<UUID, List<BlockCell>> prospectSamples = new LinkedHashMap<>();
     private final Set<UUID> prospectConfirmed = new LinkedHashSet<>();
+    private Integer establishmentChunkX;
+    private Integer establishmentChunkZ;
+    private Integer campX;
+    private Integer campY;
+    private Integer campZ;
 
     /** @return persistent site UUID */
     public UUID getId() {
@@ -281,6 +286,107 @@ public class Site {
      */
     public void confirmProspect(UUID playerId) {
         prospectConfirmed.add(playerId);
+    }
+
+    /**
+     * @return camp chunk X, or {@code null} until established
+     */
+    public Integer getEstablishmentChunkX() {
+        return establishmentChunkX;
+    }
+
+    /**
+     * @param establishmentChunkX camp chunk X
+     */
+    public void setEstablishmentChunkX(Integer establishmentChunkX) {
+        this.establishmentChunkX = establishmentChunkX;
+    }
+
+    /**
+     * @return camp chunk Z, or {@code null} until established
+     */
+    public Integer getEstablishmentChunkZ() {
+        return establishmentChunkZ;
+    }
+
+    /**
+     * @param establishmentChunkZ camp chunk Z
+     */
+    public void setEstablishmentChunkZ(Integer establishmentChunkZ) {
+        this.establishmentChunkZ = establishmentChunkZ;
+    }
+
+    /**
+     * @return camp block X, or {@code null}
+     */
+    public Integer getCampX() {
+        return campX;
+    }
+
+    /**
+     * @param campX camp block X
+     */
+    public void setCampX(Integer campX) {
+        this.campX = campX;
+    }
+
+    /**
+     * @return camp block Y, or {@code null}
+     */
+    public Integer getCampY() {
+        return campY;
+    }
+
+    /**
+     * @param campY camp block Y
+     */
+    public void setCampY(Integer campY) {
+        this.campY = campY;
+    }
+
+    /**
+     * @return camp block Z, or {@code null}
+     */
+    public Integer getCampZ() {
+        return campZ;
+    }
+
+    /**
+     * @param campZ camp block Z
+     */
+    public void setCampZ(Integer campZ) {
+        this.campZ = campZ;
+    }
+
+    /**
+     * @return whether a camp chunk has been recorded
+     */
+    public boolean hasEstablishment() {
+        return establishmentChunkX != null && establishmentChunkZ != null;
+    }
+
+    /**
+     * Records the camp, director, and claimed status. Does not place blocks.
+     *
+     * @param directorId player who confirmed the kit
+     * @param campChunkX neighbor chunk X
+     * @param campChunkZ neighbor chunk Z
+     * @param blockX camp block X
+     * @param blockY camp block Y
+     * @param blockZ camp block Z
+     */
+    public void establish(UUID directorId, int campChunkX, int campChunkZ, int blockX, int blockY, int blockZ) {
+        setStatus(SiteStatus.ESTABLISHED);
+        setType(SiteType.EXCAVATION);
+        setDirector(directorId);
+        setEstablishmentChunkX(campChunkX);
+        setEstablishmentChunkZ(campChunkZ);
+        setCampX(blockX);
+        setCampY(blockY);
+        setCampZ(blockZ);
+        if (!getExcavators().contains(directorId)) {
+            getExcavators().add(directorId);
+        }
     }
 
     /**

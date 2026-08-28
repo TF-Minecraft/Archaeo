@@ -6,6 +6,6 @@ package com.nowko.archeology.model;
 public enum SiteType {
     /** Staff-registered ruin (data only, no vanilla structure). */
     MANAGED_RUIN,
-    /** Player excavation camp (future). */
+    /** Player excavation after the establishment kit is confirmed. */
     EXCAVATION
 }

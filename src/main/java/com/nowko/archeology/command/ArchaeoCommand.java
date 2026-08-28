@@ -1,6 +1,8 @@
 package com.nowko.archeology.command;
 
 import com.nowko.archeology.config.CatalogRegistry;
+import com.nowko.archeology.establish.EstablishService;
+import com.nowko.archeology.item.EstablishItem;
 import com.nowko.archeology.item.ProspectItem;
 import com.nowko.archeology.item.TrackerItem;
 import com.nowko.archeology.model.BuriedFind;
@@ -31,7 +33,7 @@ import java.util.stream.Collectors;
  */
 public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private static final List<String> INTERESTS = List.of("low", "medium", "high", "exceptional");
-    private static final List<String> ROOT = List.of("ruin", "tracker", "prospect", "reload");
+    private static final List<String> ROOT = List.of("ruin", "tracker", "prospect", "establish", "reload");
     private static final List<String> RUIN_ACTIONS = List.of("create", "info");
     private static final List<String> GIVE_ACTIONS = List.of("give");
 
@@ -42,6 +44,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private final TrackerService tracker;
     private final ProspectItem prospectItem;
     private final ProspectService prospect;
+    private final EstablishItem establishItem;
+    private final EstablishService establish;
 
     /**
      * @param catalogs staff permission and YAML catalogs
@@ -51,6 +55,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      * @param tracker live scan loop, updated on reload
      * @param prospectItem factory for {@code prospect give}
      * @param prospect sample loop, updated on reload
+     * @param establishItem factory for {@code establish give}
+     * @param establish camp outline loop, updated on reload
      */
     public ArchaeoCommand(
             CatalogRegistry catalogs,
@@ -59,7 +65,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             TrackerItem trackerItem,
             TrackerService tracker,
             ProspectItem prospectItem,
-            ProspectService prospect
+            ProspectService prospect,
+            EstablishItem establishItem,
+            EstablishService establish
     ) {
         this.catalogs = catalogs;
         this.generator = generator;
@@ -68,6 +76,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         this.tracker = tracker;
         this.prospectItem = prospectItem;
         this.prospect = prospect;
+        this.establishItem = establishItem;
+        this.establish = establish;
     }
 
     /**
@@ -93,6 +103,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length >= 1 && "prospect".equalsIgnoreCase(args[0])) {
             return handleProspect(sender, args);
+        }
+        if (args.length >= 1 && "establish".equalsIgnoreCase(args[0])) {
+            return handleEstablish(sender, args);
         }
         if (args.length < 2 || !"ruin".equalsIgnoreCase(args[0])) {
             sendUsage(sender);
@@ -121,6 +134,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             tracker.setSettings(catalogs.tracker());
             prospectItem.update(catalogs.prospect(), catalogs.items().prospect());
             prospect.setSettings(catalogs.prospect());
+            establishItem.update(catalogs.establish(), catalogs.items().establish());
+            establish.setSettings(catalogs.establish());
             sites.loadAll();
             sender.sendMessage("Reloaded Archaeo config, catalogs, and sites from disk.");
         } catch (RuntimeException exception) {
@@ -191,6 +206,39 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("Gave a prospecting kit to " + target.getName() + ".");
         if (target != sender) {
             target.sendMessage("You received a prospecting kit. Right-click ground in a suspected chunk.");
+        }
+        return true;
+    }
+
+    /**
+     * Gives an establishment kit. Players plant a camp in a neighbor chunk; they do not run this command.
+     *
+     * @param sender staff issuer
+     * @param args {@code establish give [player]}
+     * @return {@code true} always (handled)
+     */
+    private boolean handleEstablish(CommandSender sender, String[] args) {
+        if (args.length < 2 || !"give".equalsIgnoreCase(args[1])) {
+            sender.sendMessage("Usage: /archaeo establish give [player]");
+            return true;
+        }
+        Player target;
+        if (args.length >= 3) {
+            target = Bukkit.getPlayerExact(args[2]);
+            if (target == null) {
+                sender.sendMessage("Player not online: " + args[2]);
+                return true;
+            }
+        } else if (sender instanceof Player player) {
+            target = player;
+        } else {
+            sender.sendMessage("Console must name a player: /archaeo establish give <player>");
+            return true;
+        }
+        target.getInventory().addItem(establishItem.create());
+        sender.sendMessage("Gave an establishment kit to " + target.getName() + ".");
+        if (target != sender) {
+            target.sendMessage("You received an establishment kit. Use it next to a ruin you have confirmed.");
         }
         return true;
     }
@@ -335,6 +383,10 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("Director: " + (site.getDirector() == null ? "none" : site.getDirector())
                 + " · visibility: " + site.getVisibility()
                 + " · recovered: " + site.getRecoveredCount());
+        if (site.hasEstablishment()) {
+            sender.sendMessage("Camp chunk " + site.getEstablishmentChunkX() + "," + site.getEstablishmentChunkZ()
+                    + " · table " + site.getCampX() + "," + site.getCampY() + "," + site.getCampZ());
+        }
         sender.sendMessage("Strata:");
         for (StratumBand band : site.getStrata().values()) {
             if (!band.isPresent()) {
@@ -366,6 +418,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("       /archaeo ruin info [name|#serial]");
         sender.sendMessage("       /archaeo tracker give [player]");
         sender.sendMessage("       /archaeo prospect give [player]");
+        sender.sendMessage("       /archaeo establish give [player]");
         sender.sendMessage("       /archaeo reload");
     }
 
@@ -388,7 +441,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     .filter(value -> value.startsWith(args[0].toLowerCase(Locale.ROOT)))
                     .toList();
         }
-        if ("tracker".equalsIgnoreCase(args[0]) || "prospect".equalsIgnoreCase(args[0])) {
+        if ("tracker".equalsIgnoreCase(args[0])
+                || "prospect".equalsIgnoreCase(args[0])
+                || "establish".equalsIgnoreCase(args[0])) {
             if (args.length == 2) {
                 return GIVE_ACTIONS.stream()
                         .filter(value -> value.startsWith(args[1].toLowerCase(Locale.ROOT)))

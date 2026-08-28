@@ -29,6 +29,7 @@ public class CatalogRegistry {
     private boolean useWorldSeed = true;
     private TrackerSettings tracker = TrackerSettings.defaults();
     private ProspectSettings prospect = ProspectSettings.defaults();
+    private EstablishSettings establish = EstablishSettings.defaults();
     private ItemMaterials items = ItemMaterials.defaults();
     private String staffPermission = "archaeo.admin";
 
@@ -55,6 +56,7 @@ public class CatalogRegistry {
         loadGeneration(plugin.getConfig());
         loadTracker(plugin.getConfig());
         loadProspect(plugin.getConfig());
+        loadEstablish(plugin.getConfig());
         loadItems(plugin.getConfig());
         loadStaffPermission(plugin.getConfig());
         loadStrata(yaml("strata.yml"));
@@ -135,6 +137,13 @@ public class CatalogRegistry {
      */
     public ProspectSettings prospect() {
         return prospect;
+    }
+
+    /**
+     * @return establishment-kit rules and copy
+     */
+    public EstablishSettings establish() {
+        return establish;
     }
 
     /**
@@ -233,6 +242,7 @@ public class CatalogRegistry {
         items = new ItemMaterials(
                 ConfigEnums.material(plugin, section.getString("tracker"), fallback.tracker(), "items.tracker"),
                 ConfigEnums.material(plugin, section.getString("prospect"), fallback.prospect(), "items.prospect"),
+                ConfigEnums.material(plugin, section.getString("establish"), fallback.establish(), "items.establish"),
                 ConfigEnums.material(plugin, section.getString("pick"), fallback.pick(), "items.pick"),
                 ConfigEnums.material(plugin, section.getString("shovel"), fallback.shovel(), "items.shovel"),
                 ConfigEnums.material(plugin, section.getString("hammer"), fallback.hammer(), "items.hammer"),
@@ -261,6 +271,40 @@ public class CatalogRegistry {
                 Math.max(1, section.getInt("points-required", 4)),
                 Math.max(1, section.getInt("use-ticks", 40)),
                 Math.max(1, section.getInt("min-sample-distance", 3)),
+                section.getString("item-name", fallback.itemName()),
+                List.copyOf(lore)
+        );
+    }
+
+    /**
+     * Reads establishment-kit rules, camp block, preview blocks, and item copy.
+     *
+     * @param config root plugin config
+     */
+    private void loadEstablish(org.bukkit.configuration.file.FileConfiguration config) {
+        ConfigurationSection section = config.getConfigurationSection("establish");
+        EstablishSettings fallback = EstablishSettings.defaults();
+        if (section == null) {
+            establish = fallback;
+            return;
+        }
+        List<String> lore = section.getStringList("item-lore");
+        if (lore.isEmpty()) {
+            lore = fallback.itemLore();
+        }
+        establish = new EstablishSettings(
+                section.getBoolean("enabled", true),
+                ConfigEnums.material(plugin, section.getString("camp-block"), fallback.campBlock(), "establish.camp-block"),
+                ConfigEnums.material(
+                        plugin,
+                        section.getString("invalid-block"),
+                        fallback.invalidBlock(),
+                        "establish.invalid-block"),
+                ConfigEnums.material(
+                        plugin,
+                        section.getString("ruin-outline-block"),
+                        fallback.ruinOutlineBlock(),
+                        "establish.ruin-outline-block"),
                 section.getString("item-name", fallback.itemName()),
                 List.copyOf(lore)
         );

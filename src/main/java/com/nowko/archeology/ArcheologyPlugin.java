@@ -2,6 +2,9 @@ package com.nowko.archeology;
 
 import com.nowko.archeology.command.ArchaeoCommand;
 import com.nowko.archeology.config.CatalogRegistry;
+import com.nowko.archeology.establish.EstablishListener;
+import com.nowko.archeology.establish.EstablishService;
+import com.nowko.archeology.item.EstablishItem;
 import com.nowko.archeology.item.ProspectItem;
 import com.nowko.archeology.item.TrackerItem;
 import com.nowko.archeology.prospect.ProspectListener;
@@ -13,7 +16,7 @@ import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
- * Spigot entry point for Archaeo: catalogs, site persistence, staff commands, tracker, and prospecting.
+ * Spigot entry point for Archaeo: catalogs, sites, staff commands, tracker, prospecting, and establishment.
  */
 public class ArcheologyPlugin extends JavaPlugin {
     private CatalogRegistry catalogs;
@@ -23,9 +26,11 @@ public class ArcheologyPlugin extends JavaPlugin {
     private TrackerService tracker;
     private ProspectItem prospectItem;
     private ProspectService prospect;
+    private EstablishItem establishItem;
+    private EstablishService establish;
 
     /**
-     * Copies missing default YAML, loads catalogs and saved sites, and starts tracker plus prospecting.
+     * Copies missing default YAML, loads catalogs and saved sites, and starts gameplay loops.
      */
     @Override
     public void onEnable() {
@@ -40,9 +45,21 @@ public class ArcheologyPlugin extends JavaPlugin {
         prospectItem = new ProspectItem(this, catalogs.prospect(), catalogs.items().prospect());
         prospect = new ProspectService(this, catalogs, sites, prospectItem, catalogs.prospect());
         getServer().getPluginManager().registerEvents(new ProspectListener(prospectItem, prospect), this);
+        establishItem = new EstablishItem(this, catalogs.establish(), catalogs.items().establish());
+        establish = new EstablishService(this, sites, establishItem, catalogs.establish());
+        establish.start();
+        getServer().getPluginManager().registerEvents(new EstablishListener(establishItem, establish), this);
 
         ArchaeoCommand command = new ArchaeoCommand(
-                catalogs, generator, sites, trackerItem, tracker, prospectItem, prospect);
+                catalogs,
+                generator,
+                sites,
+                trackerItem,
+                tracker,
+                prospectItem,
+                prospect,
+                establishItem,
+                establish);
         PluginCommand pluginCommand = getCommand("archaeo");
         if (pluginCommand != null) {
             pluginCommand.setExecutor(command);
@@ -52,7 +69,7 @@ public class ArcheologyPlugin extends JavaPlugin {
     }
 
     /**
-     * Stops tracker and prospecting tasks.
+     * Stops tracker, prospecting, and establishment tasks.
      */
     @Override
     public void onDisable() {
@@ -61,6 +78,9 @@ public class ArcheologyPlugin extends JavaPlugin {
         }
         if (prospect != null) {
             prospect.stop();
+        }
+        if (establish != null) {
+            establish.stop();
         }
     }
 
@@ -97,5 +117,12 @@ public class ArcheologyPlugin extends JavaPlugin {
      */
     public ProspectItem prospectItem() {
         return prospectItem;
+    }
+
+    /**
+     * @return establishment-kit factory
+     */
+    public EstablishItem establishItem() {
+        return establishItem;
     }
 }

@@ -8,6 +8,8 @@ items:
   tracker: RECOVERY_COMPASS
   # Soil probe (cata). Keep this different from items.brush (excavation minigame).
   prospect: STONE_HOE
+  # Camp kit. Keep this different from a vanilla stick.
+  establish: STICK
   pick: IRON_PICKAXE
   shovel: IRON_SHOVEL
   hammer: MACE
@@ -25,6 +27,19 @@ prospect:
     - "Right-click several ground points in a suspected chunk."
     - "Confirm the site before you can plant a camp."
 
+establish:
+  enabled: true
+  # Landmark. Paper 1.21: ARCHAEOLOGY_TABLE. Falls back to lectern if unknown.
+  camp-block: ARCHAEOLOGY_TABLE
+  # Client-only. Template cells that cannot be planted.
+  invalid-block: RED_STAINED_GLASS
+  # Client-only. Perimeter of the archaeological chunk (not a full floor tint).
+  ruin-outline-block: LIGHT_BLUE_STAINED_GLASS
+  item-name: "Establishment kit"
+  item-lore:
+    - "Aim at the ground next to a confirmed ruin."
+    - "The ghost turns red where the camp cannot sit. Right-click to plant."
+
 tracker:
   enabled: true
   # Radii in blocks. Effective range is the tighter of this cap and the site detection-radius.
@@ -37,7 +52,7 @@ tracker:
   detect-message-share-range: 0
   pulse-particles: true
   # Ring sizes for the 1 / 2 / 3 pip bursts (on-chunk reuses the first three as a full circle).
-  wave-radii: [1.2, 2.6, 4.2]
+  wave-radii: [1.2, 2.4, 3.6]
   wave-step-ticks: 3
   # Extra ticks after the last ring before the next burst. Lower = snappier; higher = less overlap.
   particle-fade-ticks: 10
