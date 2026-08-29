@@ -45,7 +45,9 @@ public class Site {
     private Integer campSignY;
     private Integer campSignZ;
     private final List<BlockCell> campBlocks = new ArrayList<>();
-    private String campWool = "RED";
+    private String campWoolPrimary = "WHITE";
+    private String campWoolSecondary = "RED";
+    private String campFacing;
 
     /** @return persistent site UUID */
     public UUID getId() {
@@ -430,17 +432,45 @@ public class Site {
     }
 
     /**
-     * @return wool color name ({@code RED}, {@code LIME}, …)
+     * @return primary wool ({@code W} cells), default {@code WHITE}
      */
-    public String getCampWool() {
-        return campWool == null || campWool.isBlank() ? "RED" : campWool;
+    public String getCampWoolPrimary() {
+        return campWoolPrimary == null || campWoolPrimary.isBlank() ? "WHITE" : campWoolPrimary;
     }
 
     /**
-     * @param campWool DyeColor name without {@code _WOOL}
+     * @param campWoolPrimary DyeColor name without {@code _WOOL}
      */
-    public void setCampWool(String campWool) {
-        this.campWool = campWool;
+    public void setCampWoolPrimary(String campWoolPrimary) {
+        this.campWoolPrimary = campWoolPrimary;
+    }
+
+    /**
+     * @return secondary wool ({@code R} cells), default {@code RED}
+     */
+    public String getCampWoolSecondary() {
+        return campWoolSecondary == null || campWoolSecondary.isBlank() ? "RED" : campWoolSecondary;
+    }
+
+    /**
+     * @param campWoolSecondary DyeColor name without {@code _WOOL}
+     */
+    public void setCampWoolSecondary(String campWoolSecondary) {
+        this.campWoolSecondary = campWoolSecondary;
+    }
+
+    /**
+     * @return cardinal the camp front faces, or {@code null} if unknown (legacy sites)
+     */
+    public String getCampFacing() {
+        return campFacing;
+    }
+
+    /**
+     * @param campFacing {@code NORTH}, {@code SOUTH}, {@code EAST}, or {@code WEST}
+     */
+    public void setCampFacing(String campFacing) {
+        this.campFacing = campFacing;
     }
 
     /**

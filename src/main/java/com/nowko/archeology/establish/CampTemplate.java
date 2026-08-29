@@ -23,8 +23,10 @@ public final class CampTemplate {
      * @param dy local Y (0 sits on the origin surface)
      * @param dz local Z
      * @param material client-only block
+     * @param wool {@link CampWoolRole#PRIMARY} for {@code W}, {@link CampWoolRole#SECONDARY} for {@code R},
+     *             or {@code null} for other pieces
      */
-    public record Piece(int dx, int dy, int dz, Material material) {
+    public record Piece(int dx, int dy, int dz, Material material, CampWoolRole wool) {
     }
 
     private CampTemplate() {
@@ -34,36 +36,38 @@ public final class CampTemplate {
      * Open-front tent. Floors 0–2 follow the 5×5 grids (last row = front, toward the player).
      * Aim origin is the centre of the 5×5 (may be air).
      *
-     * @return immutable piece list
+     * @return immutable piece list with default white / red wool
      */
     public static List<Piece> basic() {
-        return basic(Material.RED_WOOL);
+        return basic(Material.WHITE_WOOL, Material.RED_WOOL);
     }
 
     /**
-     * Open-front tent with a chosen wool color for {@code R} cells.
+     * Open-front tent with chosen wool for {@code W} (primary) and {@code R} (secondary) cells.
      *
-     * @param accentWool replaces red wool in the grid
+     * @param primaryWool replaces white wool in the grid
+     * @param secondaryWool replaces red wool in the grid
      * @return immutable piece list
      */
-    public static List<Piece> basic(Material accentWool) {
-        Material accent = accentWool == null ? Material.RED_WOOL : accentWool;
+    public static List<Piece> basic(Material primaryWool, Material secondaryWool) {
+        Material primary = primaryWool == null ? Material.WHITE_WOOL : primaryWool;
+        Material secondary = secondaryWool == null ? Material.RED_WOOL : secondaryWool;
         List<Piece> pieces = new ArrayList<>();
-        addFloor(pieces, 0, accent, new String[] {
+        addFloor(pieces, 0, primary, secondary, new String[] {
                 "WXFXW",
                 "WXXXW",
                 "WXXXW",
                 "XXXXS",
                 "NXXCX"
         });
-        addFloor(pieces, 1, accent, new String[] {
+        addFloor(pieces, 1, primary, secondary, new String[] {
                 "XRFRX",
                 "XRXRX",
                 "XRXRX",
                 "XXXXX",
                 "XXXXX"
         });
-        addFloor(pieces, 2, accent, new String[] {
+        addFloor(pieces, 2, primary, secondary, new String[] {
                 "XXWXX",
                 "XXWXX",
                 "XXWXX",
@@ -79,38 +83,53 @@ public final class CampTemplate {
      *
      * @param pieces list to fill
      * @param y local Y
-     * @param accentWool material for {@code R}
+     * @param primaryWool material for {@code W}
+     * @param secondaryWool material for {@code R}
      * @param rows five strings of length 5
      */
-    private static void addFloor(List<Piece> pieces, int y, Material accentWool, String[] rows) {
+    private static void addFloor(
+            List<Piece> pieces,
+            int y,
+            Material primaryWool,
+            Material secondaryWool,
+            String[] rows
+    ) {
         for (int row = 0; row < rows.length; row++) {
             String line = rows[row];
             int z = 2 - row;
             for (int col = 0; col < 5; col++) {
-                Material material = gridMaterial(line.charAt(col), accentWool);
-                if (material == null) {
+                GridCell cell = gridMaterial(line.charAt(col), primaryWool, secondaryWool);
+                if (cell == null) {
                     continue;
                 }
-                pieces.add(new Piece(col - 2, y, z, material));
+                pieces.add(new Piece(col - 2, y, z, cell.material(), cell.wool()));
             }
         }
     }
 
     /**
      * @param cell one character from a floor grid
-     * @param accentWool material for {@code R}
-     * @return block, or {@code null} for empty
+     * @param primaryWool material for {@code W}
+     * @param secondaryWool material for {@code R}
+     * @return block and wool role, or {@code null} for empty
      */
-    private static Material gridMaterial(char cell, Material accentWool) {
+    private static GridCell gridMaterial(char cell, Material primaryWool, Material secondaryWool) {
         return switch (cell) {
-            case 'W' -> Material.WHITE_WOOL;
-            case 'R' -> accentWool;
-            case 'F' -> Material.OAK_FENCE;
-            case 'S' -> Material.OAK_SLAB;
-            case 'C' -> Material.CAMPFIRE;
-            case 'N' -> Material.OAK_SIGN;
+            case 'W' -> new GridCell(primaryWool, CampWoolRole.PRIMARY);
+            case 'R' -> new GridCell(secondaryWool, CampWoolRole.SECONDARY);
+            case 'F' -> new GridCell(Material.OAK_FENCE, null);
+            case 'S' -> new GridCell(Material.OAK_SLAB, null);
+            case 'C' -> new GridCell(Material.CAMPFIRE, null);
+            case 'N' -> new GridCell(Material.OAK_SIGN, null);
             default -> null;
         };
+    }
+
+    /**
+     * @param material block
+     * @param wool wool role, or {@code null}
+     */
+    private record GridCell(Material material, CampWoolRole wool) {
     }
 
     /**

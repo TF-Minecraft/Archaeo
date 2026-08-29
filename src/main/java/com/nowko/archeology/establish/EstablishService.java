@@ -52,7 +52,8 @@ public class EstablishService {
     private final Map<UUID, BossBar> bars = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> relocating = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> renameForSite = new ConcurrentHashMap<>();
-    private final Map<UUID, String> woolChoice = new ConcurrentHashMap<>();
+    private final Map<UUID, String> woolChoicePrimary = new ConcurrentHashMap<>();
+    private final Map<UUID, String> woolChoiceSecondary = new ConcurrentHashMap<>();
     private final Map<UUID, Long> woolCycleTick = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> moveAimProxies = new ConcurrentHashMap<>();
     private final Map<UUID, CampPlacement> lastPulse = new ConcurrentHashMap<>();
@@ -282,7 +283,8 @@ public class EstablishService {
      */
     public void beginRelocate(Player player, Site site) {
         relocating.put(player.getUniqueId(), site.getId());
-        woolChoice.remove(player.getUniqueId());
+        woolChoicePrimary.remove(player.getUniqueId());
+        woolChoiceSecondary.remove(player.getUniqueId());
         player.sendMessage("Moving the camp. Right-click to place the ghost. Left-click or type cancel to abort.");
     }
 
@@ -343,8 +345,8 @@ public class EstablishService {
     }
 
     /**
-     * Cycles wool color on a left-click while sneak is held during first plant with the kit.
-     * Relocate mode does not change color.
+     * Cycles secondary wool ({@code R}) on a left-click while sneak is held during first plant.
+     * Relocate mode does not change colour.
      *
      * @param player viewer
      * @return whether wool was (or already was this tick) cycled
@@ -374,7 +376,7 @@ public class EstablishService {
     }
 
     /**
-     * Applies the next accent color. Prefer {@link #tryCycleWool(Player)} from clicks.
+     * Applies the next secondary colour. Prefer {@link #tryCycleWool(Player)} from clicks.
      *
      * @param player kit holder placing a new camp
      */
@@ -388,39 +390,116 @@ public class EstablishService {
             return;
         }
         Site site = activeSite(player);
-        String current = woolName(player, site);
+        String current = secondaryWoolName(player, site);
         String next = CampWools.next(current).name();
-        woolChoice.put(player.getUniqueId(), next);
+        woolChoiceSecondary.put(player.getUniqueId(), next);
         if (site != null) {
             pulsePlacement(player, site, false);
         }
     }
 
     /**
-     * Sets wool color from the excavation board and recolors existing {@code R} blocks.
+     * Sets one wool role from the excavation board and rewrites those template cells in the world.
      *
      * @param player director
      * @param site excavation
      * @param color chosen DyeColor
+     * @param role primary ({@code W}) or secondary ({@code R})
      */
-    public void applyCampWool(Player player, Site site, DyeColor color) {
+    public void applyCampWool(Player player, Site site, DyeColor color, CampWoolRole role) {
         if (site.getDirector() == null || !site.getDirector().equals(player.getUniqueId())) {
             return;
         }
-        Material from = CampWools.woolOf(site.getCampWool());
-        Material to = CampWools.woolOf(color.name());
+        DyeColor fallback = role == CampWoolRole.PRIMARY ? DyeColor.WHITE : DyeColor.RED;
+        Material to = CampWools.woolOf(color.name(), fallback);
         World world = plugin.getServer().getWorld(site.getWorldName());
-        if (world != null && from != to) {
+        if (world != null) {
+            recolorWoolCells(world, site, role, to);
+        }
+        if (role == CampWoolRole.PRIMARY) {
+            site.setCampWoolPrimary(color.name());
+            woolChoicePrimary.put(player.getUniqueId(), color.name());
+        } else {
+            site.setCampWoolSecondary(color.name());
+            woolChoiceSecondary.put(player.getUniqueId(), color.name());
+        }
+        sites.save(site);
+    }
+
+    /**
+     * Overwrites every template cell of {@code role} at the planted origin, whatever block is there.
+     *
+     * @param world camp world
+     * @param site excavation
+     * @param role which grid letters to rewrite
+     * @param to new wool
+     */
+    private void recolorWoolCells(World world, Site site, CampWoolRole role, Material to) {
+        Integer originX = site.getCampX();
+        Integer originY = site.getCampY();
+        Integer originZ = site.getCampZ();
+        BlockFace facing = campFacing(site);
+        if (originX == null || originY == null || originZ == null || facing == null) {
+            DyeColor fallback = role == CampWoolRole.PRIMARY ? DyeColor.WHITE : DyeColor.RED;
+            String stored = role == CampWoolRole.PRIMARY ? site.getCampWoolPrimary() : site.getCampWoolSecondary();
+            Material from = CampWools.woolOf(stored, fallback);
             for (BlockCell cell : site.getCampBlocks()) {
                 Block block = world.getBlockAt(cell.x(), cell.y(), cell.z());
                 if (block.getType() == from) {
                     block.setType(to, false);
                 }
             }
+            return;
         }
-        site.setCampWool(color.name());
-        woolChoice.put(player.getUniqueId(), color.name());
-        sites.save(site);
+        List<CampTemplate.Piece> pieces = CampTemplate.basic(
+                CampWools.woolOf(site.getCampWoolPrimary(), DyeColor.WHITE),
+                CampWools.woolOf(site.getCampWoolSecondary(), DyeColor.RED));
+        for (CampTemplate.Piece piece : pieces) {
+            if (piece.wool() != role) {
+                continue;
+            }
+            Vector offset = CampTemplate.rotate(piece.dx(), piece.dz(), facing);
+            world.getBlockAt(
+                    originX + offset.getBlockX(),
+                    originY + piece.dy(),
+                    originZ + offset.getBlockZ()
+            ).setType(to, false);
+        }
+    }
+
+    /**
+     * Stored facing, or inferred from the sign cell of the tent grid ({@code N} at local −2, −2).
+     *
+     * @param site excavation
+     * @return cardinal, or {@code null}
+     */
+    private BlockFace campFacing(Site site) {
+        if (site.getCampFacing() != null) {
+            try {
+                BlockFace stored = BlockFace.valueOf(site.getCampFacing());
+                if (stored.isCartesian() && stored.getModY() == 0) {
+                    return stored;
+                }
+            } catch (IllegalArgumentException ignored) {
+                // fall through to sign inference
+            }
+        }
+        if (site.getCampX() == null || site.getCampSignX() == null) {
+            return null;
+        }
+        int dx = site.getCampSignX() - site.getCampX();
+        int dz = site.getCampSignZ() - site.getCampZ();
+        int dy = site.getCampSignY() - site.getCampY();
+        if (dy != 0) {
+            return null;
+        }
+        for (BlockFace facing : new BlockFace[] {BlockFace.SOUTH, BlockFace.WEST, BlockFace.NORTH, BlockFace.EAST}) {
+            Vector offset = CampTemplate.rotate(-2, -2, facing);
+            if (offset.getBlockX() == dx && offset.getBlockZ() == dz) {
+                return facing;
+            }
+        }
+        return null;
     }
 
     /**
@@ -503,8 +582,10 @@ public class EstablishService {
                 site.setCampSignZ(ghost.z());
             }
         }
+        site.setCampFacing(CampTemplate.facingFromYaw(player.getLocation().getYaw()).name());
         if (!moving) {
-            site.setCampWool(woolName(player, site));
+            site.setCampWoolPrimary(primaryWoolName(player, site));
+            site.setCampWoolSecondary(secondaryWoolName(player, site));
         }
         Block camp = world.getBlockAt(placement.originX(), placement.originY(), placement.originZ());
         Chunk campChunk = camp.getChunk();
@@ -574,18 +655,37 @@ public class EstablishService {
     /**
      * @param player kit holder
      * @param site current site, or {@code null}
-     * @return DyeColor name for wool color
+     * @return DyeColor name for {@code W} cells
      */
-    private String woolName(Player player, Site site) {
+    private String primaryWoolName(Player player, Site site) {
         if (isRelocating(player) && site != null) {
-            return site.getCampWool();
+            return site.getCampWoolPrimary();
         }
-        String chosen = woolChoice.get(player.getUniqueId());
+        String chosen = woolChoicePrimary.get(player.getUniqueId());
         if (chosen != null) {
             return chosen;
         }
         if (site != null && site.isCampLocked()) {
-            return site.getCampWool();
+            return site.getCampWoolPrimary();
+        }
+        return "WHITE";
+    }
+
+    /**
+     * @param player kit holder
+     * @param site current site, or {@code null}
+     * @return DyeColor name for {@code R} cells
+     */
+    private String secondaryWoolName(Player player, Site site) {
+        if (isRelocating(player) && site != null) {
+            return site.getCampWoolSecondary();
+        }
+        String chosen = woolChoiceSecondary.get(player.getUniqueId());
+        if (chosen != null) {
+            return chosen;
+        }
+        if (site != null && site.isCampLocked()) {
+            return site.getCampWoolSecondary();
         }
         return "RED";
     }
@@ -638,7 +738,9 @@ public class EstablishService {
         }
         CampPlacement.Issue chunkIssue = chunkIssue(site, target);
         boolean chunkOk = chunkIssue == null;
-        List<CampTemplate.Piece> pieces = CampTemplate.basic(CampWools.woolOf(woolName(player, site)));
+        List<CampTemplate.Piece> pieces = CampTemplate.basic(
+                CampWools.woolOf(primaryWoolName(player, site), DyeColor.WHITE),
+                CampWools.woolOf(secondaryWoolName(player, site), DyeColor.RED));
         BlockFace facing = CampTemplate.facingFromYaw(player.getLocation().getYaw());
         int[] bounds = CampTemplate.offsetBounds(pieces, facing);
         Chunk chunk = target.getChunk();

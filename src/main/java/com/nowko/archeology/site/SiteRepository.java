@@ -265,7 +265,11 @@ public class SiteRepository {
                     site.getCampBlocks().stream()
                             .map(cell -> cell.x() + "," + cell.y() + "," + cell.z())
                             .toList());
-            yaml.set("establishment.wool", site.getCampWool());
+            yaml.set("establishment.wool-primary", site.getCampWoolPrimary());
+            yaml.set("establishment.wool-secondary", site.getCampWoolSecondary());
+            if (site.getCampFacing() != null) {
+                yaml.set("establishment.facing", site.getCampFacing());
+            }
         }
         yaml.set("prospect.confirmed", site.getProspectConfirmed().stream().map(UUID::toString).toList());
         for (Map.Entry<UUID, List<BlockCell>> entry : site.allProspectSamples().entrySet()) {
@@ -361,8 +365,16 @@ public class SiteRepository {
                         Integer.parseInt(parts[2])
                 ));
             }
-            if (yaml.getString("establishment.wool") != null) {
-                site.setCampWool(yaml.getString("establishment.wool"));
+            if (yaml.getString("establishment.wool-primary") != null) {
+                site.setCampWoolPrimary(yaml.getString("establishment.wool-primary"));
+            }
+            if (yaml.getString("establishment.wool-secondary") != null) {
+                site.setCampWoolSecondary(yaml.getString("establishment.wool-secondary"));
+            } else if (yaml.getString("establishment.wool") != null) {
+                site.setCampWoolSecondary(yaml.getString("establishment.wool"));
+            }
+            if (yaml.getString("establishment.facing") != null) {
+                site.setCampFacing(yaml.getString("establishment.facing"));
             }
         }
 

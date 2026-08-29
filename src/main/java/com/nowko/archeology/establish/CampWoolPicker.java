@@ -15,19 +15,22 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Director palette for camp wool color. Slots 0–15 are the vanilla colors.
+ * Director palette for one camp wool role. Slots 0–15 are the vanilla colours.
  */
 public final class CampWoolPicker implements InventoryHolder {
     static final int SLOT_BACK = 22;
 
     private final UUID siteId;
+    private final CampWoolRole role;
     private Inventory inventory;
 
     /**
      * @param siteId excavation
+     * @param role primary ({@code W}) or secondary ({@code R})
      */
-    public CampWoolPicker(UUID siteId) {
+    public CampWoolPicker(UUID siteId, CampWoolRole role) {
         this.siteId = siteId;
+        this.role = role;
     }
 
     /**
@@ -35,6 +38,13 @@ public final class CampWoolPicker implements InventoryHolder {
      */
     public UUID siteId() {
         return siteId;
+    }
+
+    /**
+     * @return which tent wool this palette edits
+     */
+    public CampWoolRole role() {
+        return role;
     }
 
     /**
@@ -50,8 +60,11 @@ public final class CampWoolPicker implements InventoryHolder {
      * @param site excavation
      */
     public void open(Player player, Site site) {
-        inventory = Bukkit.createInventory(this, 27, ChatColor.DARK_GREEN + "Camp wool");
-        DyeColor current = CampWools.parse(site.getCampWool());
+        DyeColor fallback = role == CampWoolRole.PRIMARY ? DyeColor.WHITE : DyeColor.RED;
+        String stored = role == CampWoolRole.PRIMARY ? site.getCampWoolPrimary() : site.getCampWoolSecondary();
+        DyeColor current = CampWools.parse(stored, fallback);
+        String title = role == CampWoolRole.PRIMARY ? "Primary color" : "Secondary color";
+        inventory = Bukkit.createInventory(this, 27, ChatColor.DARK_GREEN + title);
         DyeColor[] palette = CampWools.palette();
         for (int i = 0; i < palette.length; i++) {
             DyeColor color = palette[i];
@@ -60,10 +73,10 @@ public final class CampWoolPicker implements InventoryHolder {
                 name = ChatColor.GOLD + CampWools.label(color);
             }
             inventory.setItem(i, named(
-                    CampWools.woolOf(color.name()),
+                    CampWools.woolOf(color.name(), fallback),
                     name,
                     color == current
-                            ? ChatColor.DARK_GRAY + "Current accent."
+                            ? ChatColor.DARK_GRAY + "Current colour."
                             : ChatColor.GRAY + "Click to apply."));
         }
         inventory.setItem(SLOT_BACK, named(
@@ -75,7 +88,7 @@ public final class CampWoolPicker implements InventoryHolder {
 
     /**
      * @param slot clicked top slot
-     * @return color for that palette cell, or {@code null} if it is not a wool choice
+     * @return colour for that palette cell, or {@code null} if it is not a wool choice
      */
     static DyeColor colorAt(int slot) {
         DyeColor[] palette = CampWools.palette();

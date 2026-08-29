@@ -5,6 +5,7 @@ import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.SiteStatus;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.DyeColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -17,13 +18,14 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Chest GUI for an excavation sign. Director sees rename, move, and wool color; others see a summary only.
+ * Chest GUI for an excavation sign. Director sees rename, move, and primary / secondary wool.
  */
 public final class CampBoard implements InventoryHolder {
     static final int SLOT_INFO = 13;
     static final int SLOT_RENAME = 11;
     static final int SLOT_MOVE = 15;
-    static final int SLOT_WOOL = 22;
+    static final int SLOT_WOOL_PRIMARY = 20;
+    static final int SLOT_WOOL_SECONDARY = 24;
 
     private final UUID siteId;
     private final boolean director;
@@ -88,11 +90,16 @@ public final class CampBoard implements InventoryHolder {
                     ChatColor.WHITE + "Move camp",
                     ChatColor.GRAY + "Right-click to place the ghost you see.",
                     ChatColor.DARK_GRAY + "Left-click or type cancel to abort."));
-            inventory.setItem(SLOT_WOOL, named(
-                    CampWools.woolOf(site.getCampWool()),
-                    ChatColor.WHITE + "Color",
-                    ChatColor.GRAY + CampWools.label(CampWools.parse(site.getCampWool())),
-                    ChatColor.DARK_GRAY + "Click to choose a color."));
+            inventory.setItem(SLOT_WOOL_PRIMARY, named(
+                    CampWools.woolOf(site.getCampWoolPrimary(), DyeColor.WHITE),
+                    ChatColor.WHITE + "Primary color",
+                    ChatColor.GRAY + CampWools.label(CampWools.parse(site.getCampWoolPrimary(), DyeColor.WHITE)),
+                    ChatColor.DARK_GRAY + "Replaces the white-wool cells."));
+            inventory.setItem(SLOT_WOOL_SECONDARY, named(
+                    CampWools.woolOf(site.getCampWoolSecondary(), DyeColor.RED),
+                    ChatColor.WHITE + "Secondary color",
+                    ChatColor.GRAY + CampWools.label(CampWools.parse(site.getCampWoolSecondary(), DyeColor.RED)),
+                    ChatColor.DARK_GRAY + "Replaces the red-wool cells."));
         }
         player.openInventory(inventory);
     }

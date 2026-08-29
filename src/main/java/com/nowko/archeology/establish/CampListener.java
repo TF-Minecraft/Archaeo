@@ -287,8 +287,12 @@ public class CampListener implements Listener {
             establish.beginRelocate(player, site);
             return;
         }
-        if (slot == CampBoard.SLOT_WOOL) {
-            new CampWoolPicker(site.getId()).open(player, site);
+        if (slot == CampBoard.SLOT_WOOL_PRIMARY) {
+            new CampWoolPicker(site.getId(), CampWoolRole.PRIMARY).open(player, site);
+            return;
+        }
+        if (slot == CampBoard.SLOT_WOOL_SECONDARY) {
+            new CampWoolPicker(site.getId(), CampWoolRole.SECONDARY).open(player, site);
         }
     }
 
@@ -325,7 +329,7 @@ public class CampListener implements Listener {
         if (color == null) {
             return;
         }
-        establish.applyCampWool(player, site, color);
+        establish.applyCampWool(player, site, color, picker.role());
         new CampBoard(site.getId(), true).open(player, site);
     }
 
