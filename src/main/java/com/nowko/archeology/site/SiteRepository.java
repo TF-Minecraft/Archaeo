@@ -118,6 +118,23 @@ public class SiteRepository {
     }
 
     /**
+     * Active excavation whose camp template occupies this block.
+     *
+     * @param world world name
+     * @param x block X
+     * @param y block Y
+     * @param z block Z
+     * @return locked camp site, if any
+     */
+    public Optional<Site> findLockedCampBlock(String world, int x, int y, int z) {
+        return byId.values().stream()
+                .filter(Site::isCampLocked)
+                .filter(site -> site.getWorldName().equals(world))
+                .filter(site -> site.isCampBlock(x, y, z))
+                .findFirst();
+    }
+
+    /**
      * @param serial human-facing site number
      * @return site with that serial, if loaded
      */
@@ -238,6 +255,17 @@ public class SiteRepository {
             yaml.set("establishment.camp-x", site.getCampX());
             yaml.set("establishment.camp-y", site.getCampY());
             yaml.set("establishment.camp-z", site.getCampZ());
+            if (site.getCampSignX() != null) {
+                yaml.set("establishment.sign-x", site.getCampSignX());
+                yaml.set("establishment.sign-y", site.getCampSignY());
+                yaml.set("establishment.sign-z", site.getCampSignZ());
+            }
+            yaml.set(
+                    "establishment.blocks",
+                    site.getCampBlocks().stream()
+                            .map(cell -> cell.x() + "," + cell.y() + "," + cell.z())
+                            .toList());
+            yaml.set("establishment.wool", site.getCampWool());
         }
         yaml.set("prospect.confirmed", site.getProspectConfirmed().stream().map(UUID::toString).toList());
         for (Map.Entry<UUID, List<BlockCell>> entry : site.allProspectSamples().entrySet()) {
@@ -316,6 +344,25 @@ public class SiteRepository {
                 site.setCampX(yaml.getInt("establishment.camp-x"));
                 site.setCampY(yaml.getInt("establishment.camp-y"));
                 site.setCampZ(yaml.getInt("establishment.camp-z"));
+            }
+            if (yaml.contains("establishment.sign-x")) {
+                site.setCampSignX(yaml.getInt("establishment.sign-x"));
+                site.setCampSignY(yaml.getInt("establishment.sign-y"));
+                site.setCampSignZ(yaml.getInt("establishment.sign-z"));
+            }
+            for (String cell : yaml.getStringList("establishment.blocks")) {
+                String[] parts = cell.split(",");
+                if (parts.length < 3) {
+                    continue;
+                }
+                site.getCampBlocks().add(new BlockCell(
+                        Integer.parseInt(parts[0]),
+                        Integer.parseInt(parts[1]),
+                        Integer.parseInt(parts[2])
+                ));
+            }
+            if (yaml.getString("establishment.wool") != null) {
+                site.setCampWool(yaml.getString("establishment.wool"));
             }
         }
 

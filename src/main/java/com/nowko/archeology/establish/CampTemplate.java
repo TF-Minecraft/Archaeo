@@ -37,22 +37,33 @@ public final class CampTemplate {
      * @return immutable piece list
      */
     public static List<Piece> basic() {
+        return basic(Material.RED_WOOL);
+    }
+
+    /**
+     * Open-front tent with a chosen wool color for {@code R} cells.
+     *
+     * @param accentWool replaces red wool in the grid
+     * @return immutable piece list
+     */
+    public static List<Piece> basic(Material accentWool) {
+        Material accent = accentWool == null ? Material.RED_WOOL : accentWool;
         List<Piece> pieces = new ArrayList<>();
-        addFloor(pieces, 0, new String[] {
+        addFloor(pieces, 0, accent, new String[] {
                 "WXFXW",
-                "WXTXW",
+                "WXXXW",
                 "WXXXW",
                 "XXXXS",
                 "NXXCX"
         });
-        addFloor(pieces, 1, new String[] {
+        addFloor(pieces, 1, accent, new String[] {
                 "XRFRX",
                 "XRXRX",
                 "XRXRX",
                 "XXXXX",
                 "XXXXX"
         });
-        addFloor(pieces, 2, new String[] {
+        addFloor(pieces, 2, accent, new String[] {
                 "XXWXX",
                 "XXWXX",
                 "XXWXX",
@@ -64,18 +75,19 @@ public final class CampTemplate {
 
     /**
      * One storey as a 5×5 grid. The last row is the camp front (toward the player, local −Z).
-     * {@code N} is a standing oak sign. {@code T} is the crafting table.
+     * {@code N} is a standing oak sign.
      *
      * @param pieces list to fill
      * @param y local Y
+     * @param accentWool material for {@code R}
      * @param rows five strings of length 5
      */
-    private static void addFloor(List<Piece> pieces, int y, String[] rows) {
+    private static void addFloor(List<Piece> pieces, int y, Material accentWool, String[] rows) {
         for (int row = 0; row < rows.length; row++) {
             String line = rows[row];
             int z = 2 - row;
             for (int col = 0; col < 5; col++) {
-                Material material = gridMaterial(line.charAt(col));
+                Material material = gridMaterial(line.charAt(col), accentWool);
                 if (material == null) {
                     continue;
                 }
@@ -86,13 +98,13 @@ public final class CampTemplate {
 
     /**
      * @param cell one character from a floor grid
+     * @param accentWool material for {@code R}
      * @return block, or {@code null} for empty
      */
-    private static Material gridMaterial(char cell) {
+    private static Material gridMaterial(char cell, Material accentWool) {
         return switch (cell) {
             case 'W' -> Material.WHITE_WOOL;
-            case 'R' -> Material.RED_WOOL;
-            case 'T' -> Material.CRAFTING_TABLE;
+            case 'R' -> accentWool;
             case 'F' -> Material.OAK_FENCE;
             case 'S' -> Material.OAK_SLAB;
             case 'C' -> Material.CAMPFIRE;

@@ -41,6 +41,11 @@ public class Site {
     private Integer campX;
     private Integer campY;
     private Integer campZ;
+    private Integer campSignX;
+    private Integer campSignY;
+    private Integer campSignZ;
+    private final List<BlockCell> campBlocks = new ArrayList<>();
+    private String campWool = "RED";
 
     /** @return persistent site UUID */
     public UUID getId() {
@@ -356,6 +361,103 @@ public class Site {
      */
     public void setCampZ(Integer campZ) {
         this.campZ = campZ;
+    }
+
+    /**
+     * @return true while the excavation is active; template blocks stay locked
+     */
+    public boolean isCampLocked() {
+        return getStatus() == SiteStatus.ESTABLISHED;
+    }
+
+    /**
+     * @return placed template cells
+     */
+    public List<BlockCell> getCampBlocks() {
+        return campBlocks;
+    }
+
+    /**
+     * @param x block X
+     * @param y block Y
+     * @param z block Z
+     * @return whether this cell is part of the locked camp
+     */
+    public boolean isCampBlock(int x, int y, int z) {
+        return campBlocks.contains(new BlockCell(x, y, z));
+    }
+
+    /**
+     * @return sign X, or {@code null}
+     */
+    public Integer getCampSignX() {
+        return campSignX;
+    }
+
+    /**
+     * @param campSignX sign X
+     */
+    public void setCampSignX(Integer campSignX) {
+        this.campSignX = campSignX;
+    }
+
+    /**
+     * @return sign Y, or {@code null}
+     */
+    public Integer getCampSignY() {
+        return campSignY;
+    }
+
+    /**
+     * @param campSignY sign Y
+     */
+    public void setCampSignY(Integer campSignY) {
+        this.campSignY = campSignY;
+    }
+
+    /**
+     * @return sign Z, or {@code null}
+     */
+    public Integer getCampSignZ() {
+        return campSignZ;
+    }
+
+    /**
+     * @param campSignZ sign Z
+     */
+    public void setCampSignZ(Integer campSignZ) {
+        this.campSignZ = campSignZ;
+    }
+
+    /**
+     * @return wool color name ({@code RED}, {@code LIME}, …)
+     */
+    public String getCampWool() {
+        return campWool == null || campWool.isBlank() ? "RED" : campWool;
+    }
+
+    /**
+     * @param campWool DyeColor name without {@code _WOOL}
+     */
+    public void setCampWool(String campWool) {
+        this.campWool = campWool;
+    }
+
+    /**
+     * Updates only camp coordinates after a director move.
+     *
+     * @param campChunkX new camp chunk X
+     * @param campChunkZ new camp chunk Z
+     * @param blockX origin X
+     * @param blockY origin Y
+     * @param blockZ origin Z
+     */
+    public void relocateCamp(int campChunkX, int campChunkZ, int blockX, int blockY, int blockZ) {
+        setEstablishmentChunkX(campChunkX);
+        setEstablishmentChunkZ(campChunkZ);
+        setCampX(blockX);
+        setCampY(blockY);
+        setCampZ(blockZ);
     }
 
     /**

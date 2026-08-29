@@ -39,7 +39,7 @@ public record CampPlacement(
      */
     public enum Issue {
         /** Crosshair did not hit a block. */
-        LOOK_MISS("Look at the ground to place the camp."),
+        LOOK_MISS("Aim so the ghost sits where you want it."),
         /** Aimed chunk is the archaeological dig. */
         ON_DIG("The camp cannot sit on the dig."),
         /** Ruin or camp already registered here. */

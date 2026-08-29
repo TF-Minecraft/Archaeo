@@ -2,6 +2,7 @@ package com.nowko.archeology;
 
 import com.nowko.archeology.command.ArchaeoCommand;
 import com.nowko.archeology.config.CatalogRegistry;
+import com.nowko.archeology.establish.CampListener;
 import com.nowko.archeology.establish.EstablishListener;
 import com.nowko.archeology.establish.EstablishService;
 import com.nowko.archeology.item.EstablishItem;
@@ -49,6 +50,7 @@ public class ArcheologyPlugin extends JavaPlugin {
         establish = new EstablishService(this, sites, establishItem, catalogs.establish());
         establish.start();
         getServer().getPluginManager().registerEvents(new EstablishListener(establishItem, establish), this);
+        getServer().getPluginManager().registerEvents(new CampListener(this, sites, establishItem, establish), this);
 
         ArchaeoCommand command = new ArchaeoCommand(
                 catalogs,
