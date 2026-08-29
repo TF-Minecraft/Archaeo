@@ -135,6 +135,21 @@ public class SiteRepository {
     }
 
     /**
+     * Established excavation whose stratum prism contains this block.
+     *
+     * @param world world name
+     * @param x block X
+     * @param y block Y
+     * @param z block Z
+     * @return site if the cell is fill-protected
+     */
+    public Optional<Site> findEstablishedPrism(String world, int x, int y, int z) {
+        return findByChunk(world, x >> 4, z >> 4)
+                .filter(site -> site.getStatus() == SiteStatus.ESTABLISHED)
+                .filter(site -> site.isInPrism(x, y, z));
+    }
+
+    /**
      * @param serial human-facing site number
      * @return site with that serial, if loaded
      */

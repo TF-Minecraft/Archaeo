@@ -14,7 +14,6 @@ import com.nowko.archeology.model.SiteStatus;
 import com.nowko.archeology.model.SiteType;
 import com.nowko.archeology.model.StratumBand;
 import org.bukkit.Chunk;
-import org.bukkit.HeightMap;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.Biome;
@@ -86,7 +85,7 @@ public class SiteGenerator {
         site.setCreatedAt(Instant.now());
         site.setDetectionRadius(settings.detectionRadius());
         site.setName(resolveName(name, site.getSerial(), chunk));
-        site.setSurfaceY(resolveSurfaceY(chunk));
+        site.setSurfaceY(GroundDatum.medianY(chunk));
 
         assignStrata(site, settings, random);
         List<BuriedFind> finds = placeFinds(site, settings, random);
@@ -95,17 +94,6 @@ public class SiteGenerator {
 
         repository.save(site);
         return site;
-    }
-
-    /**
-     * @param chunk site chunk
-     * @return highest blocking block Y at chunk center (surface datum)
-     */
-    int resolveSurfaceY(Chunk chunk) {
-        World world = chunk.getWorld();
-        int x = (chunk.getX() << 4) + 8;
-        int z = (chunk.getZ() << 4) + 8;
-        return world.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES);
     }
 
     /**

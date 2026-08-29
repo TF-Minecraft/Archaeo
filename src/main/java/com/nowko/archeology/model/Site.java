@@ -10,7 +10,7 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * One administered ruin or excavation: chunk, strata, hidden finds, prospecting, and camp metadata.
+ * One administered ruin or excavation: chunk, stratum datum, hidden finds, prospecting, and camp metadata.
  */
 public class Site {
     private UUID id;
@@ -139,14 +139,62 @@ public class Site {
         this.chunkZ = chunkZ;
     }
 
-    /** @return surface Y used as the stratum depth datum */
+    /**
+     * @return median ground Y of the ruin chunk when finds were generated (stratum datum)
+     */
     public int getSurfaceY() {
         return surfaceY;
     }
 
-    /** @param surfaceY surface Y used as the stratum depth datum */
+    /**
+     * @param surfaceY median ground Y used as the stratum datum
+     */
     public void setSurfaceY(int surfaceY) {
         this.surfaceY = surfaceY;
+    }
+
+    /**
+     * @param blockX block X
+     * @param blockZ block Z
+     * @return whether the column sits in this site's archaeological chunk
+     */
+    public boolean isInRuinChunk(int blockX, int blockZ) {
+        return (blockX >> 4) == chunkX && (blockZ >> 4) == chunkZ;
+    }
+
+    /**
+     * Horizontal chunk plus a present stratum Y band. Air above the datum is outside.
+     *
+     * @param blockX block X
+     * @param blockY block Y
+     * @param blockZ block Z
+     * @return whether the cell is inside the excavation prism
+     */
+    public boolean isInPrism(int blockX, int blockY, int blockZ) {
+        if (!isInRuinChunk(blockX, blockZ)) {
+            return false;
+        }
+        for (StratumBand band : strata.values()) {
+            if (band.isPresent() && blockY >= band.getMinY() && blockY <= band.getMaxY()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Present stratum band that contains this Y, or {@code null}.
+     *
+     * @param blockY block Y
+     * @return band, if any
+     */
+    public StratumBand stratumAt(int blockY) {
+        for (StratumBand band : strata.values()) {
+            if (band.isPresent() && blockY >= band.getMinY() && blockY <= band.getMaxY()) {
+                return band;
+            }
+        }
+        return null;
     }
 
     /** @return tracker detection radius in blocks */

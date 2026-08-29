@@ -1,6 +1,7 @@
 package com.nowko.archeology.establish;
 
 import com.nowko.archeology.config.EstablishSettings;
+import com.nowko.archeology.excavation.PrismWound;
 import com.nowko.archeology.item.EstablishItem;
 import com.nowko.archeology.model.BlockCell;
 import com.nowko.archeology.model.Site;
@@ -604,6 +605,9 @@ public class EstablishService {
             );
             consumeOne(player);
         }
+        if (!moving) {
+            noteMissingTerrain(player, site);
+        }
         sites.save(site);
         if (site.getCampSignX() != null) {
             plugin.getServer().getScheduler().runTask(plugin, () -> CampSigns.write(
@@ -617,6 +621,24 @@ public class EstablishService {
             player.sendMessage("You established an archaeological excavation.");
             player.sendMessage(site.displayLabel());
             player.sendMessage("Director: " + player.getName());
+        }
+    }
+
+    /**
+     * First plant: finds whose cells are already air, water, or builds are damaged. Does not block the claim.
+     *
+     * @param player director
+     * @param site excavation just established
+     */
+    private void noteMissingTerrain(Player player, Site site) {
+        World ruinWorld = plugin.getServer().getWorld(site.getWorldName());
+        if (ruinWorld == null) {
+            return;
+        }
+        ruinWorld.getChunkAt(site.getChunkX(), site.getChunkZ()).load();
+        int wounded = PrismWound.markMissingTerrain(ruinWorld, site);
+        if (wounded > 0) {
+            player.sendMessage("Some remains were already disturbed.");
         }
     }
 

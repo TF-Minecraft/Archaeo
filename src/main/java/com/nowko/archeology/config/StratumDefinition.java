@@ -7,8 +7,8 @@ package com.nowko.archeology.config;
  * @param order sort key, smallest first (most recent)
  * @param displayName English label
  * @param antiquity flavor text
- * @param depthMin blocks below surface for the top of the band
- * @param depthMax blocks below surface for the bottom of the band
+ * @param depthMin blocks below the median datum for the top of the band
+ * @param depthMax blocks below the median datum for the bottom of the band
  * @param alwaysPresent if {@code false}, generation may omit this layer
  */
 public record StratumDefinition(

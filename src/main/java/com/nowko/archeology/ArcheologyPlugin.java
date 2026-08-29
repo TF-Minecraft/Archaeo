@@ -5,6 +5,7 @@ import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.establish.CampListener;
 import com.nowko.archeology.establish.EstablishListener;
 import com.nowko.archeology.establish.EstablishService;
+import com.nowko.archeology.excavation.PrismListener;
 import com.nowko.archeology.item.EstablishItem;
 import com.nowko.archeology.item.ProspectItem;
 import com.nowko.archeology.item.TrackerItem;
@@ -17,7 +18,7 @@ import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
- * Spigot entry point for Archaeo: catalogs, sites, staff commands, tracker, prospecting, and establishment.
+ * Spigot entry point for Archaeo: catalogs, sites, staff commands, tracker, prospecting, camp, and dig prism.
  */
 public class ArcheologyPlugin extends JavaPlugin {
     private CatalogRegistry catalogs;
@@ -51,6 +52,7 @@ public class ArcheologyPlugin extends JavaPlugin {
         establish.start();
         getServer().getPluginManager().registerEvents(new EstablishListener(establishItem, establish), this);
         getServer().getPluginManager().registerEvents(new CampListener(this, sites, establishItem, establish), this);
+        getServer().getPluginManager().registerEvents(new PrismListener(sites), this);
 
         ArchaeoCommand command = new ArchaeoCommand(
                 catalogs,

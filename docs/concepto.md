@@ -69,11 +69,11 @@ Lo que vanilla **no** da, y Archaeo sí debe dar:
 2. **Descubrir, no consultar.** Las ruinas no se listan. Se buscan con un **rastreador** (pitidos y pulsos) y luego se prospectan. Nada de fragmentos de conocimiento ni libreta compartida.
 3. **El plugin no escribe la historia oficial.** Ofrece indicios e interpretaciones posibles. La historia canónica del servidor la marcan los admins.
 4. **Tres capas de verdad** (plugin / admin / jugador) coexisten y no se pisan.
-5. **Facciones opcionales.** Pueden recibir **acceso a excavar** (lista del site). No son dueñas del yacimiento ni Archaeo protege bloques: eso sigue siendo el plugin de claims.
+5. **Facciones opcionales.** Pueden recibir **acceso a excavar** (lista del site). No son dueñas del yacimiento. El claim de terreno sigue siendo el plugin de facciones/claims.
 6. **La fragilidad importa.** El terreno y los restos deben poder alterarse o perderse; Archaeo no debe convertir una excavación en un generador de objetos sin riesgo.
-7. **Una excavación es un proyecto, no un loot ni un plot.** Se descubre, se confirma y se **establece en el mundo** (campamento en un chunk vecino). Queda **fija**. El campamento no se planta sobre el corte.
-8. **El minijuego es el mundo.** Pico / martillo / pincel en el **área arqueológica**; HUD mínimo. La gestión vive en el **panel del campamento**, no en comandos de jugador.
-9. **Archaeo no es un plugin de protección genérico.** Sin permiso arqueológico no se usan las herramientas del minijuego. Romper tierra “vanilla” lo deciden facciones/claims. El **chunk de establecimiento** sí puede quedar protegido mientras la excavación esté activa (eso no sustituye un `/claim` de jugador).
+7. **Una excavación es un proyecto, no un loot ni un plot.** Se descubre, se confirma y se **establece en el mundo** (campamento en un chunk vecino). Queda **fija**. El campamento no se planta sobre el volumen excavable.
+8. **El minijuego es el mundo.** Hand Pick / martillo / pincel en el **prisma de estratos**; HUD mínimo. La gestión vive en el **panel del campamento**, no en comandos de jugador.
+9. **Archaeo no es un `/claim` de jugador.** El chunk de **establecimiento** puede protegerse mientras la excavación esté activa. Los hallazgos son datos, no bloques en el mundo. La **cara de trabajo** es terreno del prisma con al menos una cara al aire (o agua/plantas): suelo y paredes del corte. Ahí solo herramientas de excavación. Un túnel cerrado por debajo sigue siendo vanilla y hiere el sustrato. Aire, agua y construcciones no se sustituyen por relleno. Eso no sustituye un claim de terreno.
 
 ---
 
@@ -87,7 +87,7 @@ Un **yacimiento** es un lugar persistente con identidad, no un chunk anónimo.
 | --- | --- | --- |
 | **Vanilla** | Pirámide, fuente, ruinas oceánicas, ruinas perdidas | Fuera del alcance inicial: el mapa personalizado no las genera. |
 | **Ruina administrada** | Chunk seleccionado por el staff en el mapa personalizado | Se crea con un comando que registra el chunk, el nivel de interés y los datos iniciales del lugar. Es el tipo de la primera versión. |
-| **Campaña (excavación del jugador)** | El jugador la **establece** con el kit en un chunk **vecino** al yacimiento ya confirmado por cata | Proyecto persistente; campamento visible; corte en el chunk arqueológico (§1d). |
+| **Campaña (excavación del jugador)** | El jugador la **establece** con el kit en un chunk **vecino** al yacimiento ya confirmado por cata | Proyecto persistente; campamento visible; prisma de estratos en el chunk arqueológico (§1c, §1d). |
 
 Una ruina administrada pasa a **excavación** cuando alguien confirma con cata y **confirma la colocación del kit**. Las construcciones del mapa las ponen los moderadores; el comando de staff solo registra el chunk oculto.
 
@@ -213,12 +213,12 @@ Un yacimiento es un **volumen persistente** en el plugin, no “cualquier bloque
 Datos mínimos:
 
 - `id`
-- mundo + **caja** del área arqueológica (el chunk registrado por el staff, más bandas de Y)
-- chunk de **establecimiento** (campamento), distinto del corte
+- mundo + chunk arqueológico (16×16) + **cota de referencia** (`datumY`) + bandas de Y de cada estrato
+- chunk de **establecimiento** (campamento), distinto del volumen excavable
 - tipo, nombre, descubridor / director
 - dossier: estratos, presupuesto, indicios, estado
 
-Un punto de excavación está “en el yacimiento” si cae **dentro de la caja arqueológica**. Fuera de ella el plugin no genera hallazgos de campaña. El campamento está **fuera** de esa caja.
+Un punto de excavación está “en el yacimiento” si cae **dentro del prisma**: misma planta que el chunk registrado y Y dentro de las bandas de estrato. Fuera de él el plugin no genera hallazgos de campaña. El campamento está **fuera** de ese prisma.
 
 **Tamaño de campaña — un chunk (16×16), alineado a la cuadrícula de Minecraft.**
 
@@ -227,10 +227,38 @@ Un bloque ≈ un metro. En arqueología real las cuadrículas suelen ser de 1×1
 | Tamaño | Por qué sí / no |
 | --- | --- |
 | Menos (8×8) | Corto de más; se acaba el solar como un sótano, no como un yacimiento. |
-| **Un chunk (16×16)** | Encaja con mapas, Dynmap y facciones. El **corte** = chunk de la ruina. El **campamento** = chunk vecino (§1d). |
+| **Un chunk (16×16)** | Encaja con mapas, Dynmap y facciones. El **prisma** = chunk de la ruina entre cota y última banda. El **campamento** = chunk vecino (§1d). |
 | Más (2×2 chunks) | Es una cantera. Vaciarlo a pala deja de sentirse arqueología. |
 
-Profundidad: no es un chunk hacia bedrock. Al **establecer** la excavación, el plugin define **bandas de Y** a partir de la superficie (unos 3–5 bloques por estrato presente).
+El terreno **no** tiene que estar igualado y el plugin **no** allana ni abre una zanja al establecer. No hay una fase de “corte” construido. Lo que se fija al confirmar el kit es una **cota de referencia** y, a partir de ella, las bandas de estrato de la config (unos 3–5 bloques por estrato presente). Detalle más abajo y en §1d.
+
+---
+
+### Cota de referencia y prisma — propuesta
+
+La Y del campamento **no** es la cota del yacimiento. El campamento está en un chunk vecino; un desnivel de varios bloques entre la mesa y la ruina es normal. Si las bandas colgaran de la tienda, el estrato I podría ser aire sobre un valle o tierra bajo un cerro.
+
+**Al confirmar el kit**, una sola vez, el plugin calcula `datumY` sobre el **chunk arqueológico**:
+
+1. En cada una de las 256 columnas, toma la Y de suelo (primer sólido de terreno; ignora hojas, nieve, hierba alta). El agua no cuenta como suelo: se usa el primer sólido no acuático (el lecho, no la lámina).
+2. Se guarda la **mediana** de esas 256 cotas, no el máximo ni el mínimo, para que un árbol, un hoyo o un pilar no desplacen toda la estratigrafía.
+3. Las bandas de la config son rangos absolutos a partir de ese valor (estrato I = `datumY` … `datumY − n`, y así sucesivamente).
+4. Si `|datumY − Y de la mesa|` es enorme, puede quedar un aviso para staff; no se recalcula la cota con el campamento.
+
+El jugador ve “profundidad respecto al suelo del yacimiento”, no respecto a la tienda. El chunk sigue siendo una decisión técnica; la interfaz habla de excavación, estrato y, más adelante, cuadro.
+
+```
+por encima de datumY     no hay hallazgos Archaeo; minería vanilla
+  banda I                p. ej. datumY a datumY−4     más reciente
+  banda II               datumY−5 a datumY−9
+  banda III              datumY−10 a datumY−14
+  banda IV               datumY−15 a datumY−19        (si el dossier dice que existe)
+por debajo               fuera del prisma: minería vanilla, no salen restos Archaeo
+```
+
+En una columna más alta que la mediana sobra relleno por encima del datum; en una más baja el estrato I ya puede ser aire o agua. Eso es yacimiento irregular, no un error.
+
+**Vallado del perímetro.** Opcional. En esta versión **se omite**: el campamento ya ancla el sitio. Las vallas de la plantilla del campamento son decoración del recinto, no el borde del prisma. Si más adelante se añade un vallado de yacimiento, no define qué bloques son excavables.
 
 ---
 
@@ -435,9 +463,9 @@ intervenir.
 
 | Concepto | Qué es | Dónde |
 | --- | --- | --- |
-| **Yacimiento** | Zona con evidencias; dónde se puede excavar | Chunk (caja) registrado por el staff |
+| **Yacimiento** | Zona con evidencias; dónde se puede excavar | Chunk + `datumY` + bandas (§1c) |
 | **Excavación** | Ese yacimiento reclamado: progreso, hallazgos, permisos | Datos persistentes (`sites/`) |
-| **Área de establecimiento** | Sitio del campamento; no se excava | Un **chunk distinto**, fuera del corte |
+| **Área de establecimiento** | Sitio del campamento; no se excava | Un **chunk distinto**, fuera del prisma |
 
 ```
         ÁREA DE ESTABLECIMIENTO
@@ -467,7 +495,9 @@ Campamento básico
 ```
 
 Mesa, cajas, tablón, carpa, etc. El jugador puede construir más alrededor
-después. Construir el campamento **no** gasta la jornada (§2).
+después. Las vallas de la plantilla son el recinto del **campamento**, no el
+perímetro del prisma; el vallado del yacimiento se omite por ahora. Construir
+el campamento **no** gasta la jornada (§2).
 
 ### Chunk válido y previsualización
 
@@ -505,6 +535,8 @@ En el mismo instante:
 - el jugador es director;
 - nace la excavación (dossier, riqueza fijada);
 - se guarda el chunk de establecimiento;
+- se calcula y guarda `datumY` (mediana del suelo del chunk arqueológico);
+- se generan las bandas de estrato a partir de esa cota y del dossier;
 - se genera el campamento de la plantilla;
 - ese chunk **puede** protegerse mientras la excavación esté activa;
 - nadie más puede reclamar ese yacimiento;
@@ -517,13 +549,15 @@ ya no es el medio principal. Sirven:
 
 - el **campamento** (referencia física permanente);
 - **marcadores** visuales propios de la excavación;
-- **límites temporales** del área arqueológica.
+- **límites temporales** del prisma (opcional).
 
-Los bordes del corte **no** tienen que estar siempre visibles. Si el dueño o un
-autorizado está cerca y mira hacia el yacimiento, el plugin puede mostrarlos un
-rato (partículas, líneas, bloques fantasma u otro sistema). Se ocultan al dejar
-de mirar o al alejarse. Desde el panel del campamento: **«Mostrar límites»**
-para forzar esa vista.
+Los bordes del prisma **no** tienen que estar siempre visibles y **no** hay
+vallado obligatorio. Si el dueño o un autorizado está cerca y mira hacia el
+yacimiento, el plugin puede mostrarlos un rato (partículas, líneas, bloques
+fantasma u otro sistema). Se ocultan al dejar de mirar o al alejarse. Desde el
+panel del campamento: **«Mostrar límites»** para forzar esa vista. El Hand Pick
+puede hacer de herramienta contextual (HUD de excavación / estrato al
+equiparlo dentro del prisma; aviso al apuntar fuera).
 
 ```
        ✨──────────✨
@@ -554,7 +588,7 @@ Hallazgos: 7 · Evidencias: 12
 [EXCAVAR]  [PERSONAL]  [INFORMACIÓN]  [Mostrar límites]
 ```
 
-**EXCAVAR** no es un menú del minijuego: el trabajo es en el corte con HUD (§2).
+**EXCAVAR** no es un menú del minijuego: el trabajo es en el prisma con HUD (§2).
 **PERSONAL** y **INFORMACIÓN** sí abren gestión.
 
 ### Personal (v1: puede excavar sí/no)
@@ -570,9 +604,11 @@ miembros. Una facción autorizada trabaja como proyecto colectivo.
 ### Sin permiso
 
 *No tienes autorización para trabajar en esta excavación.* No hay jornada ni
-hallazgos. Archaeo **no** bloquea el minado vanilla en el área arqueológica
-(salvo reglas del servidor / claims). El chunk de establecimiento puede estar
-protegido por el propio establecimiento.
+hallazgos. En la **cara de trabajo** (terreno del prisma abierto al aire) tampoco
+se retira el relleno con pico vanilla. Un túnel cerrado no está bloqueado; al
+abrir huecos la capa se marca revuelta y los hallazgos de esas celdas, dañados.
+El chunk de establecimiento puede estar protegido por el propio establecimiento.
+Claims y facciones siguen decidiendo el terreno alrededor.
 
 ### Visibilidad
 
@@ -599,18 +635,16 @@ de Y). El terreno no cambia hasta la jornada. **§2**.
 
 Minecraft **no** tiene estratos arqueológicos. Césped sobre tierra sobre piedra es geología tosca. La arcilla, la grava y el barro salen en **manchas**, no en capas continuas. **No** vamos a rellenar el chunk como un sándwich de arcilla ni a preguntar “¿el último bloque era grava?”.
 
-El estrato lo define el plugin, al establecer, como **profundidad**:
+El estrato lo define el plugin, al establecer, como **banda de Y absoluta** respecto a `datumY` (mediana del suelo del chunk arqueológico; §1c). No es “N bloques bajo el césped de esta columna”:
 
 ```
-superficie del chunk (césped, arena, lo que haya)
-  banda I     p. ej. 0 a −4 bloques bajo la superficie    más reciente
-  banda II    −5 a −9
-  banda III   −10 a −14
-  banda IV    −15 a −19   (si el dossier dice que existe)
-por debajo    fuera del yacimiento: picas piedra o lo que sea, no salen restos Archaeo
+por encima de datumY     fuera del prisma (vanilla)
+  banda I                p. ej. datumY … datumY−4
+  banda II               …
+por debajo de la última  fuera del prisma (vanilla)
 ```
 
-Da igual que en un rincón haya piedra a −3 y en otro tierra a −12. Si el bloque está a **esa profundidad relativa**, es esa capa. Pico y martillo retiran relleno; el pincel trabaja las celdas de un hallazgo ya tocado.
+Da igual que en un rincón haya piedra a `datumY−3` y en otro tierra a `datumY−12`. Si el bloque está en esa banda de Y, es esa capa. El Hand Pick y el martillo retiran relleno; el pincel trabaja las celdas de un hallazgo ya tocado.
 
 Al realizar una acción de excavación válida dentro de un yacimiento en campaña,
 Archaeo calcula procedencia, capa y contexto, gasta una acción de la jornada y
@@ -620,7 +654,7 @@ aplica el presupuesto de artefactos.
 
 No depende del último bloque ni de “modo estrato II”. Puedes abrir un pozo a la banda III y luego desbrozar la I (mala praxis real; el hallazgo hondo puede marcarse *secuencia invertida*). Cada hallazgo mira **la Y de la celda trabajada**.
 
-**Mientras está en el área arqueológica de una excavación establecida**, un HUD mínimo muestra el estrato y las acciones de hoy (§2). El **panel del campamento** es la ficha del proyecto, no el GPS.
+**Mientras está en el prisma de una excavación establecida**, un HUD mínimo muestra el estrato y las acciones de hoy (§2). El **panel del campamento** es la ficha del proyecto, no el GPS.
 
 ---
 
@@ -712,11 +746,12 @@ es un archivo `finds/` global.
 
 | Dato |
 | --- |
-| mundo, chunk arqueológico, chunk de establecimiento, coords del campamento (mesa/tablón) |
+| mundo, chunk arqueológico, `datumY`, chunk de establecimiento, coords del campamento (mesa/tablón) |
 | tipo, nombre, nº de excavación, director, fecha |
 | visibilidad, jugadores y facciones con permiso de excavar |
 | riqueza, indicios, radio de detección |
 | hallazgos en corte + contadores recuperados / evidencias |
+| daño de relleno en el prisma (etapa por bloque ya golpeado; las celdas intactas no se guardan) |
 | por capa: ¿existe?, banda de Y, revuelto/ausente |
 | jornada actual: pico / martillo / pincel restantes, id de día de mundo |
 | estado activo / agotado |
@@ -811,28 +846,69 @@ No hay ficha de museo en disco. El jugador construye un edificio y cuelga marcos
 ## 2. Excavar — el minijuego en el chunk — propuesta
 
 La excavación de **campaña** no es una GUI ni un cooldown por clic. Se activa
-en el chunk de una excavación **establecida**. Solo quien tiene permiso
-arqueológico usa pico/martillo/pincel de jornada; si no: *No tienes autorización
-para trabajar en esta excavación.* Fuera del chunk, o sin permiso, Minecraft
-normal (claims aparte).
+en el **prisma de estratos** de una excavación **establecida** (chunk arqueológico,
+entre `datumY` y el fondo de la última banda). Solo quien tiene permiso
+arqueológico usa las herramientas de jornada; si no: *No tienes autorización
+para trabajar en esta excavación.* Fuera del prisma, Minecraft normal (claims
+aparte).
 
 Inspiración: el Subsuelo de Pokémon — no ves dónde están los hallazgos hasta
 que retiras material. El núcleo no es “picar menos por capricho”, sino **gastar
-un presupuesto de jornada** (pico preciso vs martillo rápido vs pincel de
+un presupuesto de jornada** (Hand Pick preciso vs martillo rápido vs pincel de
 rescate).
+
+No se allana el terreno ni se abre una zanja al establecer. El jugador baja el
+relleno columna a columna con ítems del plugin.
+
+### Rotura de bloques — cara de trabajo
+
+Los hallazgos no existen como bloques hasta que el minijuego los revela. No hay
+que proteger el prisma entero.
+
+La **cara de trabajo** es terreno natural (tierra, piedra, arena, etc.) **dentro
+del prisma** con al menos una cara al aire, al agua o a plantas. Eso incluye el
+suelo del corte y las **paredes** del hoyo. Tablones, cobble de obra, máquinas,
+aire y agua no son sustrato: el minijuego no los sustituye.
+
+Ahí se cancela el minado vanilla (y fuego / explosiones / pistones sobre esa
+celda). Mensaje: *Usa una herramienta de excavación.*
+
+| Zona | Rotura vanilla | Efecto Archaeo |
+| --- | --- | --- |
+| Por encima de `datumY` | Permitida | Sin hallazgos |
+| Cara de trabajo (terreno abierto) | Solo ítems Archaeo | El corte |
+| Interior cerrado del prisma | Permitida | Capa revuelta; hallazgos de esa celda dañados |
+| Aire, agua, construcciones | Permitida | No se convierten en relleno |
+| Por debajo de la última banda | Permitida | Fuera del yacimiento |
+
+Al **confirmar** el kit, las celdas de hallazgo que ya no son terreno se marcan
+dañadas. El claim no se rechaza.
+
+Un túnel por debajo es vanilla hasta que abre al corte; entonces esas paredes
+pasan a ser cara de trabajo. TNT y pistones en el corte abierto se tratan como
+el pico vanilla (no rompen esa cara).
+
+El Hand Pick (cuando exista) solo actúa sobre terreno de esa cara. No pisa agua
+ni construcciones.
 
 ### HUD mínimo
 
-Al entrar en una excavación activa aparece un HUD pequeño (action bar / bossbar
-discreta / título corto; no un inventario). Muestra el estrato de la
-profundidad actual y las acciones que quedan **hoy**:
+Al entrar en el prisma con herramienta de excavación (o al equipar el Hand Pick
+dentro) aparece un HUD pequeño (action bar / bossbar discreta / título corto;
+no un inventario). Muestra el estrato de la Y actual y las acciones que quedan
+**hoy**:
 
 ```
 ESTRATO III · 700–900 años
 ⛏️ 5    🔨 2    🖌️ 8
 ```
 
-Opcional: una barra `Jornada: ███████░░░`.
+Opcional: una barra `Jornada: ███████░░░`. El nombre del yacimiento puede ir
+en la misma línea al equipar; no sustituye el recuento de acciones.
+
+Al mantener el Hand Pick, una barra de **fuerza** (bossbar o la misma línea)
+sustituye o acompaña el recuento hasta soltar. No es la barra de rotura vanilla:
+el plugin cancela el minado vanilla en la cara de trabajo.
 
 El HUD **cambia de estrato** al bajar (o subir) de banda de Y, sin abrir menús:
 
@@ -840,6 +916,10 @@ El HUD **cambia de estrato** al bajar (o subir) de banda de Y, sin abrir menús:
 ESTRATO IV · 900–1200 años
 ⛏️ 3    🔨 1    🖌️ 6
 ```
+
+Al apuntar un bloque **fuera** del prisma, aviso breve (con cooldown, no cada
+clic): *Fuera del área arqueológica.* «Mostrar límites» en el panel sigue
+siendo la orientación explícita.
 
 El resto de información solo cuando hace falta, un instante:
 
@@ -854,13 +934,49 @@ El resto de información solo cuando hace falta, un instante:
 
 | Acción | En el mundo | Efecto | Riesgo |
 | --- | --- | --- | --- |
-| **Pico** (`⛏️`) | Clic/romper 1 bloque de relleno | Área pequeña. Puede dejar tierra o **tocar una celda** de un hallazgo (pasa a parcial). | Bajo |
-| **Martillo** (`🔨`) | Un golpe en un punto | Varios bloques. Más riesgo de **dañar celdas** de un hallazgo. | Alto |
+| **Hand Pick** (`⛏️`) | Mantener para cargar fuerza; al soltar, un golpe sobre **ese** bloque | Avanza estados de daño del relleno (puede no romperlo). Tocar una celda de hallazgo la deja parcial. | Sube con la fuerza |
+| **Martillo** (`🔨`) | Un golpe en un punto | Varios bloques, siempre brusco. | Alto |
 | **Pincel** (`🖌️`) | Sobre celdas ya tocadas / expuestas | Revela más de la **forma**. Al estar *descubierto*, recupera la pieza. | Muy bajo; no abre tierra a ciegas |
 
-El pico es el **pico vanilla**. El pincel es el **pincel vanilla** (en campo =
-recuperar expuesto; en laboratorio = limpiar, §1c). El martillo es un **ítem de
-plugin** (o maza, si se prefiere vanilla 1.21) para no confundirlo con el pico.
+El **Hand Pick** es un ítem de plugin: en el prisma intercepta el golpe y corre
+el minijuego; fuera, no sustituye al pico vanilla (aviso, sin minería decente).
+El pincel de campo es el **pincel vanilla** (recuperar expuesto; en laboratorio
+= limpiar, §1c). El martillo es un **ítem de plugin** (o maza 1.21). Pala,
+paleta u otras herramientas arqueológicas quedan para más adelante.
+
+### Fuerza, estados de bloque y descanso — propuesta
+
+El Hand Pick no es un clic que borra el cubo. Representa **esfuerzo** (por qué
+hay que parar la jornada) y **delicadeza** (un golpe brusco puede estropear el
+resto).
+
+**Estados del relleno.** Cada bloque del prisma tiene varias etapas antes de
+retirarse (config; p. ej. 2–3 en tierra, más en material compacto). El terreno
+se ve cada vez más trabajado (grietas, partículas, sonido según material e
+intensidad). No tiene por qué caer en el primer golpe. El estado **persiste**
+si el jugador se va: la jornada acaba, el bloque sigue a medias.
+
+**Carga.** El jugador mantiene pulsado; una barra muestra la fuerza; al soltar
+se aplica el golpe. Hay que **anular** la animación de minado vanilla. La
+fuerza no agranda el área (eso es el martillo) y no es un cooldown entre
+golpes: el descanso largo es acabar la jornada, no esperar un segundo.
+
+Qué hace la fuerza, a la vez:
+
+| | Toque suave | Carga alta |
+| --- | --- | --- |
+| **Relleno** | Una etapa de daño | Varias etapas, o el bloque entero si basta |
+| **Jornada (`⛏️`)** | Poco esfuerzo (p. ej. 1 acción) | Más esfuerzo (p. ej. 2–3). Vaciar el cupo = *la jornada ha terminado* |
+| **Hallazgo en esa celda** | Riesgo bajo de dañarlo | Riesgo alto (peor estado al recuperar, o pérdida) |
+
+Picar a lo bruto avanza más terreno **hoy** y obliga a **descansar** antes
+(menos acciones, el día se acaba). Picar fino gasta menos, protege restos y
+deja bloques a medias para la siguiente jornada. Si no quedan acciones para el
+nivel de carga, el golpe no se aplica (o se recorta a lo que queda, config);
+nunca se bypassea con pico vanilla.
+
+Sonidos según material e intensidad. Tras el golpe, el plugin comprueba si hay
+hallazgo en esa celda y si la fuerza puede afectarlo.
 
 Las cantidades iniciales dependen del **tipo de excavación** y del **estrato**
 (YAML). Ejemplo de jornada:
@@ -872,7 +988,7 @@ según config (el ejemplo del HUD IV con menos acciones). El jugador decide cóm
 gastar lo que le queda.
 
 Sin acciones de esa herramienta: el golpe no retira relleno arqueológico (no se
-puede bypassear sacando otro pico del inventario y minando a lo vanilla).
+puede bypassear con un pico vanilla).
 
 ### Hallazgos: forma, no un bloque-premio
 
@@ -926,11 +1042,15 @@ dañar el conjunto (peor estado al recuperar, o pérdida). Dos niveles: yacimien
 
 ### La jornada
 
-No hay cooldown por acción. Hay **presupuesto diario de trabajo**.
+No hay cooldown por golpe. Hay **presupuesto diario de trabajo** (esfuerzo).
+La fuerza del Hand Pick gasta ese presupuesto: un día de golpes fuertes se
+agota antes que uno de toques cortos. Eso es el descanso: mañana se vuelve;
+no hay una barra de cansancio que obligue a quedarse quieto entre picos.
 
 Cuando las acciones llegan a 0 (o se acaba el cupo definido): *La jornada de
-excavación ha terminado.* El terreno **queda como lo dejó**. Al día siguiente
-(día de mundo o día real, config) se recargan acciones y continúa.
+excavación ha terminado.* El terreno **queda como lo dejó**, incluidos los
+bloques a medio dañar. Al día siguiente (día de mundo o día real, config) se
+recargan acciones y continúa.
 
 Una excavación grande son varios días, por ejemplo:
 
@@ -1067,7 +1187,7 @@ Integración **débil**:
 
 - Acceso: el director puede autorizar una **facción** entera a excavar (§1d); Archaeo pregunta quién es miembro, no copia el roster.
 - Contexto opcional: “territorio actual: X”.
-- El director Archaeo no es el claim de facciones. El chunk de **establecimiento** puede protegerse mientras la excavación esté activa; el corte no es un plot.
+- El director Archaeo no es el claim de facciones. El chunk de **establecimiento** puede protegerse mientras la excavación esté activa. El prisma no es un plot: solo la cara de trabajo (terreno abierto al aire) exige herramientas de excavación.
 - El control *actual* no explica el pasado: es contexto presente (quién excava con permiso, quién disputa el terreno).
 - Sin facciones, esas líneas simplemente no aparecen.
 

@@ -376,7 +376,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                 + " · interest: " + (site.getInterest() == null ? "none" : site.getInterest().yamlKey()));
         sender.sendMessage("World: " + site.getWorldName()
                 + " · chunk " + site.getChunkX() + "," + site.getChunkZ()
-                + " · surface Y " + site.getSurfaceY()
+                + " · datum Y " + site.getSurfaceY()
                 + " · detection " + site.getDetectionRadius());
         sender.sendMessage("Created by: " + (site.getCreatedBy() == null ? "unknown" : site.getCreatedBy())
                 + " · at " + (site.getCreatedAt() == null ? "unknown" : site.getCreatedAt()));
