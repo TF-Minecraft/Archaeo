@@ -1,5 +1,6 @@
 package com.nowko.archeology.excavation;
 
+import com.nowko.archeology.item.HandPickItem;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.site.SiteRepository;
 import org.bukkit.block.Block;
@@ -31,13 +32,16 @@ public class PrismListener implements Listener {
     private static final long MESSAGE_COOLDOWN_MS = 3000L;
 
     private final SiteRepository sites;
+    private final HandPickItem pick;
     private final Map<UUID, Long> lastWarn = new ConcurrentHashMap<>();
 
     /**
      * @param sites established excavations
+     * @param pick Hand Pick: vanilla break is cancelled; cracks stay on the working face
      */
-    public PrismListener(SiteRepository sites) {
+    public PrismListener(SiteRepository sites, HandPickItem pick) {
         this.sites = sites;
+        this.pick = pick;
     }
 
     /**
@@ -45,11 +49,17 @@ public class PrismListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
+        Player player = event.getPlayer();
+        boolean handPick = pick.isPick(player.getInventory().getItemInMainHand());
+        if (handPick) {
+            event.setCancelled(true);
+            return;
+        }
         if (!protectedFill(event.getBlock())) {
             return;
         }
         event.setCancelled(true);
-        warn(event.getPlayer());
+        warn(player);
     }
 
     /**
@@ -63,15 +73,19 @@ public class PrismListener implements Listener {
     }
 
     /**
-     * Hides the vanilla crack animation on the working face.
+     * Vanilla tools must not start mining the open cut. Hand Pick damage is handled in {@link HandPickListener}.
      *
      * @param event start of vanilla damage
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamage(BlockDamageEvent event) {
-        if (protectedFill(event.getBlock())) {
-            event.setCancelled(true);
+        if (!protectedFill(event.getBlock())) {
+            return;
         }
+        if (pick.isPick(event.getPlayer().getInventory().getItemInMainHand())) {
+            return;
+        }
+        event.setCancelled(true);
     }
 
     /**
@@ -180,24 +194,8 @@ public class PrismListener implements Listener {
         woundCells(event.getBlocks());
     }
 
-    /**
-     * Terrain in the prism with an open face: the current excavation cut.
-     *
-     * @param block world cell
-     * @return whether vanilla must not break this block
-     */
     private boolean protectedFill(Block block) {
-        if (!PrismFill.isTerrainFill(block.getType())) {
-            return false;
-        }
-        if (sites.findEstablishedPrism(
-                block.getWorld().getName(),
-                block.getX(),
-                block.getY(),
-                block.getZ()).isEmpty()) {
-            return false;
-        }
-        return PrismFill.hasOpenFace(block);
+        return DigCut.isWorkingFace(sites, block);
     }
 
     /**

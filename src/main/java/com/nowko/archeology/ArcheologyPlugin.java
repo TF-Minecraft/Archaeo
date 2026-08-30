@@ -5,8 +5,11 @@ import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.establish.CampListener;
 import com.nowko.archeology.establish.EstablishListener;
 import com.nowko.archeology.establish.EstablishService;
+import com.nowko.archeology.excavation.HandPickListener;
+import com.nowko.archeology.excavation.HandPickService;
 import com.nowko.archeology.excavation.PrismListener;
 import com.nowko.archeology.item.EstablishItem;
+import com.nowko.archeology.item.HandPickItem;
 import com.nowko.archeology.item.ProspectItem;
 import com.nowko.archeology.item.TrackerItem;
 import com.nowko.archeology.prospect.ProspectListener;
@@ -30,6 +33,8 @@ public class ArcheologyPlugin extends JavaPlugin {
     private ProspectService prospect;
     private EstablishItem establishItem;
     private EstablishService establish;
+    private HandPickItem handPickItem;
+    private HandPickService handPick;
 
     /**
      * Copies missing default YAML, loads catalogs and saved sites, and starts gameplay loops.
@@ -52,7 +57,11 @@ public class ArcheologyPlugin extends JavaPlugin {
         establish.start();
         getServer().getPluginManager().registerEvents(new EstablishListener(establishItem, establish), this);
         getServer().getPluginManager().registerEvents(new CampListener(this, sites, establishItem, establish), this);
-        getServer().getPluginManager().registerEvents(new PrismListener(sites), this);
+        handPickItem = new HandPickItem(this, catalogs.pick(), catalogs.items().pick());
+        handPick = new HandPickService(this, sites, catalogs, handPickItem, catalogs.pick());
+        handPick.start();
+        getServer().getPluginManager().registerEvents(new HandPickListener(handPickItem, handPick, sites), this);
+        getServer().getPluginManager().registerEvents(new PrismListener(sites, handPickItem), this);
 
         ArchaeoCommand command = new ArchaeoCommand(
                 catalogs,
@@ -63,7 +72,9 @@ public class ArcheologyPlugin extends JavaPlugin {
                 prospectItem,
                 prospect,
                 establishItem,
-                establish);
+                establish,
+                handPickItem,
+                handPick);
         PluginCommand pluginCommand = getCommand("archaeo");
         if (pluginCommand != null) {
             pluginCommand.setExecutor(command);
@@ -73,7 +84,7 @@ public class ArcheologyPlugin extends JavaPlugin {
     }
 
     /**
-     * Stops tracker, prospecting, and establishment tasks.
+     * Stops tracker, prospecting, establishment, and Hand Pick HUD tasks.
      */
     @Override
     public void onDisable() {
@@ -85,6 +96,9 @@ public class ArcheologyPlugin extends JavaPlugin {
         }
         if (establish != null) {
             establish.stop();
+        }
+        if (handPick != null) {
+            handPick.stop();
         }
     }
 

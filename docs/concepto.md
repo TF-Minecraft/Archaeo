@@ -26,7 +26,7 @@ Experiencia vanilla (expedición):
 
 Experiencia Archaeo (campaña):
 
-> 📡 Rastreador → 🔎 cata → ⛺ kit de establecimiento (chunk + orientación) → 📖 panel y personal → ⛏️ minijuego → hallazgos al registro de la excavación → interpretar / museo.
+> 📡 Rastreador → 🔎 cata → ⛺ kit de establecimiento (chunk + orientación) → 📖 panel y personal → ⛏️ excavación por golpes → hallazgos al registro de la excavación → interpretar / museo.
 
 ---
 
@@ -72,7 +72,7 @@ Lo que vanilla **no** da, y Archaeo sí debe dar:
 5. **Facciones opcionales.** Pueden recibir **acceso a excavar** (lista del site). No son dueñas del yacimiento. El claim de terreno sigue siendo el plugin de facciones/claims.
 6. **La fragilidad importa.** El terreno y los restos deben poder alterarse o perderse; Archaeo no debe convertir una excavación en un generador de objetos sin riesgo.
 7. **Una excavación es un proyecto, no un loot ni un plot.** Se descubre, se confirma y se **establece en el mundo** (campamento en un chunk vecino). Queda **fija**. El campamento no se planta sobre el volumen excavable.
-8. **El minijuego es el mundo.** Hand Pick / martillo / pincel en el **prisma de estratos**; HUD mínimo. La gestión vive en el **panel del campamento**, no en comandos de jugador.
+8. **La excavación es el mundo.** Hand Pick y, más adelante, pala, paleta y pincel en el **prisma de estratos**; HUD mínimo. No hay barra de fuerza ni minijuego en una interfaz. La gestión vive en el **panel del campamento**, no en comandos de jugador.
 9. **Archaeo no es un `/claim` de jugador.** El chunk de **establecimiento** puede protegerse mientras la excavación esté activa. Los hallazgos son datos, no bloques en el mundo. La **cara de trabajo** es terreno del prisma con al menos una cara al aire (o agua/plantas): suelo y paredes del corte. Ahí solo herramientas de excavación. Un túnel cerrado por debajo sigue siendo vanilla y hiere el sustrato. Aire, agua y construcciones no se sustituyen por relleno. Eso no sustituye un claim de terreno.
 
 ---
@@ -588,7 +588,7 @@ Hallazgos: 7 · Evidencias: 12
 [EXCAVAR]  [PERSONAL]  [INFORMACIÓN]  [Mostrar límites]
 ```
 
-**EXCAVAR** no es un menú del minijuego: el trabajo es en el prisma con HUD (§2).
+**EXCAVAR** no es un menú: el trabajo es en el prisma con HUD (§2).
 **PERSONAL** y **INFORMACIÓN** sí abren gestión.
 
 ### Personal (v1: puede excavar sí/no)
@@ -616,7 +616,7 @@ Claims y facciones siguen decidiendo el terreno alrededor.
 | --- | --- |
 | **Privada** | Director + autorizados |
 | **Por invitación** | Se puede solicitar acceso |
-| **Pública** | Cualquiera en el minijuego |
+| **Pública** | Cualquiera con permiso de excavación |
 
 ### Secuencia
 
@@ -644,7 +644,7 @@ por encima de datumY     fuera del prisma (vanilla)
 por debajo de la última  fuera del prisma (vanilla)
 ```
 
-Da igual que en un rincón haya piedra a `datumY−3` y en otro tierra a `datumY−12`. Si el bloque está en esa banda de Y, es esa capa. El Hand Pick y el martillo retiran relleno; el pincel trabaja las celdas de un hallazgo ya tocado.
+Da igual que en un rincón haya piedra a `datumY−3` y en otro tierra a `datumY−12`. Si el bloque está en esa banda de Y, es esa capa. El Hand Pick retira relleno; pala, paleta y pincel entran cuando el trabajo lo pide (§2).
 
 Al realizar una acción de excavación válida dentro de un yacimiento en campaña,
 Archaeo calcula procedencia, capa y contexto, gasta una acción de la jornada y
@@ -736,6 +736,7 @@ es un archivo `finds/` global.
 | capa / antigüedad |
 | descubridor, fecha |
 | estado de laboratorio |
+| conservación al recuperar (calidad) |
 | indicios copiados al catalogar |
 | interpretación(es) |
 | nombre de reliquia, si la hay |
@@ -750,10 +751,10 @@ es un archivo `finds/` global.
 | tipo, nombre, nº de excavación, director, fecha |
 | visibilidad, jugadores y facciones con permiso de excavar |
 | riqueza, indicios, radio de detección |
-| hallazgos en corte + contadores recuperados / evidencias |
+| hallazgos en corte (formas, exposición, conservación) + contadores recuperados / evidencias |
 | daño de relleno en el prisma (etapa por bloque ya golpeado; las celdas intactas no se guardan) |
 | por capa: ¿existe?, banda de Y, revuelto/ausente |
-| jornada actual: pico / martillo / pincel restantes, id de día de mundo |
+| jornada actual: Hand Pick / pala / paleta / pincel restantes, id de día de mundo |
 | estado activo / agotado |
 
 `config.yml`, `hints.yml`, `interpretations.yml`, `materials.yml`, `finds.yml`
@@ -843,35 +844,81 @@ No hay ficha de museo en disco. El jugador construye un edificio y cuelga marcos
 
 ---
 
-## 2. Excavar — el minijuego en el chunk — propuesta
+## 2. Excavar — golpes en el chunk — propuesta
 
-La excavación de **campaña** no es una GUI ni un cooldown por clic. Se activa
-en el **prisma de estratos** de una excavación **establecida** (chunk arqueológico,
-entre `datumY` y el fondo de la última banda). Solo quien tiene permiso
-arqueológico usa las herramientas de jornada; si no: *No tienes autorización
-para trabajar en esta excavación.* Fuera del prisma, Minecraft normal (claims
-aparte).
+La excavación de **campaña** no es una GUI, ni un cooldown por clic, ni una
+barra de fuerza. Se activa en el **prisma de estratos** de una excavación
+**establecida** (chunk arqueológico, entre `datumY` y el fondo de la última
+banda). Solo quien tiene permiso arqueológico usa las herramientas de jornada;
+si no: *No tienes autorización para trabajar en esta excavación.* Fuera del
+prisma, Minecraft normal (claims aparte).
 
 Inspiración: el Subsuelo de Pokémon — no ves dónde están los hallazgos hasta
-que retiras material. El núcleo no es “picar menos por capricho”, sino **gastar
-un presupuesto de jornada** (Hand Pick preciso vs martillo rápido vs pincel de
-rescate).
+que retiras material. El núcleo no es “qué porcentaje de fuerza cargo”, sino
+**decidir cuándo dejar de golpear**.
 
 No se allana el terreno ni se abre una zanja al establecer. El jugador baja el
-relleno columna a columna con ítems del plugin.
+relleno con ítems del plugin, ciclo a ciclo.
+
+### Objetivo de diseño
+
+Debe sentirse como una forma alternativa de interactuar con Minecraft, no como
+un minijuego separado. Conserva:
+
+- animación vanilla del brazo;
+- sensación de golpear bloques;
+- sonidos reconocibles de Minecraft;
+- bloques y terreno reales;
+- interacción directa con el mundo.
+
+Sustituye la **destrucción vanilla** por un sistema arqueológico del plugin.
+
+Experiencia buscada: golpear → observar → interpretar → decidir si continuar →
+parar → cambiar de herramienta si hace falta. La habilidad es **leer** las
+respuestas del terreno y saber cuándo parar.
+
+### Ciclo de picado (Hand Pick)
+
+1. El jugador equipa el Hand Pick.
+2. Apunta a un bloque de la excavación (cara de trabajo).
+3. Mantiene pulsado el **botón izquierdo**.
+4. Minecraft muestra la animación vanilla de picado.
+5. El plugin **impide** que el bloque se rompa como en vanilla.
+6. Mientras mantiene pulsado, se contabilizan los impactos.
+7. El jugador decide cuándo dejar de picar.
+8. Al soltar, termina el ciclo.
+9. El plugin calcula el resultado según número de golpes, bloque, estrato y
+   estado arqueológico de la zona.
+10. El bloque conserva su nuevo estado; el jugador elige el siguiente paso.
+
+Ejemplo: mantener pulsado → ⛏️ ⛏️ ⛏️ ⛏️ → soltar → *4 impactos registrados*.
+
+No hay una cantidad fija de golpes que “haya que” hacer. El jugador interpreta
+la respuesta del terreno y decide si sigue o se detiene.
+
+Ejemplo de lectura:
+
+- Golpe 1 — resistencia normal
+- Golpe 2 — resistencia normal
+- Golpe 3 — sonido diferente → *Material diferente detectado*
+
+Ahí puede parar y pasar a una herramienta más precisa. Si sigue:
+
+- Golpes 4 y 5 → *El material arqueológico puede estar siendo alterado.*
 
 ### Rotura de bloques — cara de trabajo
 
-Los hallazgos no existen como bloques hasta que el minijuego los revela. No hay
-que proteger el prisma entero.
+Los hallazgos no existen como bloques del mundo hasta que el trabajo de campo
+los revela. No hay que proteger el prisma entero.
 
 La **cara de trabajo** es terreno natural (tierra, piedra, arena, etc.) **dentro
 del prisma** con al menos una cara al aire, al agua o a plantas. Eso incluye el
 suelo del corte y las **paredes** del hoyo. Tablones, cobble de obra, máquinas,
-aire y agua no son sustrato: el minijuego no los sustituye.
+aire y agua no son sustrato: Archaeo no los sustituye.
 
-Ahí se cancela el minado vanilla (y fuego / explosiones / pistones sobre esa
-celda). Mensaje: *Usa una herramienta de excavación.*
+Ahí se cancela la **rotura** vanilla (y fuego / explosiones / pistones sobre esa
+celda). Con el Hand Pick **sí** se deja ver la animación de picado. Con pico
+vanilla u otras herramientas: *Usa una herramienta de excavación.*
 
 | Zona | Rotura vanilla | Efecto Archaeo |
 | --- | --- | --- |
@@ -888,33 +935,29 @@ Un túnel por debajo es vanilla hasta que abre al corte; entonces esas paredes
 pasan a ser cara de trabajo. TNT y pistones en el corte abierto se tratan como
 el pico vanilla (no rompen esa cara).
 
-El Hand Pick (cuando exista) solo actúa sobre terreno de esa cara. No pisa agua
-ni construcciones.
+El Hand Pick solo actúa sobre terreno de esa cara. No pisa agua ni
+construcciones.
 
 ### HUD mínimo
 
 Al entrar en el prisma con herramienta de excavación (o al equipar el Hand Pick
-dentro) aparece un HUD pequeño (action bar / bossbar discreta / título corto;
-no un inventario). Muestra el estrato de la Y actual y las acciones que quedan
-**hoy**:
+dentro) aparece un HUD pequeño (action bar / título corto; no un inventario).
+Muestra el estrato de la Y actual y el trabajo que queda **hoy**. **No** hay
+barra de fuerza.
 
 ```
 ESTRATO III · 700–900 años
-⛏️ 5    🔨 2    🖌️ 8
+⛏️ 5    🪣 2    🖌️ 8
 ```
 
 Opcional: una barra `Jornada: ███████░░░`. El nombre del yacimiento puede ir
-en la misma línea al equipar; no sustituye el recuento de acciones.
-
-Al mantener el Hand Pick, una barra de **fuerza** (bossbar o la misma línea)
-sustituye o acompaña el recuento hasta soltar. No es la barra de rotura vanilla:
-el plugin cancela el minado vanilla en la cara de trabajo.
+en la misma línea al equipar; no sustituye el recuento.
 
 El HUD **cambia de estrato** al bajar (o subir) de banda de Y, sin abrir menús:
 
 ```
 ESTRATO IV · 900–1200 años
-⛏️ 3    🔨 1    🖌️ 6
+⛏️ 3    🪣 1    🖌️ 6
 ```
 
 Al apuntar un bloque **fuera** del prisma, aviso breve (con cooldown, no cada
@@ -923,72 +966,69 @@ siendo la orientación explícita.
 
 El resto de información solo cuando hace falta, un instante:
 
+- *Material arqueológico detectado. Extensión desconocida.*
 - *Has encontrado parte de un objeto.*
 - *El objeto parece extenderse hacia el este.*
 - *Hallazgo descubierto: espada antigua.*
 - *Hallazgo recuperado.*
 - *La evidencia ha resultado dañada.*
+- *El material arqueológico puede estar siendo alterado.*
 - *La jornada de excavación ha terminado.*
 
-### Herramientas y acciones
+### Herramientas
 
-| Acción | En el mundo | Efecto | Riesgo |
+El Hand Pick sirve para los golpes iniciales y retirar terreno compacto.
+Después pueden existir herramientas más precisas. Un hallazgo detectado debe
+invitar a **cambiar de herramienta**, no a seguir picando igual.
+
+| Herramienta | En el mundo | Efecto | Riesgo |
 | --- | --- | --- | --- |
-| **Hand Pick** (`⛏️`) | Mantener para cargar fuerza; al soltar, un golpe sobre **ese** bloque | Avanza estados de daño del relleno (puede no romperlo). Tocar una celda de hallazgo la deja parcial. | Sube con la fuerza |
-| **Martillo** (`🔨`) | Un golpe en un punto | Varios bloques, siempre brusco. | Alto |
-| **Pincel** (`🖌️`) | Sobre celdas ya tocadas / expuestas | Revela más de la **forma**. Al estar *descubierto*, recupera la pieza. | Muy bajo; no abre tierra a ciegas |
+| **Hand Pick** (`⛏️`) | Ciclo de picado (mantener izquierdo, soltar) | Retira / altera relleno; puede detectar un hallazgo | Sube con golpes de más sobre zona sensible |
+| **Shovel** (`🪣`) | Retirar tierra con más control | Avance más suave en relleno blando | Medio |
+| **Archaeological Trowel** | Trabajo preciso alrededor de un hallazgo | Delimitar forma y tamaño | Bajo |
+| **Brush** (`🖌️`) | Limpieza y exposición final | Revela forma; al estar *descubierto*, extrae | Muy bajo; no abre tierra a ciegas |
 
-El **Hand Pick** es un ítem de plugin: en el prisma intercepta el golpe y corre
-el minijuego; fuera, no sustituye al pico vanilla (aviso, sin minería decente).
-El pincel de campo es el **pincel vanilla** (recuperar expuesto; en laboratorio
-= limpiar, §1c). El martillo es un **ítem de plugin** (o maza 1.21). Pala,
-paleta u otras herramientas arqueológicas quedan para más adelante.
+Flujo típico: Hand Pick → detectar / exponer → Trowel → delimitar → Brush →
+limpiar y extraer.
 
-### Fuerza, estados de bloque y descanso — propuesta
+El **Hand Pick** es un ítem de plugin: en el prisma intercepta la rotura y corre
+el ciclo de golpes; fuera, no sustituye al pico vanilla (aviso, sin minería
+decente). El pincel de campo puede ser el **pincel vanilla** (recuperar expuesto;
+en laboratorio = limpiar, §1c). Pala y paleta son ítems de plugin cuando
+existan. El **martillo** brusco de versiones anteriores queda fuera de este
+modelo (el riesgo ya lo dan los golpes de más, no un área de varios bloques).
 
-El Hand Pick no es un clic que borra el cubo. Representa **esfuerzo** (por qué
-hay que parar la jornada) y **delicadeza** (un golpe brusco puede estropear el
-resto).
+### Estados del bloque
 
-**Estados del relleno.** Cada bloque del prisma tiene varias etapas antes de
-retirarse (config; p. ej. 2–3 en tierra, más en material compacto). El terreno
-se ve cada vez más trabajado (grietas, partículas, sonido según material e
-intensidad). No tiene por qué caer en el primer golpe. El estado **persiste**
-si el jugador se va: la jornada acaba, el bloque sigue a medias.
+Los bloques de la excavación no se rompen de inmediato. Cada celda de relleno
+tiene un estado interno de alteración, persistente entre sesiones y jornadas:
 
-**Carga.** El jugador mantiene pulsado; una barra muestra la fuerza; al soltar
-se aplica el golpe. Hay que **anular** la animación de minado vanilla. La
-fuerza no agranda el área (eso es el martillo) y no es un cooldown entre
-golpes: el descanso largo es acabar la jornada, no esperar un segundo.
+```
+INTACTO → ALTERADO → AGRIETADO → MUY ALTERADO → RETIRADO
+```
 
-Qué hace la fuerza, a la vez:
+El número de impactos **acumulados** (ciclos anteriores + el ciclo que acaba de
+soltarse) determina cuánto cambia el estado. El bloque de Minecraft puede
+seguir existiendo mientras el plugin representa el deterioro (aspecto, grietas,
+partículas, sonido). Al llegar a *retirado*, la celda pasa a aire (u otro
+resultado config) y deja de ser relleno.
 
-| | Toque suave | Carga alta |
-| --- | --- | --- |
-| **Relleno** | Una etapa de daño | Varias etapas, o el bloque entero si basta |
-| **Jornada (`⛏️`)** | Poco esfuerzo (p. ej. 1 acción) | Más esfuerzo (p. ej. 2–3). Vaciar el cupo = *la jornada ha terminado* |
-| **Hallazgo en esa celda** | Riesgo bajo de dañarlo | Riesgo alto (peor estado al recuperar, o pérdida) |
+### Sonidos
 
-Picar a lo bruto avanza más terreno **hoy** y obliga a **descansar** antes
-(menos acciones, el día se acaba). Picar fino gasta menos, protege restos y
-deja bloques a medias para la siguiente jornada. Si no quedan acciones para el
-nivel de carga, el golpe no se aplica (o se recorta a lo que queda, config);
-nunca se bypassea con pico vanilla.
+Los sonidos informan, no solo decoran. El jugador debe poder **aprender** a
+reconocer el terreno:
 
-Sonidos según material e intensidad. Tras el golpe, el plugin comprueba si hay
-hallazgo en esa celda y si la fuerza puede afectarlo.
+| Respuesta | Lectura típica |
+| --- | --- |
+| clack / hit de tierra o grava | Terreno normal |
+| hit de piedra | Material compacto |
+| clink u otra variación | Posible material distinto |
+| clang | Posible metal |
+| sonido distintivo | Hallazgo detectado |
 
-Las cantidades iniciales dependen del **tipo de excavación** y del **estrato**
-(YAML). Ejemplo de jornada:
-
-`⛏️ 8 · 🔨 3 · 🖌️ 10`
-
-Al cambiar de estrato, el presupuesto del día puede recortarse o reconfigurarse
-según config (el ejemplo del HUD IV con menos acciones). El jugador decide cómo
-gastar lo que le queda.
-
-Sin acciones de esa herramienta: el golpe no retira relleno arqueológico (no se
-puede bypassear con un pico vanilla).
+Tierra/grava, piedra, materiales arqueológicos y hallazgos usan sonidos vanilla
+o variaciones claras. Un cambio de sonido en mitad del ciclo es la señal para
+plantearse parar.
 
 ### Hallazgos: forma, no un bloque-premio
 
@@ -997,13 +1037,15 @@ conjunto de **celdas conectadas** (caras adyacentes) en una banda de estrato,
 dentro del chunk. El yacimiento contiene **varios** hallazgos independientes.
 
 ```
-┌─────────────────────────┐
-│   🪙                    │  moneda (1)
-│          ⚔️⚔️⚔️         │  espada (3–5)
-│                🏺🏺      │  vasija (3–6)
-│                🏺🏺      │
-└─────────────────────────┘
+⬜ ⬜ ⬜
+⬜ 🏺 ⬜
+⬜ ⬜ ⬜
 ```
+
+El jugador puede detectar primero **una parte**. El plugin puede indicar:
+*Material arqueológico detectado. Extensión desconocida.* Hay que excavar
+alrededor con cuidado para saber tamaño y forma **antes** de extraer. No tiene
+por qué aparecer un objeto en el inventario al primer golpe.
 
 Tamaños orientativos (`finds.yml`; el techo real es el chunk):
 
@@ -1021,7 +1063,7 @@ El tamaño puede ser fijo o un rango. La silueta es irregular pero **conexa**.
 Al generar el site se eligen plantillas según interés/estrato y se colocan sin
 solaparse.
 
-**Tres estados** (por hallazgo, no por bloque suelto):
+**Tres estados de exposición** (por hallazgo, no por bloque suelto):
 
 | Estado | Qué sabe el jugador |
 | --- | --- |
@@ -1031,41 +1073,62 @@ solaparse.
 
 Ejemplo de mensajes:
 
-1. Primer pincel/pico en una celda: *Has encontrado parte de un objeto.*
+1. Primer contacto con una celda: *Material arqueológico detectado. Extensión desconocida.*
 2. Sigue alrededor: *El objeto parece extenderse hacia el este.*
 3. Forma completa: *Hallazgo descubierto: espada antigua.*
 4. Entonces el pincel **recupera** un solo ítem (la pieza), no un drop por bloque.
 
-Así descubrir la forma **es** el minijuego. Un martillo sobre esas celdas puede
-dañar el conjunto (peor estado al recuperar, o pérdida). Dos niveles: yacimiento
-→ muchos hallazgos → cada uno 1…N bloques.
+Descubrir la forma **es** el trabajo de campo. Dos niveles: yacimiento → muchos
+hallazgos → cada uno 1…N bloques.
+
+### Riesgo arqueológico (conservación)
+
+Hallazgos y/o su contexto tienen un **nivel de conservación** (p. ej. 100 %).
+Golpes de más sobre una zona sensible lo bajan: 100 % → 96 % → 88 % → 73 %.
+
+Consecuencias posibles:
+
+- dañar el hallazgo;
+- perder parte de su información;
+- reducir la calidad al recuperar;
+- perder información contextual.
+
+Esa es la tensión principal: avanzar rápido o trabajar con cuidado. La
+información deteriorada **no se recupera**.
 
 ### La jornada
 
-No hay cooldown por golpe. Hay **presupuesto diario de trabajo** (esfuerzo).
-La fuerza del Hand Pick gasta ese presupuesto: un día de golpes fuertes se
-agota antes que uno de toques cortos. Eso es el descanso: mañana se vuelve;
-no hay una barra de cansancio que obligue a quedarse quieto entre picos.
+Sigue habiendo un **presupuesto diario de trabajo** (cantidad de esfuerzo / de
+ciclos o impactos, config). No hay cooldown entre golpes ni barra de fuerza que
+gaste más por “cargar”.
 
-Cuando las acciones llegan a 0 (o se acaba el cupo definido): *La jornada de
-excavación ha terminado.* El terreno **queda como lo dejó**, incluidos los
-bloques a medio dañar. Al día siguiente (día de mundo o día real, config) se
+Cuando el cupo llega a 0: *La jornada de excavación ha terminado.* El jugador
+**no pierde el progreso**: el terreno, los estados de bloque y los hallazgos
+quedan como estaban. Al día siguiente (día de mundo o día real, config) se
 recargan acciones y continúa.
+
+Las cantidades iniciales pueden depender del **tipo de excavación** y del
+**estrato** (YAML). Ejemplo: `⛏️ 8 · 🪣 3 · 🖌️ 10`. Al cambiar de estrato, el
+presupuesto del día puede recortarse según config.
+
+Sin acciones de esa herramienta: no se retira relleno arqueológico (no se
+bypassea con pico vanilla).
+
+Construir el campamento **no** gasta la jornada.
 
 Una excavación grande son varios días, por ejemplo:
 
-1. Tocar las primeras celdas de un hallazgo.
-2. Seguir la forma con el pincel.
-3. Recuperar al estar descubierto.
+1. Ciclos de Hand Pick hasta detectar un material distinto.
+2. Parar; delimitar con paleta.
+3. Limpiar y extraer con pincel.
 4. Bajar de estrato.
 5. Hallazgos grandes (enterramiento / estructura) en varios días.
-
-Construir el campamento **no** gasta la jornada.
 
 ### Relación con pala y cata
 
 La **cata** (kit de prospección) va **después** del rastreador y **antes** del
-kit de establecimiento. No es el minijuego.
+kit de establecimiento. No es el trabajo de campo del prisma. La pala de
+excavación (Shovel) es otra herramienta de jornada, distinta de la cata.
 
 ### Estratos (recordatorio)
 
@@ -1093,6 +1156,7 @@ Cada hallazgo guarda:
 | Descubridor | UUID + nombre en el momento |
 | Fecha | tiempo del servidor / mundo |
 | Contexto | intacto / alterado / revuelto; estructura vanilla si aplica |
+| Conservación | % de calidad; baja con golpes de más en el corte |
 | Tipo | vanilla / plugin / reliquia |
 
 No todos los hallazgos son reliquias. Un palo o un ladrillo pueden ser **resto de contexto** (registrado de forma ligera o ni siquiera archivado).

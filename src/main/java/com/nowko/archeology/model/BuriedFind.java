@@ -13,6 +13,7 @@ public class BuriedFind {
     private String stratumId;
     private FindState state = FindState.HIDDEN;
     private boolean damaged;
+    private int conservation = 100;
     private final List<BlockCell> cells = new ArrayList<>();
 
     /** @return unique id of this find instance */
@@ -63,6 +64,20 @@ public class BuriedFind {
     /** @param damaged whether recovery will yield a damaged item */
     public void setDamaged(boolean damaged) {
         this.damaged = damaged;
+    }
+
+    /**
+     * @return remaining quality, 0–100
+     */
+    public int getConservation() {
+        return conservation;
+    }
+
+    /**
+     * @param conservation remaining quality, 0–100
+     */
+    public void setConservation(int conservation) {
+        this.conservation = Math.max(0, Math.min(100, conservation));
     }
 
     /** @return connected cells that make up the hidden shape */

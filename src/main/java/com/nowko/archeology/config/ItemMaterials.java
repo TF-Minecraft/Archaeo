@@ -8,10 +8,10 @@ import org.bukkit.Material;
  * @param tracker held scanner
  * @param prospect soil probe / cata (not the excavation brush)
  * @param establish camp kit (not a vanilla stick)
- * @param pick excavation pick (minigame, later)
- * @param shovel excavation shovel (minigame, later)
- * @param hammer excavation hammer / mace (minigame, later)
- * @param brush excavation brush (minigame, later)
+ * @param pick excavation Hand Pick
+ * @param shovel excavation shovel (later)
+ * @param hammer unused for now
+ * @param brush excavation brush (later)
  */
 public record ItemMaterials(
         Material tracker,
@@ -30,7 +30,7 @@ public record ItemMaterials(
                 Material.RECOVERY_COMPASS,
                 Material.STONE_HOE,
                 Material.STICK,
-                Material.IRON_PICKAXE,
+                Material.STONE_PICKAXE,
                 Material.IRON_SHOVEL,
                 Material.MACE,
                 Material.BRUSH

@@ -30,6 +30,7 @@ public class CatalogRegistry {
     private TrackerSettings tracker = TrackerSettings.defaults();
     private ProspectSettings prospect = ProspectSettings.defaults();
     private EstablishSettings establish = EstablishSettings.defaults();
+    private PickSettings pick = PickSettings.defaults();
     private ItemMaterials items = ItemMaterials.defaults();
     private String staffPermission = "archaeo.admin";
 
@@ -57,6 +58,7 @@ public class CatalogRegistry {
         loadTracker(plugin.getConfig());
         loadProspect(plugin.getConfig());
         loadEstablish(plugin.getConfig());
+        loadPick(plugin.getConfig());
         loadItems(plugin.getConfig());
         loadStaffPermission(plugin.getConfig());
         loadStrata(yaml("strata.yml"));
@@ -144,6 +146,13 @@ public class CatalogRegistry {
      */
     public EstablishSettings establish() {
         return establish;
+    }
+
+    /**
+     * @return Hand Pick stages, jornada, strike cadence, find risk, and copy
+     */
+    public PickSettings pick() {
+        return pick;
     }
 
     /**
@@ -305,6 +314,35 @@ public class CatalogRegistry {
                         section.getString("ruin-outline-block"),
                         fallback.ruinOutlineBlock(),
                         "establish.ruin-outline-block"),
+                section.getString("item-name", fallback.itemName()),
+                List.copyOf(lore)
+        );
+    }
+
+    /**
+     * Reads Hand Pick stages, jornada, strike cadence, find risk, and item copy.
+     *
+     * @param config root plugin config
+     */
+    private void loadPick(org.bukkit.configuration.file.FileConfiguration config) {
+        ConfigurationSection section = config.getConfigurationSection("pick");
+        PickSettings fallback = PickSettings.defaults();
+        if (section == null) {
+            pick = fallback;
+            return;
+        }
+        List<String> lore = section.getStringList("item-lore");
+        if (lore.isEmpty()) {
+            lore = fallback.itemLore();
+        }
+        pick = new PickSettings(
+                section.getBoolean("enabled", true),
+                Math.max(1, section.getInt("block-stages", fallback.blockStages())),
+                Math.max(1, section.getInt("jornada-actions", fallback.jornadaActions())),
+                Math.max(1, section.getInt("strike-interval-ticks", fallback.strikeIntervalTicks())),
+                Math.max(0, section.getInt("conservation-loss-per-strike", fallback.conservationLossPerStrike())),
+                Math.max(0, section.getInt("conservation-loss-on-remove", fallback.conservationLossOnRemove())),
+                Math.max(0, Math.min(100, section.getInt("damaged-below-percent", fallback.damagedBelowPercent()))),
                 section.getString("item-name", fallback.itemName()),
                 List.copyOf(lore)
         );

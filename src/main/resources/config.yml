@@ -10,7 +10,8 @@ items:
   prospect: STONE_HOE
   # Camp kit. Keep this different from a vanilla stick.
   establish: STICK
-  pick: IRON_PICKAXE
+  # Appearance only. Strike speed is pick.strike-interval-ticks, not this material.
+  pick: STONE_PICKAXE
   shovel: IRON_SHOVEL
   hammer: MACE
   brush: BRUSH
@@ -39,6 +40,25 @@ establish:
   item-lore:
     - "Aim at the ground next to a confirmed ruin."
     - "The ghost turns red where the camp cannot sit. Right-click to plant."
+
+pick:
+  enabled: true
+  # Plugin strikes (not vanilla mining) needed to remove one fill block.
+  block-stages: 6
+  # One jornada action is spent when a cycle ends (release), not per strike.
+  jornada-actions: 8
+  # Ticks between strikes while left-click is held (20 = one second). Independent of the item material.
+  strike-interval-ticks: 25
+  # After a find is detected, each extra Hand Pick strike on its cells lowers conservation.
+  conservation-loss-per-strike: 8
+  # Extra loss if the Hand Pick fully removes a fill cell that belongs to a find.
+  conservation-loss-on-remove: 20
+  # Mark the find damaged when conservation falls below this percent.
+  damaged-below-percent: 70
+  item-name: "Hand Pick"
+  item-lore:
+    - "Hold left-click on the open cut. Release to end the strike cycle."
+    - "Not a mining pick."
 
 tracker:
   enabled: true

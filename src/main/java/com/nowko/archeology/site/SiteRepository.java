@@ -313,6 +313,7 @@ public class SiteRepository {
             node.put("stratum", find.getStratumId());
             node.put("state", find.getState().name());
             node.put("damaged", find.isDamaged());
+            node.put("conservation", find.getConservation());
             List<String> cells = find.getCells().stream()
                     .map(cell -> cell.x() + "," + cell.y() + "," + cell.z())
                     .toList();
@@ -320,6 +321,14 @@ public class SiteRepository {
             finds.add(node);
         }
         yaml.set("finds", finds);
+        yaml.set("jornada.world-day", site.getJornadaWorldDay());
+        yaml.set("jornada.pick-left", site.getJornadaPickLeft());
+        List<String> damage = new ArrayList<>();
+        for (Map.Entry<BlockCell, Integer> entry : site.getFillDamage().entrySet()) {
+            BlockCell cell = entry.getKey();
+            damage.add(cell.x() + "," + cell.y() + "," + cell.z() + ":" + entry.getValue());
+        }
+        yaml.set("fill-damage", damage);
         return yaml;
     }
 
@@ -421,6 +430,7 @@ public class SiteRepository {
             find.setStratumId(String.valueOf(map.get("stratum")));
             find.setState(FindState.valueOf(stringOr(map.get("state"), "HIDDEN")));
             find.setDamaged(Boolean.parseBoolean(stringOr(map.get("damaged"), "false")));
+            find.setConservation(parseConservation(map.get("conservation")));
             Object cells = map.get("cells");
             if (cells instanceof List<?> list) {
                 for (Object cell : list) {
@@ -433,6 +443,25 @@ public class SiteRepository {
                 }
             }
             site.getFinds().add(find);
+        }
+
+        site.setJornadaWorldDay(yaml.getLong("jornada.world-day", -1L));
+        site.setJornadaPickLeft(yaml.getInt("jornada.pick-left"));
+        for (String raw : yaml.getStringList("fill-damage")) {
+            int split = raw.lastIndexOf(':');
+            if (split < 0) {
+                continue;
+            }
+            String[] parts = raw.substring(0, split).split(",");
+            if (parts.length < 3) {
+                continue;
+            }
+            site.getFillDamage().put(
+                    new BlockCell(
+                            Integer.parseInt(parts[0]),
+                            Integer.parseInt(parts[1]),
+                            Integer.parseInt(parts[2])),
+                    Integer.parseInt(raw.substring(split + 1)));
         }
 
         for (String raw : yaml.getStringList("prospect.confirmed")) {
@@ -456,6 +485,21 @@ public class SiteRepository {
             }
         }
         return site;
+    }
+
+    /**
+     * @param value YAML number or missing
+     * @return conservation 0–100, default 100
+     */
+    private static int parseConservation(Object value) {
+        if (value == null) {
+            return 100;
+        }
+        try {
+            return Math.max(0, Math.min(100, Integer.parseInt(String.valueOf(value))));
+        } catch (NumberFormatException ignored) {
+            return 100;
+        }
     }
 
     /**

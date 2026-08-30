@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -48,6 +49,9 @@ public class Site {
     private String campWoolPrimary = "WHITE";
     private String campWoolSecondary = "RED";
     private String campFacing;
+    private long jornadaWorldDay = -1L;
+    private int jornadaPickLeft;
+    private final Map<BlockCell, Integer> fillDamage = new LinkedHashMap<>();
 
     /** @return persistent site UUID */
     public UUID getId() {
@@ -270,6 +274,19 @@ public class Site {
     /** @return buried finds (hidden shapes) */
     public List<BuriedFind> getFinds() {
         return finds;
+    }
+
+    /**
+     * @param cell world cell
+     * @return the find whose shape includes this cell, if any
+     */
+    public Optional<BuriedFind> findAt(BlockCell cell) {
+        for (BuriedFind find : finds) {
+            if (find.getCells().contains(cell)) {
+                return Optional.of(find);
+            }
+        }
+        return Optional.empty();
     }
 
     /** @return players allowed to excavate */
@@ -519,6 +536,61 @@ public class Site {
      */
     public void setCampFacing(String campFacing) {
         this.campFacing = campFacing;
+    }
+
+    /**
+     * @return Minecraft day the pick budget was last filled, or {@code -1}
+     */
+    public long getJornadaWorldDay() {
+        return jornadaWorldDay;
+    }
+
+    /**
+     * @param jornadaWorldDay {@code world fullTime / 24000}
+     */
+    public void setJornadaWorldDay(long jornadaWorldDay) {
+        this.jornadaWorldDay = jornadaWorldDay;
+    }
+
+    /**
+     * @return pick actions remaining today
+     */
+    public int getJornadaPickLeft() {
+        return jornadaPickLeft;
+    }
+
+    /**
+     * @param jornadaPickLeft pick actions remaining today
+     */
+    public void setJornadaPickLeft(int jornadaPickLeft) {
+        this.jornadaPickLeft = jornadaPickLeft;
+    }
+
+    /**
+     * @return stages already applied to fill cells (only damaged blocks)
+     */
+    public Map<BlockCell, Integer> getFillDamage() {
+        return fillDamage;
+    }
+
+    /**
+     * Adds alteration stages to a fill cell.
+     *
+     * @param cell prism cell
+     * @param stages hits or stages to add
+     * @return total stages after the hit
+     */
+    public int addFillDamage(BlockCell cell, int stages) {
+        int total = fillDamage.getOrDefault(cell, 0) + stages;
+        fillDamage.put(cell, total);
+        return total;
+    }
+
+    /**
+     * @param cell block that was removed
+     */
+    public void clearFillDamage(BlockCell cell) {
+        fillDamage.remove(cell);
     }
 
     /**
