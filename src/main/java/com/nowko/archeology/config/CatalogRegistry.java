@@ -344,6 +344,7 @@ public class CatalogRegistry {
                 cueMin,
                 Math.max(cueMin, section.getInt("cue-clings-max", fallback.cueClingsMax())),
                 Math.max(1, section.getInt("ready-window-ticks", fallback.readyWindowTicks())),
+                section.getBoolean("visual-cues", fallback.visualCues()),
                 Math.max(0, section.getInt("conservation-loss-per-strike", fallback.conservationLossPerStrike())),
                 Math.max(0, section.getInt("conservation-loss-on-remove", fallback.conservationLossOnRemove())),
                 Math.max(0, Math.min(100, section.getInt("damaged-below-percent", fallback.damagedBelowPercent()))),

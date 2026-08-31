@@ -13,6 +13,8 @@ import com.nowko.archeology.site.SiteRepository;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
+import org.bukkit.Color;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -474,6 +476,7 @@ public class HandPickService {
                     SoundCategory.BLOCKS,
                     1f,
                     1.2f);
+            showCue(player, block, CueKind.FIND);
             sites.save(site);
             return;
         }
@@ -485,6 +488,7 @@ public class HandPickService {
                 SoundCategory.BLOCKS,
                 0.9f,
                 0.8f);
+        showCue(player, block, CueKind.HARM);
         sites.save(site);
     }
 
@@ -502,13 +506,13 @@ public class HandPickService {
         }
         if (!cycle.ready && cycle.hits <= cycle.cueClings) {
             playHit(block);
-            playSoftCling(block);
+            playSoftCling(player, block);
             return;
         }
         if (!cycle.ready) {
             cycle.ready = true;
             cycle.readyTick = gameTick;
-            playReadyCling(block);
+            playReadyCling(player, block);
             return;
         }
         playHit(block);
@@ -520,29 +524,99 @@ public class HandPickService {
     /**
      * Soft cue: the ready chime is coming, but not which beat.
      *
+     * @param player miner
      * @param block struck cell
      */
-    private void playSoftCling(Block block) {
+    private void playSoftCling(Player player, Block block) {
         block.getWorld().playSound(
                 block.getLocation(),
                 Sound.BLOCK_NOTE_BLOCK_CHIME,
                 SoundCategory.BLOCKS,
                 0.4f,
                 0.85f);
+        showCue(player, block, CueKind.SOFT);
     }
 
     /**
      * Louder chime: this cube can come out if released in the window.
      *
+     * @param player miner
      * @param block struck cell
      */
-    private void playReadyCling(Block block) {
+    private void playReadyCling(Player player, Block block) {
         block.getWorld().playSound(
                 block.getLocation(),
                 Sound.BLOCK_NOTE_BLOCK_CHIME,
                 SoundCategory.BLOCKS,
                 1f,
                 1.45f);
+        showCue(player, block, CueKind.READY);
+    }
+
+    /**
+     * Same beat as the cling: dust on the cube and a verb subtitle, never a stage count.
+     *
+     * @param player miner
+     * @param block struck cell
+     * @param kind which signal this strike is
+     */
+    private void showCue(Player player, Block block, CueKind kind) {
+        if (!settings.visualCues()) {
+            return;
+        }
+        Location at = block.getLocation().add(0.5, 1.05, 0.5);
+        switch (kind) {
+            case SOFT -> {
+                player.spawnParticle(
+                        Particle.DUST,
+                        at,
+                        10,
+                        0.18,
+                        0.08,
+                        0.18,
+                        0,
+                        new Particle.DustOptions(Color.fromRGB(160, 210, 255), 1.15f));
+                player.sendTitle("", "Soon", 0, 10, 4);
+            }
+            case READY -> {
+                player.spawnParticle(
+                        Particle.DUST,
+                        at,
+                        22,
+                        0.28,
+                        0.18,
+                        0.28,
+                        0,
+                        new Particle.DustOptions(Color.fromRGB(255, 210, 70), 1.45f));
+                player.spawnParticle(Particle.END_ROD, at, 6, 0.2, 0.15, 0.2, 0.02);
+                player.sendTitle("", "Release", 0, 16, 6);
+            }
+            case FIND -> {
+                player.spawnParticle(
+                        Particle.DUST,
+                        at,
+                        16,
+                        0.22,
+                        0.12,
+                        0.22,
+                        0,
+                        new Particle.DustOptions(Color.fromRGB(180, 90, 255), 1.3f));
+                player.spawnParticle(Particle.WAX_OFF, at, 8, 0.25, 0.2, 0.25, 0.01);
+                player.sendTitle("", "Stop", 0, 18, 6);
+            }
+            case HARM -> {
+                player.spawnParticle(
+                        Particle.DUST,
+                        at,
+                        12,
+                        0.2,
+                        0.1,
+                        0.2,
+                        0,
+                        new Particle.DustOptions(Color.fromRGB(220, 70, 70), 1.2f));
+                player.sendTitle("", "Altering", 0, 12, 4);
+            }
+        }
     }
 
     /**
@@ -735,5 +809,19 @@ public class HandPickService {
         private boolean sameCell(Block block) {
             return block.getX() == x && block.getY() == y && block.getZ() == z;
         }
+    }
+
+    /**
+     * Visual twin of a Hand Pick audio signal. Not a stage count.
+     */
+    private enum CueKind {
+        /** Soft empty-fill cling: ready is coming. */
+        SOFT,
+        /** Ready chime: release in the window. */
+        READY,
+        /** Find timbre: stop, this is not fill. */
+        FIND,
+        /** Extra strike on a detected find. */
+        HARM
     }
 }

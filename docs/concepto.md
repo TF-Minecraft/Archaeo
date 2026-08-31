@@ -864,7 +864,8 @@ Hand Pick, ciclo a ciclo.
 Debe sentirse como Minecraft con otra regla de rotura, no como un minijuego
 aparte. Conserva animación del brazo, bloques reales y sonidos reconocibles.
 Cada cubo —tenga hallazgo o no— pide un mínimo de atención. El jugador
-entiende la regla **con el oído**, no con un HUD de etapas ni con las grietas
+entiende la regla **con el oído** (y, si no hay sonido, con el **mismo instante**
+en partículas + subtítulo), no con un HUD de etapas ni con las grietas
 vanilla del bloque.
 
 Dos señales, dos significados, **siempre**:
@@ -1001,6 +1002,11 @@ Los golpes de mientras: tierra/grava vs piedra (lectura de blando/compacto).
 | **Cling suave** (relleno vacío) | Viene el ting; aún no sueltes |
 | **Ting de listo** | Este cubo puede salir (en vacío: suelta) |
 | **Cling** de hallazgo (otro timbre) | Para; no es tierra |
+
+Cada cling tiene un **gemelo visual** (accesibilidad, `pick.visual-cues`):
+polvo sobre el cubo y un subtítulo de un verbo, **sin números**. *Soon* /
+*Release* / *Stop* / *Altering*. El action bar sigue siendo estrato y jornada.
+No se usan grietas ni `2/6`.
 
 ### Hallazgos: forma, no un bloque-premio
 

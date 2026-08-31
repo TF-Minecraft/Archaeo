@@ -54,6 +54,8 @@ pick:
   cue-clings-max: 3
   # Ticks after the ready chime in which release is on time. Later also breaks the block below.
   ready-window-ticks: 20
+  # Particles + a short subtitle on each cling (no numbers). For mute / deaf play; hearing players can ignore it.
+  visual-cues: true
   # After a find is detected, each extra Hand Pick strike on its cells lowers conservation.
   conservation-loss-per-strike: 8
   # Extra loss if the Hand Pick fully removes a fill cell that belongs to a find.
