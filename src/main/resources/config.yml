@@ -10,7 +10,7 @@ items:
   prospect: STONE_HOE
   # Camp kit. Keep this different from a vanilla stick.
   establish: STICK
-  # Appearance only. Strike speed is pick.strike-interval-ticks, not this material.
+  # Used by /archaeo pick give as a sample vanilla pickaxe if PICKAXES is in pick.tools.
   pick: STONE_PICKAXE
   shovel: IRON_SHOVEL
   hammer: MACE
@@ -54,6 +54,12 @@ pick:
   cue-clings-max: 3
   # Ticks after the ready chime in which release is on time. Later also breaks the block below.
   ready-window-ticks: 20
+  # Main-hand items that may excavate on the dig site. AIR = empty hand.
+  # PICKAXES / SHOVELS expand to every Bukkit-tagged tier (wood through netherite, and later ones).
+  tools:
+    - AIR
+    - PICKAXES
+    - SHOVELS
   # Particles + a short subtitle on each cling (no numbers). For mute / deaf play; hearing players can ignore it.
   visual-cues: true
   # After a find is detected, each extra Hand Pick strike on its cells lowers conservation.

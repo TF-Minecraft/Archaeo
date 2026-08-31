@@ -1,7 +1,10 @@
 package com.nowko.archeology.config;
 
-import java.util.List;
+import com.nowko.archeology.excavation.DigTools;
+import org.bukkit.Material;
 
+import java.util.List;
+import java.util.Set;
 /**
  * Hand Pick from {@code config.yml}: cadence, empty-fill cue and window, find risk, and item copy.
  *
@@ -16,8 +19,9 @@ import java.util.List;
  * @param conservationLossPerStrike conservation lost per extra strike on a detected find
  * @param conservationLossOnRemove extra loss when the pick fully removes a find cell
  * @param damagedBelowPercent mark the find damaged when conservation falls below this
- * @param itemName English display name
- * @param itemLore English lore lines
+ * @param tools main-hand materials allowed on the dig site ({@link org.bukkit.Material#AIR} = empty hand)
+ * @param itemName unused leftover copy (tools are vanilla)
+ * @param itemLore unused leftover copy
  */
 public record PickSettings(
         boolean enabled,
@@ -31,6 +35,7 @@ public record PickSettings(
         int conservationLossPerStrike,
         int conservationLossOnRemove,
         int damagedBelowPercent,
+        Set<Material> tools,
         String itemName,
         List<String> itemLore
 ) {
@@ -50,6 +55,7 @@ public record PickSettings(
                 8,
                 20,
                 70,
+                DigTools.defaultMaterials(),
                 "Hand Pick",
                 List.of(
                         "Hold left-click on the open cut. Soft chimes, then release on the ready chime.",

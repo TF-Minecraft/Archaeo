@@ -1,6 +1,5 @@
 package com.nowko.archeology.excavation;
 
-import com.nowko.archeology.item.HandPickItem;
 import com.nowko.archeology.site.SiteRepository;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
@@ -22,56 +21,53 @@ import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.EquipmentSlot;
 
 /**
- * Left-click hold drives a vanilla-break clock. The world block is never allowed to finish breaking.
+ * Left-click hold with a whitelisted tool drives the vanilla-break clock on prism fill.
  */
 public class HandPickListener implements Listener {
-    private final HandPickItem item;
     private final HandPickService pick;
     private final SiteRepository sites;
 
     /**
-     * @param item Hand Pick recognition
-     * @param pick break clock
+     * @param pick break clock and tool whitelist
      * @param sites excavation lookup
      */
-    public HandPickListener(HandPickItem item, HandPickService pick, SiteRepository sites) {
-        this.item = item;
+    public HandPickListener(HandPickService pick, SiteRepository sites) {
         this.pick = pick;
         this.sites = sites;
     }
 
     /**
-     * Marks the hold. Does not cancel: cancelling aborts client digging and flashes a crack.
-     * Client speed is already zero from {@link HandPickService#syncHeldTool(Player)}.
+     * Marks the hold on prism fill. Off the cut, a whitelist pickaxe or shovel stays vanilla.
      *
      * @param event start of vanilla block damage
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
     public void onDamage(BlockDamageEvent event) {
         Player player = event.getPlayer();
-        if (!item.isPick(player.getInventory().getItemInMainHand())) {
+        if (!pick.isExcavationTool(player.getInventory().getItemInMainHand())) {
+            return;
+        }
+        Block block = event.getBlock();
+        if (!inPrismFill(block)) {
             return;
         }
         pick.syncHeldTool(player);
         event.setInstaBreak(false);
-        Block block = event.getBlock();
-        if (inPrismFill(block)) {
-            pick.noteMining(player, block);
-            return;
-        }
-        event.setCancelled(true);
-        pick.warnOffCut(player);
+        pick.noteMining(player, block);
     }
 
     /**
-     * Client predicted a vanilla break; pin the real {@code BlockData} back.
+     * Client predicted a vanilla break on the cut; pin the real {@code BlockData} back.
      *
      * @param event would-be break
      */
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
-        if (!item.isPick(player.getInventory().getItemInMainHand())) {
+        if (!pick.isExcavationTool(player.getInventory().getItemInMainHand())) {
+            return;
+        }
+        if (!inPrismFill(event.getBlock()) && !pick.isCycling(player)) {
             return;
         }
         event.setCancelled(true);
@@ -89,7 +85,7 @@ public class HandPickListener implements Listener {
             return;
         }
         Player player = event.getPlayer();
-        if (!item.isPick(player.getInventory().getItemInMainHand())) {
+        if (!pick.isExcavationTool(player.getInventory().getItemInMainHand())) {
             return;
         }
         Block block = player.getTargetBlockExact(6);
@@ -99,7 +95,7 @@ public class HandPickListener implements Listener {
     }
 
     /**
-     * Right-click must not use the pick as a vanilla item.
+     * Left-click on the cut keeps the clock alive; right-click must not path or till prism fill.
      *
      * @param event interact
      */
@@ -109,14 +105,10 @@ public class HandPickListener implements Listener {
             return;
         }
         Player player = event.getPlayer();
-        if (!item.isPick(player.getInventory().getItemInMainHand())) {
+        if (!pick.isExcavationTool(player.getInventory().getItemInMainHand())) {
             return;
         }
         Action action = event.getAction();
-        if (action == Action.LEFT_CLICK_AIR) {
-            pick.warnOffCut(player);
-            return;
-        }
         if (action == Action.LEFT_CLICK_BLOCK) {
             Block clicked = event.getClickedBlock();
             if (clicked != null && inPrismFill(clicked)) {
@@ -124,23 +116,20 @@ public class HandPickListener implements Listener {
             }
             return;
         }
-        if (action != Action.RIGHT_CLICK_BLOCK && action != Action.RIGHT_CLICK_AIR) {
+        if (action != Action.RIGHT_CLICK_BLOCK) {
+            return;
+        }
+        Block block = event.getClickedBlock();
+        if (block == null || !inPrismFill(block)) {
             return;
         }
         event.setCancelled(true);
         event.setUseInteractedBlock(Event.Result.DENY);
         event.setUseItemInHand(Event.Result.DENY);
-        Block block = event.getClickedBlock();
-        if (block == null) {
-            block = player.getTargetBlockExact(6);
-        }
-        if (block == null || !inPrismFill(block)) {
-            pick.warnOffCut(player);
-        }
     }
 
     /**
-     * Lock mining speed before the next click; the first {@code BlockDamageEvent} is already too late.
+     * Lock mining speed before the next click when already looking at the cut.
      *
      * @param event join
      */
@@ -176,7 +165,7 @@ public class HandPickListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDrop(PlayerDropItemEvent event) {
-        if (item.isPick(event.getItemDrop().getItemStack())) {
+        if (pick.isExcavationTool(event.getItemDrop().getItemStack())) {
             pick.finish(event.getPlayer());
             pick.syncHeldTool(event.getPlayer());
         }

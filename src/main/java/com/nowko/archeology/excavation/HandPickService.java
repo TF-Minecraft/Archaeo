@@ -3,7 +3,6 @@ package com.nowko.archeology.excavation;
 import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.config.PickSettings;
 import com.nowko.archeology.config.StratumDefinition;
-import com.nowko.archeology.item.HandPickItem;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.StratumBand;
 import com.nowko.archeology.site.SiteRepository;
@@ -50,7 +49,7 @@ public class HandPickService {
     private final JavaPlugin plugin;
     private final SiteRepository sites;
     private final CatalogRegistry catalogs;
-    private final HandPickItem item;
+    private final DigTools tools;
     private final NamespacedKey noVanillaMineKey;
     private PickSettings settings;
     private BukkitTask task;
@@ -62,22 +61,23 @@ public class HandPickService {
      * @param plugin scheduler
      * @param sites excavation dossiers
      * @param catalogs strata labels for the HUD
-     * @param item Hand Pick recognition
-     * @param settings cue range, ready window, and jornada
+     * @param tools excavation whitelist
+     * @param settings cue range, ready window, jornada, and allowed tools
      */
     public HandPickService(
             JavaPlugin plugin,
             SiteRepository sites,
             CatalogRegistry catalogs,
-            HandPickItem item,
+            DigTools tools,
             PickSettings settings
     ) {
         this.plugin = plugin;
         this.sites = sites;
         this.catalogs = catalogs;
-        this.item = item;
-        this.noVanillaMineKey = new NamespacedKey(plugin, "hand_pick_no_vanilla_mine");
+        this.tools = tools;
+        this.noVanillaMineKey = new NamespacedKey(plugin, "no_vanilla_mine");
         this.settings = settings;
+        this.tools.setAllowed(settings.tools());
     }
 
     /**
@@ -85,6 +85,7 @@ public class HandPickService {
      */
     public void setSettings(PickSettings settings) {
         this.settings = settings;
+        this.tools.setAllowed(settings.tools());
     }
 
     /**
@@ -172,11 +173,27 @@ public class HandPickService {
      * @param held stack that is or will be in the main hand
      */
     public void syncHeldTool(Player player, ItemStack held) {
-        boolean holding = item.isPick(held);
-        if (holding) {
-            item.sealVanillaMining(held);
+        boolean allowed = tools.isAllowed(held);
+        if (allowed) {
+            tools.restoreVanillaSpeedIfSealed(held);
         }
-        setVanillaMineLocked(player, holding);
+        boolean atCut = isCycling(player) || isTargetingCut(player);
+        setVanillaMineLocked(player, allowed && atCut);
+    }
+
+    /**
+     * @param stack main-hand stack, or {@code null}
+     * @return whether this service's tool whitelist accepts the stack
+     */
+    public boolean isExcavationTool(ItemStack stack) {
+        return tools.isAllowed(stack);
+    }
+
+    /**
+     * @return a vanilla whitelist stack for staff give
+     */
+    public ItemStack sampleTool() {
+        return tools.sampleStack();
     }
 
     /**
@@ -263,7 +280,7 @@ public class HandPickService {
         for (Map.Entry<UUID, Cycle> entry : new ArrayList<>(cycles.entrySet())) {
             Player player = Bukkit.getPlayer(entry.getKey());
             Cycle cycle = entry.getValue();
-            if (player == null || !player.isOnline() || !item.isPick(player.getInventory().getItemInMainHand())) {
+            if (player == null || !player.isOnline() || !tools.isAllowed(player.getInventory().getItemInMainHand())) {
                 if (player != null) {
                     finish(player);
                 } else {
@@ -302,12 +319,21 @@ public class HandPickService {
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
             ItemStack held = player.getInventory().getItemInMainHand();
-            boolean holding = item.isPick(held);
+            boolean holding = tools.isAllowed(held);
             syncHeldTool(player, held);
-            if (holding) {
+            if (holding && (isCycling(player) || isTargetingCut(player))) {
                 showHud(player);
             }
         }
+    }
+
+    /**
+     * @param player viewer
+     * @return whether the crosshair is on prism fill
+     */
+    private boolean isTargetingCut(Player player) {
+        Block target = player.getTargetBlockExact(6);
+        return target != null && isExcavationFill(target);
     }
 
     /**

@@ -5,11 +5,11 @@ import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.establish.CampListener;
 import com.nowko.archeology.establish.EstablishListener;
 import com.nowko.archeology.establish.EstablishService;
+import com.nowko.archeology.excavation.DigTools;
 import com.nowko.archeology.excavation.HandPickListener;
 import com.nowko.archeology.excavation.HandPickService;
 import com.nowko.archeology.excavation.PrismListener;
 import com.nowko.archeology.item.EstablishItem;
-import com.nowko.archeology.item.HandPickItem;
 import com.nowko.archeology.item.ProspectItem;
 import com.nowko.archeology.item.TrackerItem;
 import com.nowko.archeology.prospect.ProspectListener;
@@ -33,7 +33,7 @@ public class ArcheologyPlugin extends JavaPlugin {
     private ProspectService prospect;
     private EstablishItem establishItem;
     private EstablishService establish;
-    private HandPickItem handPickItem;
+    private DigTools digTools;
     private HandPickService handPick;
 
     /**
@@ -57,11 +57,11 @@ public class ArcheologyPlugin extends JavaPlugin {
         establish.start();
         getServer().getPluginManager().registerEvents(new EstablishListener(establishItem, establish), this);
         getServer().getPluginManager().registerEvents(new CampListener(this, sites, establishItem, establish), this);
-        handPickItem = new HandPickItem(this, catalogs.pick(), catalogs.items().pick());
-        handPick = new HandPickService(this, sites, catalogs, handPickItem, catalogs.pick());
+        digTools = new DigTools();
+        handPick = new HandPickService(this, sites, catalogs, digTools, catalogs.pick());
         handPick.start();
-        getServer().getPluginManager().registerEvents(new HandPickListener(handPickItem, handPick, sites), this);
-        getServer().getPluginManager().registerEvents(new PrismListener(sites, handPickItem), this);
+        getServer().getPluginManager().registerEvents(new HandPickListener(handPick, sites), this);
+        getServer().getPluginManager().registerEvents(new PrismListener(sites, digTools), this);
 
         ArchaeoCommand command = new ArchaeoCommand(
                 catalogs,
@@ -73,7 +73,6 @@ public class ArcheologyPlugin extends JavaPlugin {
                 prospect,
                 establishItem,
                 establish,
-                handPickItem,
                 handPick);
         PluginCommand pluginCommand = getCommand("archaeo");
         if (pluginCommand != null) {

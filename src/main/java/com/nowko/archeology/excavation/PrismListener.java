@@ -1,6 +1,5 @@
 package com.nowko.archeology.excavation;
 
-import com.nowko.archeology.item.HandPickItem;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.site.SiteRepository;
 import org.bukkit.block.Block;
@@ -32,16 +31,16 @@ public class PrismListener implements Listener {
     private static final long MESSAGE_COOLDOWN_MS = 3000L;
 
     private final SiteRepository sites;
-    private final HandPickItem pick;
+    private final DigTools tools;
     private final Map<UUID, Long> lastWarn = new ConcurrentHashMap<>();
 
     /**
      * @param sites established excavations
-     * @param pick Hand Pick: vanilla break is cancelled; crack overlay is not used
+     * @param tools excavation whitelist: those items use {@link HandPickListener} on the cut
      */
-    public PrismListener(SiteRepository sites, HandPickItem pick) {
+    public PrismListener(SiteRepository sites, DigTools tools) {
         this.sites = sites;
-        this.pick = pick;
+        this.tools = tools;
     }
 
     /**
@@ -50,9 +49,7 @@ public class PrismListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
-        boolean handPick = pick.isPick(player.getInventory().getItemInMainHand());
-        if (handPick) {
-            event.setCancelled(true);
+        if (tools.isAllowed(player.getInventory().getItemInMainHand())) {
             return;
         }
         if (!protectedFill(event.getBlock())) {
@@ -73,7 +70,7 @@ public class PrismListener implements Listener {
     }
 
     /**
-     * Vanilla tools must not start mining the open cut. Hand Pick damage is handled in {@link HandPickListener}.
+     * Tools not on the excavation whitelist must not start mining the open cut.
      *
      * @param event start of vanilla damage
      */
@@ -82,7 +79,7 @@ public class PrismListener implements Listener {
         if (!protectedFill(event.getBlock())) {
             return;
         }
-        if (pick.isPick(event.getPlayer().getInventory().getItemInMainHand())) {
+        if (tools.isAllowed(event.getPlayer().getInventory().getItemInMainHand())) {
             return;
         }
         event.setCancelled(true);

@@ -4,7 +4,6 @@ import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.establish.EstablishService;
 import com.nowko.archeology.excavation.HandPickService;
 import com.nowko.archeology.item.EstablishItem;
-import com.nowko.archeology.item.HandPickItem;
 import com.nowko.archeology.item.ProspectItem;
 import com.nowko.archeology.item.TrackerItem;
 import com.nowko.archeology.model.BuriedFind;
@@ -50,7 +49,6 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private final ProspectService prospect;
     private final EstablishItem establishItem;
     private final EstablishService establish;
-    private final HandPickItem handPickItem;
     private final HandPickService handPick;
 
     /**
@@ -63,8 +61,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      * @param prospect sample loop, updated on reload
      * @param establishItem factory for {@code establish give}
      * @param establish camp outline loop, updated on reload
-     * @param handPickItem factory for {@code pick give}
-     * @param handPick strike-cycle loop, updated on reload
+     * @param handPick excavation loop and tool whitelist, updated on reload
      */
     public ArchaeoCommand(
             CatalogRegistry catalogs,
@@ -76,7 +73,6 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             ProspectService prospect,
             EstablishItem establishItem,
             EstablishService establish,
-            HandPickItem handPickItem,
             HandPickService handPick
     ) {
         this.catalogs = catalogs;
@@ -88,7 +84,6 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         this.prospect = prospect;
         this.establishItem = establishItem;
         this.establish = establish;
-        this.handPickItem = handPickItem;
         this.handPick = handPick;
     }
 
@@ -151,7 +146,6 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             prospect.setSettings(catalogs.prospect());
             establishItem.update(catalogs.establish(), catalogs.items().establish());
             establish.setSettings(catalogs.establish());
-            handPickItem.update(catalogs.pick(), catalogs.items().pick());
             handPick.setSettings(catalogs.pick());
             sites.loadAll();
             sender.sendMessage("Reloaded Archaeo config, catalogs, and sites from disk.");
@@ -261,7 +255,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * Gives a Hand Pick or refills today's pick budget on an established excavation.
+     * Gives a vanilla whitelist pickaxe or refills today's pick budget on an established excavation.
      *
      * @param sender staff issuer
      * @param args {@code pick give [player]} or {@code pick reset [player|all]}
@@ -294,10 +288,10 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("Console must name a player: /archaeo pick give <player>");
             return true;
         }
-        target.getInventory().addItem(handPickItem.create());
-        sender.sendMessage("Gave a Hand Pick to " + target.getName() + ".");
+        target.getInventory().addItem(handPick.sampleTool());
+        sender.sendMessage("Gave an excavation tool to " + target.getName() + ".");
         if (target != sender) {
-            target.sendMessage("You received a Hand Pick. Hold left-click; soft chimes, then release on the ready chime.");
+            target.sendMessage("You can excavate with any pickaxe or shovel on the whitelist, or an empty hand.");
         }
         return true;
     }

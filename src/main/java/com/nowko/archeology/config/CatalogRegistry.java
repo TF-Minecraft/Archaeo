@@ -1,5 +1,6 @@
 package com.nowko.archeology.config;
 
+import com.nowko.archeology.excavation.DigTools;
 import com.nowko.archeology.model.InterestLevel;
 import org.bukkit.Particle;
 import org.bukkit.configuration.ConfigurationSection;
@@ -348,6 +349,7 @@ public class CatalogRegistry {
                 Math.max(0, section.getInt("conservation-loss-per-strike", fallback.conservationLossPerStrike())),
                 Math.max(0, section.getInt("conservation-loss-on-remove", fallback.conservationLossOnRemove())),
                 Math.max(0, Math.min(100, section.getInt("damaged-below-percent", fallback.damagedBelowPercent()))),
+                DigTools.parse(section.getStringList("tools")),
                 section.getString("item-name", fallback.itemName()),
                 List.copyOf(lore)
         );
