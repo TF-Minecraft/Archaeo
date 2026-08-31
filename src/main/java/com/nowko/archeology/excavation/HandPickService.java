@@ -34,9 +34,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Hand Pick: the world block never changes. While left-click is held on prism fill,
- * vanilla destroy progress is accumulated with {@link VanillaBreakClock}. Each time it
- * would have reached a break ({@code 1.0}), a cling plays and the clock restarts.
+ * Hand Pick: the world block never changes. Each prevented vanilla break ({@code getBreakSpeed}
+ * totalling {@code 1.0}) advances a rolled {@link HoldCuePlan}: clings from the first break, then clang.
  */
 public class HandPickService {
     private static final long WARN_MS = 3000L;
@@ -134,7 +133,9 @@ public class HandPickService {
         }
         syncHeldTool(player);
         if (existing == null) {
-            cycles.put(player.getUniqueId(), new Cycle(block.getX(), block.getY(), block.getZ(), gameTick));
+            cycles.put(
+                    player.getUniqueId(),
+                    new Cycle(block.getX(), block.getY(), block.getZ(), gameTick, HoldCuePlan.roll(settings)));
             return;
         }
         existing.lastActiveTick = gameTick;
@@ -265,7 +266,7 @@ public class HandPickService {
             cycle.progress += step;
             while (cycle.progress >= 1.0f) {
                 cycle.progress -= 1.0f;
-                playCling(player, block);
+                onVanillaBreak(player, block, cycle);
             }
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
@@ -306,7 +307,36 @@ public class HandPickService {
     }
 
     /**
-     * One vanilla-break-that-did-not-happen.
+     * One prevented vanilla break: fill hit, cling, or clang according to this hold's plan.
+     *
+     * @param player miner
+     * @param block unchanged cell
+     * @param cycle this hold
+     */
+    private void onVanillaBreak(Player player, Block block, Cycle cycle) {
+        switch (cycle.cues.nextCue()) {
+            case AFTER -> playFillHit(block);
+            case CLING -> playCling(player, block);
+            case CLANG -> playClang(player, block);
+        }
+    }
+
+    /**
+     * Vanilla hit of the material, from {@link org.bukkit.block.data.BlockData#getSoundGroup()}.
+     *
+     * @param block unchanged cell
+     */
+    private void playFillHit(Block block) {
+        block.getWorld().playSound(
+                block.getLocation(),
+                block.getBlockData().getSoundGroup().getHitSound(),
+                SoundCategory.BLOCKS,
+                0.85f,
+                1f);
+    }
+
+    /**
+     * Soft cling: the clang is coming, not which beat.
      *
      * @param player miner
      * @param block unchanged cell
@@ -316,8 +346,8 @@ public class HandPickService {
                 block.getLocation(),
                 Sound.BLOCK_NOTE_BLOCK_CHIME,
                 SoundCategory.BLOCKS,
-                0.55f,
-                0.95f);
+                0.4f,
+                0.85f);
         if (!settings.visualCues()) {
             return;
         }
@@ -331,6 +361,37 @@ public class HandPickService {
                 0.18,
                 0,
                 new Particle.DustOptions(Color.fromRGB(160, 210, 255), 1.15f));
+        player.sendTitle("", "Soon", 0, 10, 4);
+    }
+
+    /**
+     * Louder clang: this cube can come out if released in the window (window not applied yet).
+     *
+     * @param player miner
+     * @param block unchanged cell
+     */
+    private void playClang(Player player, Block block) {
+        block.getWorld().playSound(
+                block.getLocation(),
+                Sound.BLOCK_NOTE_BLOCK_CHIME,
+                SoundCategory.BLOCKS,
+                1f,
+                1.45f);
+        if (!settings.visualCues()) {
+            return;
+        }
+        Location at = block.getLocation().add(0.5, 1.05, 0.5);
+        player.spawnParticle(
+                Particle.DUST,
+                at,
+                22,
+                0.28,
+                0.18,
+                0.28,
+                0,
+                new Particle.DustOptions(Color.fromRGB(255, 210, 70), 1.45f));
+        player.spawnParticle(Particle.END_ROD, at, 6, 0.2, 0.15, 0.2, 0.02);
+        player.sendTitle("", "Release", 0, 16, 6);
     }
 
     /**
@@ -414,6 +475,7 @@ public class HandPickService {
         private final int x;
         private final int y;
         private final int z;
+        private final HoldCuePlan cues;
         private int lastActiveTick;
         private float progress;
 
@@ -422,12 +484,14 @@ public class HandPickService {
          * @param y block Y
          * @param z block Z
          * @param tick current service tick
+         * @param cues lead / cling / clang schedule for this hold
          */
-        private Cycle(int x, int y, int z, int tick) {
+        private Cycle(int x, int y, int z, int tick, HoldCuePlan cues) {
             this.x = x;
             this.y = y;
             this.z = z;
             this.lastActiveTick = tick;
+            this.cues = cues;
         }
 
         /**

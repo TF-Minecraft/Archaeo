@@ -49,7 +49,7 @@ pick:
   jornada-actions: 8
   # Ticks between strikes while left-click is held (20 = one second). Independent of the item material.
   strike-interval-ticks: 25
-  # Empty fill: random count of soft clings (inclusive) before the louder ready chime.
+  # Soft clings from the first prevented vanilla break (inclusive), then one louder clang.
   cue-clings-min: 1
   cue-clings-max: 3
   # Ticks after the ready chime in which release is on time. Later also breaks the block below.

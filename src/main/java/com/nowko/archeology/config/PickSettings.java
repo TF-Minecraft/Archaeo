@@ -9,8 +9,8 @@ import java.util.List;
  * @param blockStages strikes to remove a find-cell fill (hidden; not shown on the HUD)
  * @param jornadaActions pick cycles restored each Minecraft day
  * @param strikeIntervalTicks ticks between counted strikes while left-click is held
- * @param cueClingsMin inclusive minimum soft clings before the ready ting (empty fill)
- * @param cueClingsMax inclusive maximum soft clings before the ready ting (empty fill)
+ * @param cueClingsMin inclusive minimum soft clings before the ready clang (empty fill)
+ * @param cueClingsMax inclusive maximum soft clings before the ready clang (empty fill)
  * @param readyWindowTicks ticks after the ting in which release is on time
  * @param visualCues particles and subtitles that mirror clings for players without sound
  * @param conservationLossPerStrike conservation lost per extra strike on a detected find
