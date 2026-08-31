@@ -16,12 +16,13 @@ import org.bukkit.event.player.PlayerAnimationType;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.EquipmentSlot;
 
 /**
- * Left-click hold drives a plugin strike cycle. Vanilla mining is cancelled so the block never “breaks”.
+ * Left-click hold drives a vanilla-break clock. The world block is never allowed to finish breaking.
  */
 public class HandPickListener implements Listener {
     private final HandPickItem item;
@@ -30,8 +31,8 @@ public class HandPickListener implements Listener {
 
     /**
      * @param item Hand Pick recognition
-     * @param pick strike cycles
-     * @param sites working-face lookup
+     * @param pick break clock
+     * @param sites excavation lookup
      */
     public HandPickListener(HandPickItem item, HandPickService pick, SiteRepository sites) {
         this.item = item;
@@ -40,7 +41,8 @@ public class HandPickListener implements Listener {
     }
 
     /**
-     * Starts the cycle on the open cut and stops vanilla hardness from advancing.
+     * Marks the hold. Does not cancel: cancelling aborts client digging and flashes a crack.
+     * Client speed is already zero from {@link HandPickService#syncHeldTool(Player)}.
      *
      * @param event start of vanilla block damage
      */
@@ -50,10 +52,10 @@ public class HandPickListener implements Listener {
         if (!item.isPick(player.getInventory().getItemInMainHand())) {
             return;
         }
+        pick.syncHeldTool(player);
         event.setInstaBreak(false);
         Block block = event.getBlock();
-        if (DigCut.isWorkingFace(sites, block)) {
-            event.setCancelled(true);
+        if (inPrismFill(block)) {
             pick.noteMining(player, block);
             return;
         }
@@ -62,11 +64,11 @@ public class HandPickListener implements Listener {
     }
 
     /**
-     * Client predicted a vanilla break; restore the block and clear crack overlay.
+     * Client predicted a vanilla break; pin the real {@code BlockData} back.
      *
      * @param event would-be break
      */
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
         if (!item.isPick(player.getInventory().getItemInMainHand())) {
@@ -77,7 +79,7 @@ public class HandPickListener implements Listener {
     }
 
     /**
-     * Arm swings while holding left-click keep the cycle from going stale.
+     * Arm swings while holding left-click keep the clock from going stale.
      *
      * @param event swing
      */
@@ -91,7 +93,7 @@ public class HandPickListener implements Listener {
             return;
         }
         Block block = player.getTargetBlockExact(6);
-        if (block != null && DigCut.isWorkingFace(sites, block)) {
+        if (block != null && inPrismFill(block)) {
             pick.noteMining(player, block);
         }
     }
@@ -117,7 +119,7 @@ public class HandPickListener implements Listener {
         }
         if (action == Action.LEFT_CLICK_BLOCK) {
             Block clicked = event.getClickedBlock();
-            if (clicked != null && DigCut.isWorkingFace(sites, clicked)) {
+            if (clicked != null && inPrismFill(clicked)) {
                 pick.noteMining(player, clicked);
             }
             return;
@@ -132,9 +134,19 @@ public class HandPickListener implements Listener {
         if (block == null) {
             block = player.getTargetBlockExact(6);
         }
-        if (block == null || !DigCut.isWorkingFace(sites, block)) {
+        if (block == null || !inPrismFill(block)) {
             pick.warnOffCut(player);
         }
+    }
+
+    /**
+     * Lock mining speed before the next click; the first {@code BlockDamageEvent} is already too late.
+     *
+     * @param event join
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onJoin(PlayerJoinEvent event) {
+        pick.syncHeldTool(event.getPlayer());
     }
 
     /**
@@ -142,15 +154,21 @@ public class HandPickListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onHeld(PlayerItemHeldEvent event) {
-        pick.finish(event.getPlayer());
+        Player player = event.getPlayer();
+        pick.finish(player);
+        pick.syncHeldTool(player, player.getInventory().getItem(event.getNewSlot()));
     }
 
     /**
+     * After the swap, the off-hand stack is what will sit in the main hand.
+     *
      * @param event off-hand swap
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onSwap(PlayerSwapHandItemsEvent event) {
-        pick.finish(event.getPlayer());
+        Player player = event.getPlayer();
+        pick.finish(player);
+        pick.syncHeldTool(player, event.getOffHandItem());
     }
 
     /**
@@ -160,6 +178,7 @@ public class HandPickListener implements Listener {
     public void onDrop(PlayerDropItemEvent event) {
         if (item.isPick(event.getItemDrop().getItemStack())) {
             pick.finish(event.getPlayer());
+            pick.syncHeldTool(event.getPlayer());
         }
     }
 
@@ -169,5 +188,21 @@ public class HandPickListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
         pick.finish(event.getPlayer());
+        pick.syncHeldTool(event.getPlayer(), null);
+    }
+
+    /**
+     * @param block world cell
+     * @return prism fill the clock may run on
+     */
+    private boolean inPrismFill(Block block) {
+        if (!PrismFill.isTerrainFill(block.getType())) {
+            return false;
+        }
+        return sites.findEstablishedPrism(
+                block.getWorld().getName(),
+                block.getX(),
+                block.getY(),
+                block.getZ()).isPresent();
     }
 }
