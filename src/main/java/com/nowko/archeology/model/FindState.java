@@ -9,5 +9,7 @@ public enum FindState {
     /** Some cells have been uncovered. */
     PARTIAL,
     /** Shape is fully mapped; recovery of one item is allowed. */
-    DISCOVERED
+    DISCOVERED,
+    /** Every fill cell of the shape was smashed; no item will be recovered. */
+    LOST
 }

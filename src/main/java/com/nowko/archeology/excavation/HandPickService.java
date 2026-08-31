@@ -20,6 +20,7 @@ import org.bukkit.SoundCategory;
 import org.bukkit.Tag;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
@@ -28,10 +29,11 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Counts Hand Pick strikes on a plugin timer and applies them when the cycle ends.
- * Vanilla mining never completes. Crack overlay follows the current cycle; on resume it matches saved fill damage.
+ * Hand Pick cycles: empty fill uses cue clings then a ready ting; finds still warn on contact.
+ * Vanilla mining and crack overlay never advance.
  */
 public class HandPickService {
     private static final long WARN_MS = 3000L;
@@ -39,8 +41,6 @@ public class HandPickService {
     private static final int STALE_TICKS = 16;
     /** Extra strikes only while packets still arrive; must be less than {@link #STALE_TICKS}. */
     private static final int ACTIVE_HOLD_TICKS = 8;
-    /** Vanilla crack overlay never reaches 1.0; Archaeo removes the block itself. */
-    private static final float MAX_CRACK = 0.9f;
 
     private final JavaPlugin plugin;
     private final SiteRepository sites;
@@ -57,7 +57,7 @@ public class HandPickService {
      * @param sites excavation dossiers
      * @param catalogs strata labels for the HUD
      * @param item Hand Pick recognition
-     * @param settings jornada, stages, and strike interval
+     * @param settings jornada, empty-fill window, and find risk
      */
     public HandPickService(
             JavaPlugin plugin,
@@ -138,36 +138,28 @@ public class HandPickService {
             existing = null;
         }
         if (existing == null) {
-            cycles.put(player.getUniqueId(), new Cycle(site.getId(), block.getX(), block.getY(), block.getZ(), gameTick));
-            showCracks(player, site.getId(), block, 0);
+            cycles.put(
+                    player.getUniqueId(),
+                    new Cycle(site.getId(), block.getX(), block.getY(), block.getZ(), gameTick, rollCueClings()));
+            clearCrack(player, block);
             return;
         }
         existing.lastActiveTick = gameTick;
     }
 
     /**
-     * Puts the real block back and shows plugin cracks so vanilla never finishes the cell.
+     * Puts the real block back and clears crack overlay so vanilla never finishes the cell.
      *
      * @param player miner
      * @param block cell the client tried to finish
      */
     public void suppressVanillaBreak(Player player, Block block) {
         player.sendBlockChange(block.getLocation(), block.getBlockData());
+        clearCrack(player, block);
         if (!DigCut.isWorkingFace(sites, block)) {
-            player.sendBlockDamage(block.getLocation(), 0f);
             return;
         }
         noteMining(player, block);
-        Cycle cycle = cycles.get(player.getUniqueId());
-        int extra = cycle != null && cycle.sameCell(block) ? cycle.hits : 0;
-        UUID siteId = cycle != null ? cycle.siteId : sites.findEstablishedPrism(
-                block.getWorld().getName(),
-                block.getX(),
-                block.getY(),
-                block.getZ()).map(Site::getId).orElse(null);
-        if (siteId != null) {
-            showCracks(player, siteId, block, extra);
-        }
     }
 
     /**
@@ -180,6 +172,7 @@ public class HandPickService {
         if (cycle == null) {
             return;
         }
+        clearCrack(player, player.getWorld().getBlockAt(cycle.x, cycle.y, cycle.z));
         apply(player, cycle);
     }
 
@@ -234,7 +227,7 @@ public class HandPickService {
                     }
                 }
             }
-            showCracks(player, cycle.siteId, block, cycle.hits);
+            clearCrack(player, block);
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (item.isPick(player.getInventory().getItemInMainHand())) {
@@ -244,7 +237,7 @@ public class HandPickService {
     }
 
     /**
-     * Spends one jornada action and adds this cycle's hits to the cell.
+     * Spends jornada when the cycle did work: find-cell stages, or empty fill lifted (on time or late).
      *
      * @param player striker
      * @param cycle cell and hit count
@@ -266,17 +259,197 @@ public class HandPickService {
             return;
         }
         BlockCell cell = new BlockCell(cycle.x, cycle.y, cycle.z);
+        if (site.findAt(cell).isPresent()) {
+            applyFindFill(player, site, block, cell, cycle);
+            return;
+        }
+        applyEmptyFill(player, site, block, cycle);
+    }
+
+    /**
+     * Find cells still use hidden fill stages; the pick does not drop the artifact.
+     *
+     * @param player striker
+     * @param site excavation
+     * @param block cell
+     * @param cell coordinates
+     * @param cycle this hold
+     */
+    private void applyFindFill(Player player, Site site, Block block, BlockCell cell, Cycle cycle) {
         int stages = site.addFillDamage(cell, cycle.hits);
         site.setJornadaPickLeft(site.getJornadaPickLeft() - 1);
         if (stages >= settings.blockStages()) {
-            Material broken = block.getType();
-            site.clearFillDamage(cell);
-            block.setType(Material.AIR, false);
-            world.playSound(block.getLocation(), fillSound(broken, true), SoundCategory.BLOCKS, 1f, 1f);
-            player.sendBlockDamage(block.getLocation(), 0f);
-            site.findAt(cell).ifPresent(find -> harmFind(find, settings.conservationLossOnRemove()));
+            liftBlock(player, site, block, cell, true);
         }
         sites.save(site);
+    }
+
+    /**
+     * Empty fill: early does nothing; on-time lifts this cell; late also breaks the block below.
+     *
+     * @param player striker
+     * @param site excavation
+     * @param block cell
+     * @param cycle this hold
+     */
+    private void applyEmptyFill(Player player, Site site, Block block, Cycle cycle) {
+        if (!cycle.ready) {
+            return;
+        }
+        // lastActiveTick is last mining packet (release); gameTick here is delayed by STALE_TICKS.
+        boolean overdue = cycle.lastActiveTick - cycle.readyTick > settings.readyWindowTicks();
+        boolean late = cycle.late || overdue;
+        site.setJornadaPickLeft(site.getJornadaPickLeft() - 1);
+        BlockCell cell = new BlockCell(cycle.x, cycle.y, cycle.z);
+        liftBlock(player, site, block, cell, false);
+        if (late) {
+            smashBelow(player, site, block);
+        }
+        sites.save(site);
+    }
+
+    /**
+     * Turns the cell to air and plays a break sound.
+     *
+     * @param player miner
+     * @param site excavation
+     * @param block cell
+     * @param cell coordinates
+     * @param findCell whether a find occupies this cell (extra conservation)
+     */
+    private void liftBlock(Player player, Site site, Block block, BlockCell cell, boolean findCell) {
+        Material broken = block.getType();
+        site.clearFillDamage(cell);
+        block.setType(Material.AIR, false);
+        block.getWorld().playSound(block.getLocation(), fillSound(broken, true), SoundCategory.BLOCKS, 1f, 1f);
+        player.sendBlockDamage(block.getLocation(), 0f, player);
+        if (findCell) {
+            site.findAt(cell).ifPresent(find -> {
+                harmFind(find, settings.conservationLossOnRemove());
+                noteIfFindDestroyed(player, block.getWorld(), find);
+            });
+        }
+    }
+
+    /**
+     * Late release: the blow goes through and breaks the cell under the one that was lifted.
+     *
+     * @param player miner
+     * @param site excavation
+     * @param lifted cell that just became air
+     */
+    private void smashBelow(Player player, Site site, Block lifted) {
+        Block below = lifted.getRelative(BlockFace.DOWN);
+        if (!site.isInPrism(below.getX(), below.getY(), below.getZ())
+                || !PrismFill.isTerrainFill(below.getType())) {
+            playOverforce(below);
+            return;
+        }
+        BlockCell cell = new BlockCell(below.getX(), below.getY(), below.getZ());
+        BuriedFind find = site.findAt(cell).orElse(null);
+        Material broken = below.getType();
+        site.clearFillDamage(cell);
+        below.setType(Material.AIR, false);
+        below.getWorld().playSound(below.getLocation(), fillSound(broken, true), SoundCategory.BLOCKS, 1f, 1f);
+        below.getWorld().spawnParticle(
+                Particle.BLOCK,
+                below.getLocation().add(0.5, 0.5, 0.5),
+                28,
+                0.3,
+                0.3,
+                0.3,
+                0.08,
+                broken.createBlockData());
+        player.sendBlockDamage(below.getLocation(), 0f, player);
+        if (find == null) {
+            playOverforce(below);
+            return;
+        }
+        playFindShatter(below);
+        harmFind(find, settings.conservationLossOnRemove());
+        if (!noteIfFindDestroyed(player, below.getWorld(), find)) {
+            warn(player, "The archaeological material may be being altered.");
+        }
+    }
+
+    /**
+     * Extra smash after the vanilla break so overshoot feels like too much force.
+     *
+     * @param block cell that broke (or would have)
+     */
+    private void playOverforce(Block block) {
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (!plugin.isEnabled()) {
+                return;
+            }
+            block.getWorld().playSound(
+                    block.getLocation(),
+                    Sound.ITEM_MACE_SMASH_GROUND,
+                    SoundCategory.BLOCKS,
+                    0.9f,
+                    0.7f);
+        }, 2L);
+    }
+
+    /**
+     * Artifact cell smashed: shatter after the fill break.
+     *
+     * @param block cell that held a find
+     */
+    private void playFindShatter(Block block) {
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (!plugin.isEnabled()) {
+                return;
+            }
+            block.getWorld().playSound(
+                    block.getLocation(),
+                    Sound.BLOCK_DECORATED_POT_SHATTER,
+                    SoundCategory.BLOCKS,
+                    1f,
+                    0.85f);
+            block.getWorld().playSound(
+                    block.getLocation(),
+                    Sound.ENTITY_ITEM_BREAK,
+                    SoundCategory.BLOCKS,
+                    0.85f,
+                    0.65f);
+        }, 2L);
+    }
+
+    /**
+     * If every fill cell of the shape is gone, the find cannot be recovered.
+     *
+     * @param player miner
+     * @param world site world
+     * @param find shape
+     * @return whether this call marked the find lost
+     */
+    private boolean noteIfFindDestroyed(Player player, World world, BuriedFind find) {
+        if (find.getState() == FindState.LOST) {
+            return false;
+        }
+        if (!allFillGone(world, find)) {
+            return false;
+        }
+        find.setState(FindState.LOST);
+        find.setConservation(0);
+        find.setDamaged(true);
+        player.sendMessage("Those remains were destroyed. Nothing can be recovered from them.");
+        return true;
+    }
+
+    /**
+     * @param world site world
+     * @param find shape
+     * @return whether no cell still holds natural fill
+     */
+    private static boolean allFillGone(World world, BuriedFind find) {
+        for (BlockCell cell : find.getCells()) {
+            if (PrismFill.isTerrainFill(world.getBlockAt(cell.x(), cell.y(), cell.z()).getType())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -289,7 +462,7 @@ public class HandPickService {
     private void onStrike(Player player, Site site, Block block) {
         BuriedFind find = site.findAt(new BlockCell(block.getX(), block.getY(), block.getZ())).orElse(null);
         if (find == null) {
-            playHit(block);
+            noteEmptyFillStrike(player, block);
             return;
         }
         if (find.getState() == FindState.HIDDEN) {
@@ -316,6 +489,82 @@ public class HandPickService {
     }
 
     /**
+     * Empty fill: 1–N soft clings, then the ready chime; extra strikes after the window mark late.
+     *
+     * @param player miner
+     * @param block cell
+     */
+    private void noteEmptyFillStrike(Player player, Block block) {
+        Cycle cycle = cycles.get(player.getUniqueId());
+        if (cycle == null || !cycle.sameCell(block)) {
+            playHit(block);
+            return;
+        }
+        if (!cycle.ready && cycle.hits <= cycle.cueClings) {
+            playHit(block);
+            playSoftCling(block);
+            return;
+        }
+        if (!cycle.ready) {
+            cycle.ready = true;
+            cycle.readyTick = gameTick;
+            playReadyCling(block);
+            return;
+        }
+        playHit(block);
+        if (gameTick - cycle.readyTick > settings.readyWindowTicks()) {
+            cycle.late = true;
+        }
+    }
+
+    /**
+     * Soft cue: the ready chime is coming, but not which beat.
+     *
+     * @param block struck cell
+     */
+    private void playSoftCling(Block block) {
+        block.getWorld().playSound(
+                block.getLocation(),
+                Sound.BLOCK_NOTE_BLOCK_CHIME,
+                SoundCategory.BLOCKS,
+                0.4f,
+                0.85f);
+    }
+
+    /**
+     * Louder chime: this cube can come out if released in the window.
+     *
+     * @param block struck cell
+     */
+    private void playReadyCling(Block block) {
+        block.getWorld().playSound(
+                block.getLocation(),
+                Sound.BLOCK_NOTE_BLOCK_CHIME,
+                SoundCategory.BLOCKS,
+                1f,
+                1.45f);
+    }
+
+    /**
+     * @return how many soft clings this hold will play before ready
+     */
+    private int rollCueClings() {
+        int min = Math.max(1, settings.cueClingsMin());
+        int max = Math.max(min, settings.cueClingsMax());
+        return min + ThreadLocalRandom.current().nextInt(max - min + 1);
+    }
+
+    /**
+     * Stops vanilla and plugin crack overlay so break stages cannot be read from the texture.
+     *
+     * @param player viewer
+     * @param block cell
+     */
+    private void clearCrack(Player player, Block block) {
+        player.sendBlockDamage(block.getLocation(), 0f, player);
+    }
+
+    /**
      * Lowers conservation and marks the find damaged below the configured threshold.
      *
      * @param find artifact
@@ -329,41 +578,6 @@ public class HandPickService {
         if (find.getConservation() < settings.damagedBelowPercent()) {
             find.setDamaged(true);
         }
-    }
-
-    /**
-     * Overlay cracks from persisted fill plus strikes in the current cycle.
-     * Not sent on release: the client fades the last stage on its own.
-     *
-     * @param player miner
-     * @param siteId excavation
-     * @param block cell
-     * @param extraHits strikes not yet written to the site
-     */
-    private void showCracks(Player player, UUID siteId, Block block, int extraHits) {
-        player.sendBlockDamage(block.getLocation(), crackProgress(siteId, block, extraHits));
-    }
-
-    /**
-     * @param siteId excavation
-     * @param block cell
-     * @param extraHits uncommitted strikes
-     * @return crack overlay in {@code (0, MAX_CRACK]}
-     */
-    private float crackProgress(UUID siteId, Block block, int extraHits) {
-        int stages = Math.max(1, settings.blockStages());
-        int stored = 0;
-        if (siteId != null) {
-            Site site = sites.findById(siteId).orElse(null);
-            if (site != null) {
-                stored = site.getFillDamage().getOrDefault(new BlockCell(block.getX(), block.getY(), block.getZ()), 0);
-            }
-        }
-        float progress = (stored + extraHits) / (float) stages;
-        if (progress <= 0f) {
-            return 0f;
-        }
-        return Math.min(MAX_CRACK, progress);
     }
 
     /**
@@ -419,18 +633,10 @@ public class HandPickService {
         String layer = band == null ? "—" : band.getId();
         StratumDefinition definition = band == null ? null : catalogs.stratum(band.getId());
         String antiquity = definition == null ? "" : " · " + definition.antiquity();
-        int extra = 0;
-        if (cycle != null && cycle.sameCell(target)) {
-            extra = cycle.hits;
-        }
         BlockCell cell = new BlockCell(target.getX(), target.getY(), target.getZ());
-        int stored = site.getFillDamage().getOrDefault(cell, 0);
-        int stages = Math.max(1, settings.blockStages());
-        String text = "STRATUM " + layer + antiquity
-                + "  ⛏ " + site.getJornadaPickLeft()
-                + "  ·  " + (stored + extra) + "/" + stages;
+        String text = "STRATUM " + layer + antiquity + "  ⛏ " + site.getJornadaPickLeft();
         BuriedFind aimed = site.findAt(cell).orElse(null);
-        if (aimed != null && aimed.getState() != FindState.HIDDEN) {
+        if (aimed != null && aimed.getState() != FindState.HIDDEN && aimed.getState() != FindState.LOST) {
             text = text + "  ·  " + aimed.getConservation() + "%";
         }
         player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(text));
@@ -499,6 +705,10 @@ public class HandPickService {
         private int hits;
         private int lastActiveTick;
         private int lastHitTick;
+        private boolean ready;
+        private int readyTick = -1;
+        private boolean late;
+        private final int cueClings;
 
         /**
          * @param siteId excavation
@@ -506,14 +716,16 @@ public class HandPickService {
          * @param y block Y
          * @param z block Z
          * @param tick current service tick
+         * @param cueClings soft clings before ready on this hold
          */
-        private Cycle(UUID siteId, int x, int y, int z, int tick) {
+        private Cycle(UUID siteId, int x, int y, int z, int tick, int cueClings) {
             this.siteId = siteId;
             this.x = x;
             this.y = y;
             this.z = z;
             this.lastActiveTick = tick;
             this.lastHitTick = tick;
+            this.cueClings = cueClings;
         }
 
         /**

@@ -37,7 +37,7 @@ public class PrismListener implements Listener {
 
     /**
      * @param sites established excavations
-     * @param pick Hand Pick: vanilla break is cancelled; cracks stay on the working face
+     * @param pick Hand Pick: vanilla break is cancelled; crack overlay is not used
      */
     public PrismListener(SiteRepository sites, HandPickItem pick) {
         this.sites = sites;

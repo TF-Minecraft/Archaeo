@@ -297,7 +297,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         target.getInventory().addItem(handPickItem.create());
         sender.sendMessage("Gave a Hand Pick to " + target.getName() + ".");
         if (target != sender) {
-            target.sendMessage("You received a Hand Pick. Hold left-click on the open cut; release to record strikes.");
+            target.sendMessage("You received a Hand Pick. Hold left-click; soft chimes, then release on the ready chime.");
         }
         return true;
     }

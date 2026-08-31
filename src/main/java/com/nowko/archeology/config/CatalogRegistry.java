@@ -149,7 +149,7 @@ public class CatalogRegistry {
     }
 
     /**
-     * @return Hand Pick stages, jornada, strike cadence, find risk, and copy
+     * @return Hand Pick cadence, empty-fill cue and window, find risk, and copy
      */
     public PickSettings pick() {
         return pick;
@@ -320,7 +320,7 @@ public class CatalogRegistry {
     }
 
     /**
-     * Reads Hand Pick stages, jornada, strike cadence, find risk, and item copy.
+     * Reads Hand Pick cadence, empty-fill cue and window, find risk, and item copy.
      *
      * @param config root plugin config
      */
@@ -335,11 +335,15 @@ public class CatalogRegistry {
         if (lore.isEmpty()) {
             lore = fallback.itemLore();
         }
+        int cueMin = Math.max(1, section.getInt("cue-clings-min", fallback.cueClingsMin()));
         pick = new PickSettings(
                 section.getBoolean("enabled", true),
                 Math.max(1, section.getInt("block-stages", fallback.blockStages())),
                 Math.max(1, section.getInt("jornada-actions", fallback.jornadaActions())),
                 Math.max(1, section.getInt("strike-interval-ticks", fallback.strikeIntervalTicks())),
+                cueMin,
+                Math.max(cueMin, section.getInt("cue-clings-max", fallback.cueClingsMax())),
+                Math.max(1, section.getInt("ready-window-ticks", fallback.readyWindowTicks())),
                 Math.max(0, section.getInt("conservation-loss-per-strike", fallback.conservationLossPerStrike())),
                 Math.max(0, section.getInt("conservation-loss-on-remove", fallback.conservationLossOnRemove())),
                 Math.max(0, Math.min(100, section.getInt("damaged-below-percent", fallback.damagedBelowPercent()))),

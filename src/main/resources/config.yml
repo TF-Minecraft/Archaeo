@@ -43,12 +43,17 @@ establish:
 
 pick:
   enabled: true
-  # Plugin strikes (not vanilla mining) needed to remove one fill block.
+  # Plugin strikes (not vanilla mining) needed to remove one find-cell fill. Hidden from the HUD.
   block-stages: 6
-  # One jornada action is spent when a cycle ends (release), not per strike.
+  # One jornada action is spent when empty fill is lifted (on time or late), or when a find-cell cycle ends.
   jornada-actions: 8
   # Ticks between strikes while left-click is held (20 = one second). Independent of the item material.
   strike-interval-ticks: 25
+  # Empty fill: random count of soft clings (inclusive) before the louder ready chime.
+  cue-clings-min: 1
+  cue-clings-max: 3
+  # Ticks after the ready chime in which release is on time. Later also breaks the block below.
+  ready-window-ticks: 20
   # After a find is detected, each extra Hand Pick strike on its cells lowers conservation.
   conservation-loss-per-strike: 8
   # Extra loss if the Hand Pick fully removes a fill cell that belongs to a find.
@@ -57,7 +62,7 @@ pick:
   damaged-below-percent: 70
   item-name: "Hand Pick"
   item-lore:
-    - "Hold left-click on the open cut. Release to end the strike cycle."
+    - "Hold left-click on the open cut. Soft chimes, then release on the ready chime."
     - "Not a mining pick."
 
 tracker:

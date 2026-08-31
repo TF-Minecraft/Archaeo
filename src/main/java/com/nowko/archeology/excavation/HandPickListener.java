@@ -62,7 +62,7 @@ public class HandPickListener implements Listener {
     }
 
     /**
-     * Client predicted a vanilla break; restore the block and keep plugin cracks.
+     * Client predicted a vanilla break; restore the block and clear crack overlay.
      *
      * @param event would-be break
      */
