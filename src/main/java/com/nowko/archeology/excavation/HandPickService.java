@@ -12,6 +12,7 @@ import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -21,6 +22,7 @@ import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlotGroup;
@@ -34,8 +36,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Hand Pick: the world block never changes. Each prevented vanilla break ({@code getBreakSpeed}
- * totalling {@code 1.0}) advances a rolled {@link HoldCuePlan}: clings from the first break, then clang.
+ * Hand Pick: client mining is frozen. Each prevented vanilla break advances {@link HoldCuePlan}.
+ * Release on the clang lifts this cell with {@link Block#setType}({@link Material#AIR}, false);
+ * one more vanilla beat after the clang also lifts {@link BlockFace#DOWN}.
  */
 public class HandPickService {
     private static final long WARN_MS = 3000L;
@@ -60,7 +63,7 @@ public class HandPickService {
      * @param sites excavation dossiers
      * @param catalogs strata labels for the HUD
      * @param item Hand Pick recognition
-     * @param settings copy and jornada (jornada is not spent in this slice)
+     * @param settings cue range, ready window, and jornada
      */
     public HandPickService(
             JavaPlugin plugin,
@@ -114,7 +117,7 @@ public class HandPickService {
     }
 
     /**
-     * Starts or keeps a hold on prism fill. The live {@link Block} is not modified.
+     * Starts or keeps a hold on prism fill. The live block stays put until clang resolution.
      *
      * @param player holder
      * @param block cell in the excavation prism
@@ -124,6 +127,19 @@ public class HandPickService {
             return;
         }
         if (!isExcavationFill(block)) {
+            return;
+        }
+        Site site = sites.findEstablishedPrism(
+                block.getWorld().getName(),
+                block.getX(),
+                block.getY(),
+                block.getZ()).orElse(null);
+        if (site == null) {
+            return;
+        }
+        ensureJornada(site, player.getWorld());
+        if (site.getJornadaPickLeft() <= 0) {
+            warn(player, "The excavation work day is over.");
             return;
         }
         Cycle existing = cycles.get(player.getUniqueId());
@@ -178,12 +194,20 @@ public class HandPickService {
     }
 
     /**
-     * Drops the hold without changing the world (release, swap, quit).
+     * Release: early does nothing; clang in the ready window lifts this cell; later also lifts below.
      *
      * @param player holder
      */
     public void finish(Player player) {
-        cycles.remove(player.getUniqueId());
+        Cycle cycle = cycles.remove(player.getUniqueId());
+        if (cycle == null || cycle.resolved) {
+            return;
+        }
+        if (cycle.clangTick < 0) {
+            return;
+        }
+        boolean late = cycle.lastActiveTick - cycle.clangTick > settings.readyWindowTicks();
+        resolveCut(player, cycle, late);
     }
 
     /**
@@ -259,6 +283,11 @@ public class HandPickService {
                 finish(player);
                 continue;
             }
+            if (cycle.clangTick >= 0
+                    && cycle.lastActiveTick - cycle.clangTick > settings.readyWindowTicks()) {
+                resolveCut(player, cycle, true);
+                continue;
+            }
             float step = VanillaBreakClock.tickProgress(player, block, noVanillaMineKey);
             if (step <= 0f) {
                 continue;
@@ -266,7 +295,9 @@ public class HandPickService {
             cycle.progress += step;
             while (cycle.progress >= 1.0f) {
                 cycle.progress -= 1.0f;
-                onVanillaBreak(player, block, cycle);
+                if (onVanillaBreak(player, block, cycle)) {
+                    break;
+                }
             }
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
@@ -307,32 +338,104 @@ public class HandPickService {
     }
 
     /**
-     * One prevented vanilla break: fill hit, cling, or clang according to this hold's plan.
+     * One prevented vanilla break: cling, clang, or overshoot (this cell and the one below).
      *
      * @param player miner
      * @param block unchanged cell
      * @param cycle this hold
+     * @return whether the hold was resolved and must stop
      */
-    private void onVanillaBreak(Player player, Block block, Cycle cycle) {
+    private boolean onVanillaBreak(Player player, Block block, Cycle cycle) {
         switch (cycle.cues.nextCue()) {
-            case AFTER -> playFillHit(block);
             case CLING -> playCling(player, block);
-            case CLANG -> playClang(player, block);
+            case CLANG -> {
+                cycle.clangTick = gameTick;
+                playClang(player, block);
+            }
+            case AFTER -> {
+                resolveCut(player, cycle, true);
+                return true;
+            }
         }
+        return false;
     }
 
     /**
-     * Vanilla hit of the material, from {@link org.bukkit.block.data.BlockData#getSoundGroup()}.
+     * Lifts the held cell, and the cell under it when the clang was overshot.
      *
-     * @param block unchanged cell
+     * @param player miner
+     * @param cycle hold that just ended
+     * @param late whether a further vanilla beat happened after the clang
      */
-    private void playFillHit(Block block) {
-        block.getWorld().playSound(
-                block.getLocation(),
-                block.getBlockData().getSoundGroup().getHitSound(),
-                SoundCategory.BLOCKS,
-                0.85f,
-                1f);
+    private void resolveCut(Player player, Cycle cycle, boolean late) {
+        if (cycle.resolved) {
+            return;
+        }
+        cycle.resolved = true;
+        cycles.remove(player.getUniqueId());
+        Block block = player.getWorld().getBlockAt(cycle.x, cycle.y, cycle.z);
+        if (!isExcavationFill(block)) {
+            return;
+        }
+        Site site = sites.findEstablishedPrism(
+                block.getWorld().getName(),
+                block.getX(),
+                block.getY(),
+                block.getZ()).orElse(null);
+        if (site == null) {
+            return;
+        }
+        ensureJornada(site, player.getWorld());
+        if (site.getJornadaPickLeft() <= 0) {
+            warn(player, "The excavation work day is over.");
+            return;
+        }
+        site.setJornadaPickLeft(site.getJornadaPickLeft() - 1);
+        liftFill(block);
+        if (late) {
+            smashBelow(site, block);
+        }
+        sites.save(site);
+    }
+
+    /**
+     * Turns fill to air without vanilla drops. {@code applyPhysics = false} avoids neighbour updates
+     * (see {@link Block#setType(Material, boolean)}).
+     *
+     * @param block cell to remove
+     */
+    private void liftFill(Block block) {
+        BlockData data = block.getBlockData();
+        Sound breakSound = data.getSoundGroup().getBreakSound();
+        Location at = block.getLocation().add(0.5, 0.5, 0.5);
+        block.setType(Material.AIR, false);
+        block.getWorld().playSound(block.getLocation(), breakSound, SoundCategory.BLOCKS, 1f, 1f);
+        block.getWorld().spawnParticle(Particle.BLOCK, at, 28, 0.3, 0.3, 0.3, 0.08, data);
+    }
+
+    /**
+     * Late blow: the cell under the lifted one, if it is still prism fill.
+     *
+     * @param site excavation
+     * @param lifted cell that just became air
+     */
+    private void smashBelow(Site site, Block lifted) {
+        Block below = lifted.getRelative(BlockFace.DOWN);
+        if (site.isInPrism(below.getX(), below.getY(), below.getZ())
+                && PrismFill.isTerrainFill(below.getType())) {
+            liftFill(below);
+        }
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (!plugin.isEnabled()) {
+                return;
+            }
+            lifted.getWorld().playSound(
+                    lifted.getLocation(),
+                    Sound.ITEM_MACE_SMASH_GROUND,
+                    SoundCategory.BLOCKS,
+                    0.9f,
+                    0.7f);
+        }, 2L);
     }
 
     /**
@@ -365,7 +468,7 @@ public class HandPickService {
     }
 
     /**
-     * Louder clang: this cube can come out if released in the window (window not applied yet).
+     * Louder clang: release now to lift only this cube.
      *
      * @param player miner
      * @param block unchanged cell
@@ -478,13 +581,15 @@ public class HandPickService {
         private final HoldCuePlan cues;
         private int lastActiveTick;
         private float progress;
+        private int clangTick = -1;
+        private boolean resolved;
 
         /**
          * @param x block X
          * @param y block Y
          * @param z block Z
          * @param tick current service tick
-         * @param cues lead / cling / clang schedule for this hold
+         * @param cues cling / clang schedule for this hold
          */
         private Cycle(int x, int y, int z, int tick, HoldCuePlan cues) {
             this.x = x;

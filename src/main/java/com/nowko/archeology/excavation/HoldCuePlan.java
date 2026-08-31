@@ -54,7 +54,7 @@ public final class HoldCuePlan {
         CLING,
         /** Ready clang: ideal release. */
         CLANG,
-        /** Held past the clang; fill hit only. */
+        /** Held past the clang: this cell and the one below come out. */
         AFTER
     }
 }
