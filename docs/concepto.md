@@ -631,8 +631,8 @@ Claims y facciones siguen decidiendo el terreno alrededor.
 
 ### Cómo se procesan los puntos de excavación (código)
 
-Los hallazgos se sortean al **establecer** (plantilla + forma conexa en una banda
-de Y). El terreno no cambia hasta la jornada. **§2**.
+Los hallazgos se sortean al **establecer** (plantilla + forma conexa **en un
+solo Y** dentro de una banda). El terreno no cambia hasta la jornada. **§2**.
 
 Minecraft **no** tiene estratos arqueológicos. Césped sobre tierra sobre piedra es geología tosca. La arcilla, la grava y el barro salen en **manchas**, no en capas continuas. **No** vamos a rellenar el chunk como un sándwich de arcilla ni a preguntar “¿el último bloque era grava?”.
 
@@ -1013,8 +1013,10 @@ No se usan grietas ni `2/6`.
 
 ### Hallazgos: forma, no un bloque-premio
 
-Un hallazgo es un conjunto de **celdas conectadas** en una banda de estrato.
-Varios hallazgos por yacimiento, sin solaparse.
+Un hallazgo es un conjunto de **celdas conectadas en la misma altura** (un
+plano XZ) dentro de una banda de estrato. Varios hallazgos por yacimiento, sin
+solaparse. Distintos hallazgos pueden estar en Y distintos; uno solo no se
+apila.
 
 ```
 ⬜ ⬜ ⬜

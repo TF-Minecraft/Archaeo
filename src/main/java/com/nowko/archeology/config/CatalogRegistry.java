@@ -26,7 +26,6 @@ public class CatalogRegistry {
     private final Map<String, ArtifactTemplate> artifacts = new LinkedHashMap<>();
     private final Map<String, HintTemplate> hints = new LinkedHashMap<>();
     private int maxShapeAttempts = 24;
-    private boolean growVertically = true;
     private boolean useWorldSeed = true;
     private TrackerSettings tracker = TrackerSettings.defaults();
     private ProspectSettings prospect = ProspectSettings.defaults();
@@ -124,13 +123,6 @@ public class CatalogRegistry {
     }
 
     /**
-     * @return whether find shapes may grow up and down inside a stratum band
-     */
-    public boolean growVertically() {
-        return growVertically;
-    }
-
-    /**
      * @return tracker radii, pip timing, and item copy
      */
     public TrackerSettings tracker() {
@@ -197,7 +189,6 @@ public class CatalogRegistry {
             return;
         }
         maxShapeAttempts = section.getInt("max-shape-attempts", 24);
-        growVertically = section.getBoolean("grow-vertically", true);
         useWorldSeed = section.getBoolean("use-world-seed", true);
     }
 

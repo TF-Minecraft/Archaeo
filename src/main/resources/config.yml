@@ -177,7 +177,6 @@ interest-levels:
 
 generation:
   max-shape-attempts: 24
-  grow-vertically: true
   # Extra seed per chunk so shapes are reproducible in the same world.
   use-world-seed: true
 

@@ -34,7 +34,6 @@ import java.util.stream.Collectors;
  */
 public class SiteGenerator {
     private static final int[][] HORIZONTAL = {{1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}};
-    private static final int[][] VERTICAL = {{0, 1, 0}, {0, -1, 0}};
 
     private final CatalogRegistry catalog;
     private final SiteRepository repository;
@@ -389,10 +388,10 @@ public class SiteGenerator {
     }
 
     /**
-     * Expands from {@code start} by picking random orthogonal neighbours.
+     * Expands from {@code start} on the same Y, picking random north/south/east/west neighbours.
      *
-     * @param start first cell of the shape
-     * @param band Y range
+     * @param start first cell of the shape (locks the height)
+     * @param band Y range that must contain {@code start}
      * @param occupied cells claimed by other finds
      * @param targetSize desired cell count
      * @param minX chunk min X
@@ -426,12 +425,6 @@ public class SiteGenerator {
                 for (int[] dir : HORIZONTAL) {
                     addCandidate(candidates, used, occupied, band, minX, maxX, minZ, maxZ,
                             cell.x() + dir[0], cell.y() + dir[1], cell.z() + dir[2], terrainWorld);
-                }
-                if (catalog.growVertically()) {
-                    for (int[] dir : VERTICAL) {
-                        addCandidate(candidates, used, occupied, band, minX, maxX, minZ, maxZ,
-                                cell.x() + dir[0], cell.y() + dir[1], cell.z() + dir[2], terrainWorld);
-                    }
                 }
             }
             if (candidates.isEmpty()) {
