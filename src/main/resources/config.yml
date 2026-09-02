@@ -62,6 +62,12 @@ pick:
     - SHOVELS
   # Particles + a short subtitle on each cling (no numbers). For mute / deaf play; hearing players can ignore it.
   visual-cues: true
+  # Exposed find cells shed WAX_ON sparkles. The leak loop runs only while that ruin chunk is loaded.
+  find-dust: true
+  # Server re-spawns the burst this often (20 ticks = 1 s).
+  find-dust-interval-ticks: 6
+  # Motes per burst at the cube centre. Open faces get half (at least 1).
+  find-dust-count: 2
   # After a find is detected, each extra Hand Pick strike on its cells lowers conservation.
   conservation-loss-per-strike: 8
   # Extra loss if the Hand Pick fully removes a fill cell that belongs to a find.

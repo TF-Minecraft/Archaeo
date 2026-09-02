@@ -12,11 +12,13 @@ import com.nowko.archeology.model.InterestLevel;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.SiteStatus;
 import com.nowko.archeology.model.SiteType;
+import com.nowko.archeology.excavation.PrismFill;
 import com.nowko.archeology.model.StratumBand;
 import org.bukkit.Chunk;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.Biome;
+import org.bukkit.block.Block;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -95,6 +97,164 @@ public class SiteGenerator {
         repository.save(site);
         return site;
     }
+
+    /**
+     * Staff sandbox: one find grown from {@code origin}, chunk forced to an established excavation.
+     * Terrain is not replaced; skipped prospecting and camp planting.
+     *
+     * @param origin fill block the shape starts on
+     * @param director player who will excavate
+     * @param template artifact from {@code artifacts.yml}
+     * @param requestedSize desired cell count before clamp
+     * @return the new find
+     * @throws IllegalArgumentException if origin is not fill or the template is missing
+     * @throws IllegalStateException if that cell already belongs to a find
+     */
+    public BuriedFind spawnStaffFind(Block origin, UUID director, ArtifactTemplate template, int requestedSize) {
+        if (origin == null) {
+            throw new IllegalArgumentException("Origin block is required");
+        }
+        if (director == null) {
+            throw new IllegalArgumentException("Director is required");
+        }
+        if (template == null) {
+            throw new IllegalArgumentException("Unknown artifact template");
+        }
+        if (!PrismFill.isTerrainFill(origin.getType())) {
+            throw new IllegalArgumentException("Stand on excavation fill (dirt, stone, sand…)");
+        }
+
+        Chunk chunk = origin.getChunk();
+        chunk.load();
+        BlockCell start = new BlockCell(origin.getX(), origin.getY(), origin.getZ());
+        Site site = repository.findByChunk(origin.getWorld().getName(), chunk.getX(), chunk.getZ())
+                .orElseGet(() -> newStaffSite(chunk, director, origin.getY()));
+
+        for (BuriedFind existing : site.getFinds()) {
+            if (existing.getCells().contains(start)) {
+                throw new IllegalStateException("A find already occupies this block");
+            }
+        }
+
+        int size = template.clampSize(requestedSize);
+        int pad = Math.max(4, size);
+        StratumBand band = ensureBandCovers(site, origin.getY(), pad);
+        Set<BlockCell> occupied = new HashSet<>();
+        for (BuriedFind existing : site.getFinds()) {
+            occupied.addAll(existing.getCells());
+        }
+
+        int minX = site.getChunkX() << 4;
+        int minZ = site.getChunkZ() << 4;
+        LinkedCells grown = grow(
+                start,
+                band,
+                occupied,
+                size,
+                minX,
+                minX + 15,
+                minZ,
+                minZ + 15,
+                new Random(),
+                origin.getWorld());
+        if (grown.cells().isEmpty()) {
+            throw new IllegalStateException("Could not grow a find from this block");
+        }
+
+        BuriedFind find = new BuriedFind();
+        find.setId(UUID.randomUUID());
+        find.setArtifactId(template.id());
+        find.setStratumId(band.getId());
+        find.setState(FindState.HIDDEN);
+        find.getCells().addAll(grown.cells());
+        site.getFinds().add(find);
+
+        site.establish(
+                director,
+                chunk.getX(),
+                chunk.getZ(),
+                origin.getX(),
+                origin.getY(),
+                origin.getZ());
+        repository.save(site);
+        return find;
+    }
+
+    /**
+     * Empty established sandbox in {@code chunk} with no random finds.
+     *
+     * @param chunk ruin chunk
+     * @param director staff player
+     * @param originY used as surface datum so the prism can cover the test block
+     * @return persisted site
+     */
+    private Site newStaffSite(Chunk chunk, UUID director, int originY) {
+        InterestSettings settings = catalog.interest(InterestLevel.LOW);
+        Site site = new Site();
+        site.setId(UUID.randomUUID());
+        site.setSerial(repository.nextSerial());
+        site.setType(SiteType.MANAGED_RUIN);
+        site.setStatus(SiteStatus.HIDDEN);
+        site.setInterest(InterestLevel.LOW);
+        site.setWorldName(chunk.getWorld().getName());
+        site.setChunkX(chunk.getX());
+        site.setChunkZ(chunk.getZ());
+        site.setCreatedBy(director);
+        site.setCreatedAt(Instant.now());
+        site.setDetectionRadius(settings.detectionRadius());
+        site.setName("Staff sandbox #" + site.getSerial());
+        site.setSurfaceY(originY);
+        assignStrata(site, settings, new Random());
+        repository.save(site);
+        return site;
+    }
+
+    /**
+     * Widens a present stratum so {@code y} plus padding sits inside the prism.
+     *
+     * @param site excavation
+     * @param y origin block Y
+     * @param pad extra blocks above and below
+     * @return band that now contains {@code y}
+     */
+    private StratumBand ensureBandCovers(Site site, int y, int pad) {
+        int min = y - pad;
+        int max = y + pad;
+        StratumBand covering = site.stratumAt(y);
+        if (covering != null) {
+            covering.setMinY(Math.min(covering.getMinY(), min));
+            covering.setMaxY(Math.max(covering.getMaxY(), max));
+            return covering;
+        }
+        StratumBand closest = null;
+        int best = Integer.MAX_VALUE;
+        for (StratumBand candidate : site.getStrata().values()) {
+            if (!candidate.isPresent()) {
+                continue;
+            }
+            int dist = y > candidate.getMaxY() ? y - candidate.getMaxY() : candidate.getMinY() - y;
+            if (dist < best) {
+                best = dist;
+                closest = candidate;
+            }
+        }
+        if (closest == null) {
+            closest = site.getStrata().get("I");
+            if (closest == null) {
+                closest = new StratumBand();
+                closest.setId("I");
+                site.getStrata().put("I", closest);
+            }
+            closest.setPresent(true);
+            closest.setMinY(min);
+            closest.setMaxY(max);
+            return closest;
+        }
+        closest.setMinY(Math.min(closest.getMinY(), min));
+        closest.setMaxY(Math.max(closest.getMaxY(), max));
+        return closest;
+    }
+
 
     /**
      * Fills present/absent Y bands from {@code strata.yml} and interest chances.
@@ -220,7 +380,7 @@ public class SiteGenerator {
             if (start == null) {
                 return List.of();
             }
-            LinkedCells grown = grow(start, band, occupied, targetSize, minX, maxX, minZ, maxZ, random);
+            LinkedCells grown = grow(start, band, occupied, targetSize, minX, maxX, minZ, maxZ, random, null);
             if (grown.cells.size() >= Math.max(1, targetSize / 2)) {
                 return grown.cells;
             }
@@ -240,6 +400,7 @@ public class SiteGenerator {
      * @param minZ chunk min Z
      * @param maxZ chunk max Z
      * @param random site RNG
+     * @param terrainWorld if set, only grow into {@link PrismFill} cells
      * @return grown cell list
      */
     private LinkedCells grow(
@@ -251,7 +412,8 @@ public class SiteGenerator {
             int maxX,
             int minZ,
             int maxZ,
-            Random random
+            Random random,
+            World terrainWorld
     ) {
         List<BlockCell> cells = new ArrayList<>();
         Set<BlockCell> used = new HashSet<>();
@@ -263,12 +425,12 @@ public class SiteGenerator {
             for (BlockCell cell : cells) {
                 for (int[] dir : HORIZONTAL) {
                     addCandidate(candidates, used, occupied, band, minX, maxX, minZ, maxZ,
-                            cell.x() + dir[0], cell.y() + dir[1], cell.z() + dir[2]);
+                            cell.x() + dir[0], cell.y() + dir[1], cell.z() + dir[2], terrainWorld);
                 }
                 if (catalog.growVertically()) {
                     for (int[] dir : VERTICAL) {
                         addCandidate(candidates, used, occupied, band, minX, maxX, minZ, maxZ,
-                                cell.x() + dir[0], cell.y() + dir[1], cell.z() + dir[2]);
+                                cell.x() + dir[0], cell.y() + dir[1], cell.z() + dir[2], terrainWorld);
                     }
                 }
             }
@@ -296,6 +458,7 @@ public class SiteGenerator {
      * @param x candidate X
      * @param y candidate Y
      * @param z candidate Z
+     * @param terrainWorld if set, skip cells that are not excavation fill
      */
     private void addCandidate(
             List<BlockCell> candidates,
@@ -308,7 +471,8 @@ public class SiteGenerator {
             int maxZ,
             int x,
             int y,
-            int z
+            int z,
+            World terrainWorld
     ) {
         if (x < minX || x > maxX || z < minZ || z > maxZ) {
             return;
@@ -318,6 +482,9 @@ public class SiteGenerator {
         }
         BlockCell cell = new BlockCell(x, y, z);
         if (used.contains(cell) || occupied.contains(cell)) {
+            return;
+        }
+        if (terrainWorld != null && !PrismFill.isTerrainFill(terrainWorld.getBlockAt(x, y, z).getType())) {
             return;
         }
         candidates.add(cell);

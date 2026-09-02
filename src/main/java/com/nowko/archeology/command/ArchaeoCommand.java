@@ -1,7 +1,9 @@
 package com.nowko.archeology.command;
 
+import com.nowko.archeology.config.ArtifactTemplate;
 import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.establish.EstablishService;
+import com.nowko.archeology.excavation.FindDustService;
 import com.nowko.archeology.excavation.HandPickService;
 import com.nowko.archeology.item.EstablishItem;
 import com.nowko.archeology.item.ProspectItem;
@@ -16,7 +18,10 @@ import com.nowko.archeology.site.SiteGenerator;
 import com.nowko.archeology.site.SiteRepository;
 import com.nowko.archeology.tracker.TrackerService;
 import org.bukkit.Bukkit;
+import com.nowko.archeology.excavation.PrismFill;
 import org.bukkit.Chunk;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -35,10 +40,11 @@ import java.util.stream.Collectors;
  */
 public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private static final List<String> INTERESTS = List.of("low", "medium", "high", "exceptional");
-    private static final List<String> ROOT = List.of("ruin", "tracker", "prospect", "establish", "pick", "reload");
+    private static final List<String> ROOT = List.of("ruin", "tracker", "prospect", "establish", "pick", "find", "reload");
     private static final List<String> RUIN_ACTIONS = List.of("create", "info");
     private static final List<String> GIVE_ACTIONS = List.of("give");
     private static final List<String> PICK_ACTIONS = List.of("give", "reset");
+    private static final List<String> FIND_ACTIONS = List.of("spawn");
 
     private final CatalogRegistry catalogs;
     private final SiteGenerator generator;
@@ -50,6 +56,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private final EstablishItem establishItem;
     private final EstablishService establish;
     private final HandPickService handPick;
+    private final FindDustService findDust;
 
     /**
      * @param catalogs staff permission and YAML catalogs
@@ -62,6 +69,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      * @param establishItem factory for {@code establish give}
      * @param establish camp outline loop, updated on reload
      * @param handPick excavation loop and tool whitelist, updated on reload
+     * @param findDust leak on exposed find cells, updated on reload
      */
     public ArchaeoCommand(
             CatalogRegistry catalogs,
@@ -73,7 +81,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             ProspectService prospect,
             EstablishItem establishItem,
             EstablishService establish,
-            HandPickService handPick
+            HandPickService handPick,
+            FindDustService findDust
     ) {
         this.catalogs = catalogs;
         this.generator = generator;
@@ -85,6 +94,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         this.establishItem = establishItem;
         this.establish = establish;
         this.handPick = handPick;
+        this.findDust = findDust;
     }
 
     /**
@@ -117,6 +127,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         if (args.length >= 1 && "pick".equalsIgnoreCase(args[0])) {
             return handlePick(sender, args);
         }
+        if (args.length >= 1 && "find".equalsIgnoreCase(args[0])) {
+            return handleFind(sender, args);
+        }
         if (args.length < 2 || !"ruin".equalsIgnoreCase(args[0])) {
             sendUsage(sender);
             return true;
@@ -147,6 +160,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             establishItem.update(catalogs.establish(), catalogs.items().establish());
             establish.setSettings(catalogs.establish());
             handPick.setSettings(catalogs.pick());
+            findDust.setSettings(catalogs.pick());
             sites.loadAll();
             sender.sendMessage("Reloaded Archaeo config, catalogs, and sites from disk.");
         } catch (RuntimeException exception) {
@@ -370,6 +384,88 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
+     * Plants a find at the issuer's feet and opens the chunk as an excavation, skipping
+     * ruin create, prospect, and camp.
+     *
+     * @param sender staff issuer
+     * @param args {@code find spawn [artifact] [size]}
+     * @return {@code true} always (handled)
+     */
+    private boolean handleFind(CommandSender sender, String[] args) {
+        if (args.length < 2 || !"spawn".equalsIgnoreCase(args[1])) {
+            sender.sendMessage("Usage: /archaeo find spawn [artifact] [size]");
+            return true;
+        }
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("Find spawn must be used in-world at the test block.");
+            return true;
+        }
+        ArtifactTemplate template = catalogs.artifact("vessel");
+        if (args.length >= 3) {
+            template = catalogs.artifact(args[2].toLowerCase(Locale.ROOT));
+            if (template == null) {
+                sender.sendMessage("Unknown artifact. Try: " + String.join(", ", catalogs.artifacts().keySet()));
+                return true;
+            }
+        } else if (template == null) {
+            template = catalogs.artifacts().values().stream().findFirst().orElse(null);
+            if (template == null) {
+                sender.sendMessage("No artifact templates are loaded.");
+                return true;
+            }
+        }
+        int size = template.sizeMax();
+        if (args.length >= 4) {
+            try {
+                size = Integer.parseInt(args[3]);
+            } catch (NumberFormatException exception) {
+                sender.sendMessage("Size must be a whole number.");
+                return true;
+            }
+        }
+        Block origin = staffFindOrigin(player);
+        if (origin == null) {
+            sender.sendMessage("Stand on dirt, stone, sand, or other excavation fill.");
+            return true;
+        }
+        try {
+            BuriedFind find = generator.spawnStaffFind(origin, player.getUniqueId(), template, size);
+            Site site = sites.findByChunk(
+                    origin.getWorld().getName(),
+                    origin.getChunk().getX(),
+                    origin.getChunk().getZ()).orElseThrow();
+            handPick.refillJornada(site, player.getWorld());
+            findDust.syncTimer();
+            sender.sendMessage("Spawned " + template.displayName()
+                    + " (" + find.getCells().size() + " cells) on "
+                    + origin.getX() + "," + origin.getY() + "," + origin.getZ()
+                    + " · site #" + site.getSerial() + " established.");
+            sender.sendMessage("Lift neighbouring fill to uncover faces; those cubes shed motes.");
+        } catch (IllegalStateException | IllegalArgumentException exception) {
+            sender.sendMessage(exception.getMessage());
+        }
+        return true;
+    }
+
+    /**
+     * Fill cell under the player, or the cell they occupy if that is already fill.
+     *
+     * @param player staff tester
+     * @return origin, or {@code null} if neither cell is fill
+     */
+    private static Block staffFindOrigin(Player player) {
+        Block feet = player.getLocation().getBlock();
+        if (PrismFill.isTerrainFill(feet.getType())) {
+            return feet;
+        }
+        Block below = feet.getRelative(BlockFace.DOWN);
+        if (PrismFill.isTerrainFill(below.getType())) {
+            return below;
+        }
+        return null;
+    }
+
+    /**
      * Registers a ruin in the player's current chunk.
      *
      * @param sender command issuer
@@ -548,6 +644,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("       /archaeo establish give [player]");
         sender.sendMessage("       /archaeo pick give [player]");
         sender.sendMessage("       /archaeo pick reset [player|all]");
+        sender.sendMessage("       /archaeo find spawn [artifact] [size]");
         sender.sendMessage("       /archaeo reload");
     }
 
@@ -573,9 +670,17 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         if ("tracker".equalsIgnoreCase(args[0])
                 || "prospect".equalsIgnoreCase(args[0])
                 || "establish".equalsIgnoreCase(args[0])
-                || "pick".equalsIgnoreCase(args[0])) {
+                || "pick".equalsIgnoreCase(args[0])
+                || "find".equalsIgnoreCase(args[0])) {
             if (args.length == 2) {
-                List<String> actions = "pick".equalsIgnoreCase(args[0]) ? PICK_ACTIONS : GIVE_ACTIONS;
+                List<String> actions;
+                if ("pick".equalsIgnoreCase(args[0])) {
+                    actions = PICK_ACTIONS;
+                } else if ("find".equalsIgnoreCase(args[0])) {
+                    actions = FIND_ACTIONS;
+                } else {
+                    actions = GIVE_ACTIONS;
+                }
                 return actions.stream()
                         .filter(value -> value.startsWith(args[1].toLowerCase(Locale.ROOT)))
                         .toList();
@@ -589,6 +694,12 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     names.add(0, "all");
                 }
                 return names;
+            }
+            if (args.length == 3 && "find".equalsIgnoreCase(args[0]) && "spawn".equalsIgnoreCase(args[1])) {
+                String typed = args[2].toLowerCase(Locale.ROOT);
+                return catalogs.artifacts().keySet().stream()
+                        .filter(id -> id.startsWith(typed))
+                        .toList();
             }
             return List.of();
         }

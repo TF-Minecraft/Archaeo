@@ -1,6 +1,7 @@
 package com.nowko.archeology.establish;
 
 import com.nowko.archeology.config.EstablishSettings;
+import com.nowko.archeology.excavation.FindDustService;
 import com.nowko.archeology.excavation.PrismWound;
 import com.nowko.archeology.item.EstablishItem;
 import com.nowko.archeology.model.BlockCell;
@@ -59,6 +60,7 @@ public class EstablishService {
     private final Map<UUID, UUID> moveAimProxies = new ConcurrentHashMap<>();
     private final Map<UUID, CampPlacement> lastPulse = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> lastPulseSite = new ConcurrentHashMap<>();
+    private FindDustService findDust;
 
     /**
      * @param plugin scheduler owner
@@ -83,6 +85,13 @@ public class EstablishService {
      */
     public void setSettings(EstablishSettings settings) {
         this.settings = settings;
+    }
+
+    /**
+     * @param findDust leak loop, started when this camp opens an excavation whose chunk is loaded
+     */
+    public void setFindDust(FindDustService findDust) {
+        this.findDust = findDust;
     }
 
     /**
@@ -609,6 +618,9 @@ public class EstablishService {
             noteMissingTerrain(player, site);
         }
         sites.save(site);
+        if (findDust != null) {
+            findDust.syncTimer();
+        }
         if (site.getCampSignX() != null) {
             plugin.getServer().getScheduler().runTask(plugin, () -> CampSigns.write(
                     world.getBlockAt(site.getCampSignX(), site.getCampSignY(), site.getCampSignZ()),

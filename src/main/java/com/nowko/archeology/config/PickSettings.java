@@ -16,6 +16,9 @@ import java.util.Set;
  * @param cueClingsMax inclusive maximum soft clings before the ready clang (empty fill)
  * @param readyWindowTicks ticks after the ting in which release is on time
  * @param visualCues particles and subtitles that mirror clings for players without sound
+ * @param findDust whether exposed find cells shed motes (block type is unchanged)
+ * @param findDustIntervalTicks ticks between leak bursts on an open find cell
+ * @param findDustCount motes per burst at the cube centre
  * @param conservationLossPerStrike conservation lost per extra strike on a detected find
  * @param conservationLossOnRemove extra loss when the pick fully removes a find cell
  * @param damagedBelowPercent mark the find damaged when conservation falls below this
@@ -32,6 +35,9 @@ public record PickSettings(
         int cueClingsMax,
         int readyWindowTicks,
         boolean visualCues,
+        boolean findDust,
+        int findDustIntervalTicks,
+        int findDustCount,
         int conservationLossPerStrike,
         int conservationLossOnRemove,
         int damagedBelowPercent,
@@ -52,6 +58,9 @@ public record PickSettings(
                 3,
                 20,
                 true,
+                true,
+                6,
+                2,
                 8,
                 20,
                 70,

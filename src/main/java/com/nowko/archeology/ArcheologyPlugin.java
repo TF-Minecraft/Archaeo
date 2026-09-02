@@ -6,6 +6,7 @@ import com.nowko.archeology.establish.CampListener;
 import com.nowko.archeology.establish.EstablishListener;
 import com.nowko.archeology.establish.EstablishService;
 import com.nowko.archeology.excavation.DigTools;
+import com.nowko.archeology.excavation.FindDustService;
 import com.nowko.archeology.excavation.HandPickListener;
 import com.nowko.archeology.excavation.HandPickService;
 import com.nowko.archeology.excavation.PrismListener;
@@ -35,6 +36,7 @@ public class ArcheologyPlugin extends JavaPlugin {
     private EstablishService establish;
     private DigTools digTools;
     private HandPickService handPick;
+    private FindDustService findDust;
 
     /**
      * Copies missing default YAML, loads catalogs and saved sites, and starts gameplay loops.
@@ -60,6 +62,10 @@ public class ArcheologyPlugin extends JavaPlugin {
         digTools = new DigTools();
         handPick = new HandPickService(this, sites, catalogs, digTools, catalogs.pick());
         handPick.start();
+        findDust = new FindDustService(this, sites, catalogs.pick());
+        establish.setFindDust(findDust);
+        getServer().getPluginManager().registerEvents(findDust, this);
+        findDust.start();
         getServer().getPluginManager().registerEvents(new HandPickListener(handPick, sites), this);
         getServer().getPluginManager().registerEvents(new PrismListener(sites, digTools), this);
 
@@ -73,7 +79,8 @@ public class ArcheologyPlugin extends JavaPlugin {
                 prospect,
                 establishItem,
                 establish,
-                handPick);
+                handPick,
+                findDust);
         PluginCommand pluginCommand = getCommand("archaeo");
         if (pluginCommand != null) {
             pluginCommand.setExecutor(command);
@@ -83,7 +90,7 @@ public class ArcheologyPlugin extends JavaPlugin {
     }
 
     /**
-     * Stops tracker, prospecting, establishment, and Hand Pick HUD tasks.
+     * Stops tracker, prospecting, establishment, Hand Pick HUD, and find-dust tasks.
      */
     @Override
     public void onDisable() {
@@ -98,6 +105,9 @@ public class ArcheologyPlugin extends JavaPlugin {
         }
         if (handPick != null) {
             handPick.stop();
+        }
+        if (findDust != null) {
+            findDust.stop();
         }
     }
 

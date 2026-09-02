@@ -5,6 +5,9 @@ import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Distinguishes archaeological fill (must not break vanilla) from lights, scaffolding, and plants.
  */
@@ -59,6 +62,22 @@ public final class PrismFill {
             }
         }
         return false;
+    }
+
+    /**
+     * Faces of this cell that currently open onto air, fluid, or plants.
+     *
+     * @param block cell in the world
+     * @return open directions; empty if the cell is sealed
+     */
+    public static List<BlockFace> openingFaces(Block block) {
+        List<BlockFace> faces = new ArrayList<>(6);
+        for (BlockFace face : FACES) {
+            if (isOpening(block.getRelative(face))) {
+                faces.add(face);
+            }
+        }
+        return faces;
     }
 
     /**

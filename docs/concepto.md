@@ -1036,8 +1036,8 @@ Tamaños orientativos (`finds.yml`):
 | Estado | Qué sabe el jugador |
 | --- | --- |
 | **Oculto** | Nada. Terreno normal. |
-| **Parcialmente expuesto** | Cling en al menos una celda. Extensión desconocida. |
-| **Descubierto** | Bastante forma a la vista para identificar y **recuperar** (paso futuro). |
+| **Parcialmente expuesto** | Cling en al menos una celda. Las celdas con cara al aire **gotean partículas**; el bloque no cambia. Extensión desconocida. |
+| **Descubierto** | Toda la forma restante tiene cara al aire (mismo goteo). Bastante silueta para identificar y **recuperar** (paso futuro). |
 
 El pico no dropea la pieza al primer golpe ni al retirar un cubo.
 
