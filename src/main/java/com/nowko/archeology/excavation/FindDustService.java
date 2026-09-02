@@ -128,7 +128,7 @@ public class FindDustService implements Listener {
             anyLoaded = true;
             boolean dirty = false;
             for (BuriedFind find : site.getFinds()) {
-                if (find.getState() == FindState.LOST) {
+                if (find.getState() == FindState.LOST || find.getState() == FindState.RECOVERED) {
                     continue;
                 }
                 FindState next = dustFind(world, find);
@@ -151,7 +151,7 @@ public class FindDustService implements Listener {
      *
      * @param world ruin world
      * @param find shape in the cut
-     * @return HIDDEN, PARTIAL, or DISCOVERED from what is still fill
+     * @return HIDDEN, PARTIAL, DISCOVERED, or LOST from what is still fill
      */
     private FindState dustFind(World world, BuriedFind find) {
         for (BlockCell cell : find.getCells()) {
@@ -172,10 +172,13 @@ public class FindDustService implements Listener {
                 continue;
             }
             exposed++;
+            if (find.isCleaned(cell)) {
+                continue;
+            }
             leaking.add(block);
         }
         if (fill == 0) {
-            return find.getState();
+            return FindState.LOST;
         }
         if (exposed == 0) {
             return FindState.HIDDEN;

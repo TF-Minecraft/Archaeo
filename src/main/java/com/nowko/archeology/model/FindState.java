@@ -10,6 +10,8 @@ public enum FindState {
     PARTIAL,
     /** Shape is fully mapped; recovery of one item is allowed. */
     DISCOVERED,
+    /** The piece was lifted; the cut no longer holds it. */
+    RECOVERED,
     /** Every fill cell of the shape was smashed; no item will be recovered. */
     LOST
 }

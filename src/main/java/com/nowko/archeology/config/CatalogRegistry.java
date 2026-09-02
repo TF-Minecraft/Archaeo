@@ -32,6 +32,7 @@ public class CatalogRegistry {
     private ProspectSettings prospect = ProspectSettings.defaults();
     private EstablishSettings establish = EstablishSettings.defaults();
     private PickSettings pick = PickSettings.defaults();
+    private RecoverySettings recovery = RecoverySettings.defaults();
     private ItemMaterials items = ItemMaterials.defaults();
     private String staffPermission = "archaeo.admin";
 
@@ -60,6 +61,7 @@ public class CatalogRegistry {
         loadProspect(plugin.getConfig());
         loadEstablish(plugin.getConfig());
         loadPick(plugin.getConfig());
+        loadRecovery(plugin.getConfig());
         loadItems(plugin.getConfig());
         loadStaffPermission(plugin.getConfig());
         loadStrata(yaml("strata.yml"));
@@ -154,6 +156,13 @@ public class CatalogRegistry {
      */
     public PickSettings pick() {
         return pick;
+    }
+
+    /**
+     * @return field-brush recovery rules and copy
+     */
+    public RecoverySettings recovery() {
+        return recovery;
     }
 
     /**
@@ -354,6 +363,31 @@ public class CatalogRegistry {
                 Math.max(0, section.getInt("conservation-loss-on-remove", fallback.conservationLossOnRemove())),
                 Math.max(0, Math.min(100, section.getInt("damaged-below-percent", fallback.damagedBelowPercent()))),
                 DigTools.parse(section.getStringList("tools")),
+                section.getString("item-name", fallback.itemName()),
+                List.copyOf(lore)
+        );
+    }
+
+    /**
+     * Reads field-brush recovery channel, tedium cap, and item copy.
+     *
+     * @param config root plugin config
+     */
+    private void loadRecovery(org.bukkit.configuration.file.FileConfiguration config) {
+        ConfigurationSection section = config.getConfigurationSection("recovery");
+        RecoverySettings fallback = RecoverySettings.defaults();
+        if (section == null) {
+            recovery = fallback;
+            return;
+        }
+        List<String> lore = section.getStringList("item-lore");
+        if (lore.isEmpty()) {
+            lore = fallback.itemLore();
+        }
+        recovery = new RecoverySettings(
+                section.getBoolean("enabled", true),
+                Math.max(1, section.getInt("channel-ticks", fallback.channelTicks())),
+                Math.max(1, section.getInt("max-cells-to-clean", fallback.maxCellsToClean())),
                 section.getString("item-name", fallback.itemName()),
                 List.copyOf(lore)
         );

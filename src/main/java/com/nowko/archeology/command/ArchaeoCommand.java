@@ -6,6 +6,8 @@ import com.nowko.archeology.establish.EstablishService;
 import com.nowko.archeology.excavation.FindDustService;
 import com.nowko.archeology.excavation.HandPickService;
 import com.nowko.archeology.excavation.PrismListener;
+import com.nowko.archeology.excavation.RecoverService;
+import com.nowko.archeology.item.BrushItem;
 import com.nowko.archeology.item.EstablishItem;
 import com.nowko.archeology.item.ProspectItem;
 import com.nowko.archeology.item.TrackerItem;
@@ -41,7 +43,8 @@ import java.util.stream.Collectors;
  */
 public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private static final List<String> INTERESTS = List.of("low", "medium", "high", "exceptional");
-    private static final List<String> ROOT = List.of("ruin", "tracker", "prospect", "establish", "pick", "find", "reload");
+    private static final List<String> ROOT = List.of(
+            "ruin", "tracker", "prospect", "establish", "pick", "brush", "find", "reload");
     private static final List<String> RUIN_ACTIONS = List.of("create", "info");
     private static final List<String> GIVE_ACTIONS = List.of("give");
     private static final List<String> PICK_ACTIONS = List.of("give", "reset");
@@ -59,6 +62,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private final HandPickService handPick;
     private final FindDustService findDust;
     private final PrismListener prism;
+    private final BrushItem brushItem;
+    private final RecoverService recover;
 
     /**
      * @param catalogs staff permission and YAML catalogs
@@ -73,6 +78,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      * @param handPick excavation loop and tool whitelist, updated on reload
      * @param findDust leak on exposed find cells, updated on reload
      * @param prism prism fill lock, updated on reload
+     * @param brushItem factory for {@code brush give}
+     * @param recover field-brush loop, updated on reload
      */
     public ArchaeoCommand(
             CatalogRegistry catalogs,
@@ -86,7 +93,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             EstablishService establish,
             HandPickService handPick,
             FindDustService findDust,
-            PrismListener prism
+            PrismListener prism,
+            BrushItem brushItem,
+            RecoverService recover
     ) {
         this.catalogs = catalogs;
         this.generator = generator;
@@ -100,6 +109,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         this.handPick = handPick;
         this.findDust = findDust;
         this.prism = prism;
+        this.brushItem = brushItem;
+        this.recover = recover;
     }
 
     /**
@@ -131,6 +142,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length >= 1 && "pick".equalsIgnoreCase(args[0])) {
             return handlePick(sender, args);
+        }
+        if (args.length >= 1 && "brush".equalsIgnoreCase(args[0])) {
+            return handleBrush(sender, args);
         }
         if (args.length >= 1 && "find".equalsIgnoreCase(args[0])) {
             return handleFind(sender, args);
@@ -167,6 +181,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             handPick.setSettings(catalogs.pick());
             findDust.setSettings(catalogs.pick());
             prism.setProtectDigSite(catalogs.establish().protectDigSite());
+            brushItem.update(catalogs.recovery(), catalogs.items().brush());
+            recover.setSettings(catalogs.recovery());
             sites.loadAll();
             sender.sendMessage("Reloaded Archaeo config, catalogs, and sites from disk.");
         } catch (RuntimeException exception) {
@@ -270,6 +286,39 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("Gave an establishment kit to " + target.getName() + ".");
         if (target != sender) {
             target.sendMessage("You received an establishment kit. Use it next to a ruin you have confirmed.");
+        }
+        return true;
+    }
+
+    /**
+     * Gives a field brush. Any item of {@code items.brush} recovers finds; this is named copy for staff.
+     *
+     * @param sender staff issuer
+     * @param args {@code brush give [player]}
+     * @return {@code true} always (handled)
+     */
+    private boolean handleBrush(CommandSender sender, String[] args) {
+        if (args.length < 2 || !"give".equalsIgnoreCase(args[1])) {
+            sender.sendMessage("Usage: /archaeo brush give [player]");
+            return true;
+        }
+        Player target;
+        if (args.length >= 3) {
+            target = Bukkit.getPlayerExact(args[2]);
+            if (target == null) {
+                sender.sendMessage("Player not online: " + args[2]);
+                return true;
+            }
+        } else if (sender instanceof Player player) {
+            target = player;
+        } else {
+            sender.sendMessage("Console must name a player: /archaeo brush give <player>");
+            return true;
+        }
+        target.getInventory().addItem(brushItem.create());
+        sender.sendMessage("Gave a field brush to " + target.getName() + ".");
+        if (target != sender) {
+            target.sendMessage("You received a field brush. Right-click a fully exposed find to lift it.");
         }
         return true;
     }
@@ -446,7 +495,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     + " (" + find.getCells().size() + " cells) on "
                     + origin.getX() + "," + origin.getY() + "," + origin.getZ()
                     + " · site #" + site.getSerial() + " established.");
-            sender.sendMessage("Lift neighbouring fill to uncover faces; those cubes shed motes.");
+            sender.sendMessage("Lift neighbouring fill until the shape leaks on every remaining cube, then brush it.");
         } catch (IllegalStateException | IllegalArgumentException exception) {
             sender.sendMessage(exception.getMessage());
         }
@@ -635,6 +684,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     + " · " + find.getState().name()
                     + " · " + find.getCells().size() + " cells"
                     + " · " + find.getConservation() + "%"
+                    + (find.getCleanedCells().isEmpty() ? "" : " · cleaned " + find.getCleanedCells().size())
                     + (find.isDamaged() ? " · damaged" : ""));
         }
     }
@@ -650,6 +700,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("       /archaeo establish give [player]");
         sender.sendMessage("       /archaeo pick give [player]");
         sender.sendMessage("       /archaeo pick reset [player|all]");
+        sender.sendMessage("       /archaeo brush give [player]");
         sender.sendMessage("       /archaeo find spawn [artifact] [size]");
         sender.sendMessage("       /archaeo reload");
     }
@@ -677,6 +728,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                 || "prospect".equalsIgnoreCase(args[0])
                 || "establish".equalsIgnoreCase(args[0])
                 || "pick".equalsIgnoreCase(args[0])
+                || "brush".equalsIgnoreCase(args[0])
                 || "find".equalsIgnoreCase(args[0])) {
             if (args.length == 2) {
                 List<String> actions;

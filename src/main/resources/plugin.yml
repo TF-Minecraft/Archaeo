@@ -8,7 +8,7 @@ description: Persistent archaeology for a custom map.
 commands:
   archaeo:
     description: Archaeo admin commands
-    usage: /archaeo <ruin|tracker|prospect|establish|pick|find|reload> ...
+    usage: /archaeo <ruin|tracker|prospect|establish|pick|brush|find|reload> ...
     # Permission is config.yml permissions.staff (checked in code), default archaeo.admin.
 
 permissions:

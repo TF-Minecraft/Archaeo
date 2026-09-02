@@ -11,7 +11,7 @@ import org.bukkit.Material;
  * @param pick excavation Hand Pick
  * @param shovel excavation shovel (later)
  * @param hammer unused for now
- * @param brush excavation brush (later)
+ * @param brush field brush that lifts exposed finds
  */
 public record ItemMaterials(
         Material tracker,

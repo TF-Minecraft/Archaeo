@@ -965,16 +965,15 @@ Avisos cortos cuando hacen falta:
 - *La evidencia ha resultado dañada.*
 - *Esos restos se han destruido. No se puede recuperar nada de ellos.*
 - *La jornada de excavación ha terminado.*
-- Más adelante: forma, *Hallazgo descubierto*, *Hallazgo recuperado.*
+- Más adelante: forma, *Hallazgo descubierto*. *Hallazgo recuperado* al pincelar.
 
 ### Herramientas
 
-**v1 de campo: solo Hand Pick.** Un pico para todo. Blando vs compacto
-cambia el tiempo hasta el ting, no el ítem.
+**Campo:** Hand Pick para retirar relleno; **pincel** para extraer un hallazgo
+ya descubierto. Blando vs compacto cambia el tiempo hasta el ting del pico,
+no el ítem.
 
-Pala, paleta y pincel **no** se añaden por cambiar de velocidad. Solo
-tendrían sentido el día en que extraer no sea “seguir picando” (delimitar /
-sacar la pieza). Hasta entonces, otro ítem sería cosmética.
+Pala y paleta no se añaden por cambiar de velocidad.
 
 **Maza / martillo en área:** otro verbo (volumen a cambio de control). No
 es el flujo por defecto. Si se hace más adelante: cara en jornada, cualquier
@@ -1041,9 +1040,16 @@ Tamaños orientativos (`finds.yml`):
 | --- | --- |
 | **Oculto** | Nada. Terreno normal. |
 | **Parcialmente expuesto** | Cling en al menos una celda. Las celdas con cara al aire **gotean partículas**; el bloque no cambia. Extensión desconocida. |
-| **Descubierto** | Toda la forma restante tiene cara al aire (mismo goteo). Bastante silueta para identificar y **recuperar** (paso futuro). |
+| **Descubierto** | Toda la forma restante tiene cara al aire (mismo goteo). El **pincel** puede recuperar. |
+| **Recuperado** | La pieza está fuera del corte (ítem con PDC). |
 
-El pico no dropea la pieza al primer golpe ni al retirar un cubo.
+El pico no dropea la pieza. Con la forma **descubierta**, clic derecho con el
+pincel (`items.brush`, por defecto el pincel vanilla) sobre un cubo que aún
+gotea: ~1 s de canal. Ese cubo deja de emitir partículas. Tras
+`recovery.max-cells-to-clean` cubos distintos (o todos si hay menos), las
+celdas restantes pasan a aire y **cae un ítem** con conservación y
+procedencia. Conservación 0: sin ítem. No gasta jornada. Fuera del prisma el
+pincel vanilla sigue siendo vanilla.
 
 ### Conservación (acordado)
 

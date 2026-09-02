@@ -318,6 +318,10 @@ public class SiteRepository {
                     .map(cell -> cell.x() + "," + cell.y() + "," + cell.z())
                     .toList();
             node.put("cells", cells);
+            List<String> cleaned = find.getCleanedCells().stream()
+                    .map(cell -> cell.x() + "," + cell.y() + "," + cell.z())
+                    .toList();
+            node.put("cleaned-cells", cleaned);
             finds.add(node);
         }
         yaml.set("finds", finds);
@@ -436,6 +440,20 @@ public class SiteRepository {
                 for (Object cell : list) {
                     String[] parts = String.valueOf(cell).split(",");
                     find.getCells().add(new BlockCell(
+                            Integer.parseInt(parts[0]),
+                            Integer.parseInt(parts[1]),
+                            Integer.parseInt(parts[2])
+                    ));
+                }
+            }
+            Object cleaned = map.get("cleaned-cells");
+            if (cleaned instanceof List<?> list) {
+                for (Object cell : list) {
+                    String[] parts = String.valueOf(cell).split(",");
+                    if (parts.length < 3) {
+                        continue;
+                    }
+                    find.getCleanedCells().add(new BlockCell(
                             Integer.parseInt(parts[0]),
                             Integer.parseInt(parts[1]),
                             Integer.parseInt(parts[2])

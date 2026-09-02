@@ -83,6 +83,17 @@ pick:
     - "Hold left-click on the open cut. Soft chimes, then release on the ready chime."
     - "Not a mining pick."
 
+recovery:
+  enabled: true
+  # Hold time per uncleaned fill cube (20 ticks = 1 second). Look away or move to cancel.
+  channel-ticks: 20
+  # Larger shapes lift after this many distinct cubes; a coin still needs one.
+  max-cells-to-clean: 6
+  item-name: "Field brush"
+  item-lore:
+    - "Right-click a fully exposed find. Dust leaves each cube you clean."
+    - "The last cube lifts the piece onto the ground."
+
 tracker:
   enabled: true
   # Radii in blocks. Effective range is the tighter of this cap and the site detection-radius.

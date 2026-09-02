@@ -10,8 +10,12 @@ import com.nowko.archeology.excavation.FindDustService;
 import com.nowko.archeology.excavation.HandPickListener;
 import com.nowko.archeology.excavation.HandPickService;
 import com.nowko.archeology.excavation.PrismListener;
+import com.nowko.archeology.excavation.RecoverListener;
+import com.nowko.archeology.excavation.RecoverService;
+import com.nowko.archeology.item.BrushItem;
 import com.nowko.archeology.item.EstablishItem;
 import com.nowko.archeology.item.ProspectItem;
+import com.nowko.archeology.item.RecoveredFindItem;
 import com.nowko.archeology.item.TrackerItem;
 import com.nowko.archeology.prospect.ProspectListener;
 import com.nowko.archeology.prospect.ProspectService;
@@ -38,6 +42,8 @@ public class ArcheologyPlugin extends JavaPlugin {
     private HandPickService handPick;
     private FindDustService findDust;
     private PrismListener prismListener;
+    private BrushItem brushItem;
+    private RecoverService recover;
 
     /**
      * Copies missing default YAML, loads catalogs and saved sites, and starts gameplay loops.
@@ -70,6 +76,15 @@ public class ArcheologyPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new HandPickListener(handPick, sites), this);
         prismListener = new PrismListener(sites, digTools, catalogs.establish().protectDigSite());
         getServer().getPluginManager().registerEvents(prismListener, this);
+        brushItem = new BrushItem(catalogs.recovery(), catalogs.items().brush());
+        recover = new RecoverService(
+                this,
+                sites,
+                catalogs,
+                brushItem,
+                new RecoveredFindItem(this),
+                catalogs.recovery());
+        getServer().getPluginManager().registerEvents(new RecoverListener(brushItem, recover), this);
 
         ArchaeoCommand command = new ArchaeoCommand(
                 catalogs,
@@ -83,7 +98,9 @@ public class ArcheologyPlugin extends JavaPlugin {
                 establish,
                 handPick,
                 findDust,
-                prismListener);
+                prismListener,
+                brushItem,
+                recover);
         PluginCommand pluginCommand = getCommand("archaeo");
         if (pluginCommand != null) {
             pluginCommand.setExecutor(command);
@@ -111,6 +128,9 @@ public class ArcheologyPlugin extends JavaPlugin {
         }
         if (findDust != null) {
             findDust.stop();
+        }
+        if (recover != null) {
+            recover.stop();
         }
     }
 
