@@ -37,6 +37,7 @@ public class ArcheologyPlugin extends JavaPlugin {
     private DigTools digTools;
     private HandPickService handPick;
     private FindDustService findDust;
+    private PrismListener prismListener;
 
     /**
      * Copies missing default YAML, loads catalogs and saved sites, and starts gameplay loops.
@@ -67,7 +68,8 @@ public class ArcheologyPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(findDust, this);
         findDust.start();
         getServer().getPluginManager().registerEvents(new HandPickListener(handPick, sites), this);
-        getServer().getPluginManager().registerEvents(new PrismListener(sites, digTools), this);
+        prismListener = new PrismListener(sites, digTools, catalogs.establish().protectDigSite());
+        getServer().getPluginManager().registerEvents(prismListener, this);
 
         ArchaeoCommand command = new ArchaeoCommand(
                 catalogs,
@@ -80,7 +82,8 @@ public class ArcheologyPlugin extends JavaPlugin {
                 establishItem,
                 establish,
                 handPick,
-                findDust);
+                findDust,
+                prismListener);
         PluginCommand pluginCommand = getCommand("archaeo");
         if (pluginCommand != null) {
             pluginCommand.setExecutor(command);

@@ -141,7 +141,7 @@ public class SiteRepository {
      * @param x block X
      * @param y block Y
      * @param z block Z
-     * @return site if the cell is fill-protected
+     * @return site if the cell sits in a present stratum band
      */
     public Optional<Site> findEstablishedPrism(String world, int x, int y, int z) {
         return findByChunk(world, x >> 4, z >> 4)

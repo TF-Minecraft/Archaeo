@@ -4,28 +4,27 @@ import com.nowko.archeology.site.SiteRepository;
 import org.bukkit.block.Block;
 
 /**
- * Shared test for the open excavation cut (terrain in the prism with an open face).
+ * Shared test for terrain fill inside an established stratum prism (every present band).
  */
 public final class DigCut {
     private DigCut() {
     }
 
     /**
+     * Whether this cell is excavation substrate in a live prism. Does not care if a face is open.
+     *
      * @param sites established excavations
      * @param block world cell
-     * @return whether this is the working face
+     * @return whether the cell is prism fill
      */
-    public static boolean isWorkingFace(SiteRepository sites, Block block) {
+    public static boolean isPrismFill(SiteRepository sites, Block block) {
         if (!PrismFill.isTerrainFill(block.getType())) {
             return false;
         }
-        if (sites.findEstablishedPrism(
+        return sites.findEstablishedPrism(
                 block.getWorld().getName(),
                 block.getX(),
                 block.getY(),
-                block.getZ()).isEmpty()) {
-            return false;
-        }
-        return PrismFill.hasOpenFace(block);
+                block.getZ()).isPresent();
     }
 }

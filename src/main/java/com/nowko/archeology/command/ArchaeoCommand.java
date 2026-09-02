@@ -5,6 +5,7 @@ import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.establish.EstablishService;
 import com.nowko.archeology.excavation.FindDustService;
 import com.nowko.archeology.excavation.HandPickService;
+import com.nowko.archeology.excavation.PrismListener;
 import com.nowko.archeology.item.EstablishItem;
 import com.nowko.archeology.item.ProspectItem;
 import com.nowko.archeology.item.TrackerItem;
@@ -57,6 +58,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private final EstablishService establish;
     private final HandPickService handPick;
     private final FindDustService findDust;
+    private final PrismListener prism;
 
     /**
      * @param catalogs staff permission and YAML catalogs
@@ -70,6 +72,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      * @param establish camp outline loop, updated on reload
      * @param handPick excavation loop and tool whitelist, updated on reload
      * @param findDust leak on exposed find cells, updated on reload
+     * @param prism prism fill lock, updated on reload
      */
     public ArchaeoCommand(
             CatalogRegistry catalogs,
@@ -82,7 +85,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             EstablishItem establishItem,
             EstablishService establish,
             HandPickService handPick,
-            FindDustService findDust
+            FindDustService findDust,
+            PrismListener prism
     ) {
         this.catalogs = catalogs;
         this.generator = generator;
@@ -95,6 +99,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         this.establish = establish;
         this.handPick = handPick;
         this.findDust = findDust;
+        this.prism = prism;
     }
 
     /**
@@ -161,6 +166,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             establish.setSettings(catalogs.establish());
             handPick.setSettings(catalogs.pick());
             findDust.setSettings(catalogs.pick());
+            prism.setProtectDigSite(catalogs.establish().protectDigSite());
             sites.loadAll();
             sender.sendMessage("Reloaded Archaeo config, catalogs, and sites from disk.");
         } catch (RuntimeException exception) {

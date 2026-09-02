@@ -8,6 +8,7 @@ import java.util.List;
  * Establishment kit (camp) from {@code config.yml}.
  *
  * @param enabled whether the kit can claim a confirmed ruin
+ * @param protectDigSite whether terrain fill in every present stratum band is locked against vanilla damage
  * @param campBlock block placed as the first camp landmark
  * @param invalidBlock client-only block for template cells that cannot be planted
  * @param ruinOutlineBlock client-only glass for the dig chunk perimeter
@@ -16,6 +17,7 @@ import java.util.List;
  */
 public record EstablishSettings(
         boolean enabled,
+        boolean protectDigSite,
         Material campBlock,
         Material invalidBlock,
         Material ruinOutlineBlock,
@@ -27,6 +29,7 @@ public record EstablishSettings(
      */
     public static EstablishSettings defaults() {
         return new EstablishSettings(
+                true,
                 true,
                 Material.LECTERN,
                 Material.RED_STAINED_GLASS,

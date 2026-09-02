@@ -30,6 +30,10 @@ prospect:
 
 establish:
   enabled: true
+  # Lock every present stratum band in the ruin chunk (not only blocks with an open face).
+  # Vanilla mining, fire, pistons, and explosions cannot remove that fill. Excavation tools still use the Hand Pick clock.
+  # false = the prism is vanilla-mineable; closed tunnels still wound the dossier.
+  protect-dig-site: true
   # Landmark. Paper 1.21: ARCHAEOLOGY_TABLE. Falls back to lectern if unknown.
   camp-block: ARCHAEOLOGY_TABLE
   # Client-only. Template cells that cannot be planted.

@@ -25,7 +25,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Protects open-cut terrain in an established prism; vanilla holes elsewhere wound the dossier.
+ * Optionally locks all prism fill of an established excavation; vanilla holes elsewhere wound the dossier.
  */
 public class PrismListener implements Listener {
     private static final long MESSAGE_COOLDOWN_MS = 3000L;
@@ -33,14 +33,24 @@ public class PrismListener implements Listener {
     private final SiteRepository sites;
     private final DigTools tools;
     private final Map<UUID, Long> lastWarn = new ConcurrentHashMap<>();
+    private boolean protectDigSite;
 
     /**
      * @param sites established excavations
-     * @param tools excavation whitelist: those items use {@link HandPickListener} on the cut
+     * @param tools excavation whitelist: those items use {@link HandPickListener} on prism fill
+     * @param protectDigSite whether every present stratum band is locked against vanilla damage
      */
-    public PrismListener(SiteRepository sites, DigTools tools) {
+    public PrismListener(SiteRepository sites, DigTools tools, boolean protectDigSite) {
         this.sites = sites;
         this.tools = tools;
+        this.protectDigSite = protectDigSite;
+    }
+
+    /**
+     * @param protectDigSite after reload
+     */
+    public void setProtectDigSite(boolean protectDigSite) {
+        this.protectDigSite = protectDigSite;
     }
 
     /**
@@ -70,7 +80,7 @@ public class PrismListener implements Listener {
     }
 
     /**
-     * Tools not on the excavation whitelist must not start mining the open cut.
+     * Tools not on the excavation whitelist must not start mining protected prism fill.
      *
      * @param event start of vanilla damage
      */
@@ -132,7 +142,7 @@ public class PrismListener implements Listener {
     }
 
     /**
-     * @param event block explosion after working-face cells were removed from the list
+     * @param event block explosion after protected prism cells were removed from the list
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onExplodeWound(BlockExplodeEvent event) {
@@ -148,7 +158,7 @@ public class PrismListener implements Listener {
     }
 
     /**
-     * @param event entity explosion after working-face cells were removed
+     * @param event entity explosion after protected prism cells were removed
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityExplodeWound(EntityExplodeEvent event) {
@@ -191,13 +201,17 @@ public class PrismListener implements Listener {
         woundCells(event.getBlocks());
     }
 
+    /**
+     * @param block world cell
+     * @return whether config locks this prism fill against vanilla damage
+     */
     private boolean protectedFill(Block block) {
-        return DigCut.isWorkingFace(sites, block);
+        return protectDigSite && DigCut.isPrismFill(sites, block);
     }
 
     /**
      * @param blocks piston or explode list
-     * @return whether any cell is the working face
+     * @return whether any cell is protected prism fill
      */
     private boolean anyFill(List<Block> blocks) {
         for (Block block : blocks) {

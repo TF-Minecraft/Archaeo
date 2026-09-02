@@ -304,6 +304,7 @@ public class CatalogRegistry {
         }
         establish = new EstablishSettings(
                 section.getBoolean("enabled", true),
+                section.getBoolean("protect-dig-site", fallback.protectDigSite()),
                 ConfigEnums.material(plugin, section.getString("camp-block"), fallback.campBlock(), "establish.camp-block"),
                 ConfigEnums.material(
                         plugin,

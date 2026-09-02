@@ -73,7 +73,7 @@ Lo que vanilla **no** da, y Archaeo sí debe dar:
 6. **La fragilidad importa.** El terreno y los restos deben poder alterarse o perderse; Archaeo no debe convertir una excavación en un generador de objetos sin riesgo.
 7. **Una excavación es un proyecto, no un loot ni un plot.** Se descubre, se confirma y se **establece en el mundo** (campamento en un chunk vecino). Queda **fija**. El campamento no se planta sobre el volumen excavable.
 8. **La excavación es el mundo.** Hand Pick en el **prisma de estratos**; HUD mínimo (estrato, jornada, conservación si el hallazgo ya se detectó). No hay barra de fuerza, ni fracciones de bloque (`3/6`), ni minijuego en una interfaz. La gestión vive en el **panel del campamento**, no en comandos de jugador.
-9. **Archaeo no es un `/claim` de jugador.** El chunk de **establecimiento** puede protegerse mientras la excavación esté activa. Los hallazgos son datos, no bloques en el mundo. La **cara de trabajo** es terreno del prisma con al menos una cara al aire (o agua/plantas): suelo y paredes del corte. Ahí solo herramientas de excavación. Un túnel cerrado por debajo sigue siendo vanilla y hiere el sustrato. Aire, agua y construcciones no se sustituyen por relleno. Eso no sustituye un claim de terreno.
+9. **Archaeo no es un `/claim` de jugador.** El chunk de **establecimiento** (campamento) se bloquea mientras la excavación esté activa. El chunk arqueológico **puede** protegerse entero (`establish.protect-dig-site`): todo el prisma, todas las bandas presentes, sin calcular si un bloque está al descubierto. Si está desactivado, el minado vanilla en el prisma hiere el sustrato. Los hallazgos son datos, no bloques en el mundo. El Hand Pick trabaja el relleno del prisma. Aire, agua y construcciones no se sustituyen por relleno. Eso no sustituye un claim de terreno.
 
 ---
 
@@ -198,7 +198,8 @@ Al **establecer** la excavación, la riqueza efectiva se fija en el dossier.
 La excavación queda **registrada a nombre del jugador** (director). Eso no es un
 claim de facciones ni un `/claim` de terreno. El director dirige el proyecto;
 facciones/claims siguen decidiendo el minado vanilla salvo, si se activa, la
-protección del **chunk de establecimiento**.
+protección del **chunk de establecimiento** y, si `protect-dig-site` está
+activo, del **prisma de excavación** (todas las bandas).
 
 ---
 
@@ -538,7 +539,8 @@ En el mismo instante:
 - se calcula y guarda `datumY` (mediana del suelo del chunk arqueológico);
 - se generan las bandas de estrato a partir de esa cota y del dossier;
 - se genera el campamento de la plantilla;
-- ese chunk **puede** protegerse mientras la excavación esté activa;
+- el chunk de establecimiento (campamento) queda bloqueado;
+- el prisma de excavación **puede** protegerse entero (`establish.protect-dig-site`);
 - nadie más puede reclamar ese yacimiento;
 - el radar deja de usarse para localizarlo.
 
@@ -604,10 +606,9 @@ miembros. Una facción autorizada trabaja como proyecto colectivo.
 ### Sin permiso
 
 *No tienes autorización para trabajar en esta excavación.* No hay jornada ni
-hallazgos. En la **cara de trabajo** (terreno del prisma abierto al aire) tampoco
-se retira el relleno con pico vanilla. Un túnel cerrado no está bloqueado; al
-abrir huecos la capa se marca revuelta y los hallazgos de esas celdas, dañados.
-El chunk de establecimiento puede estar protegido por el propio establecimiento.
+hallazgos. Si `protect-dig-site` está activo, el relleno de **todas** las bandas
+del prisma tampoco se retira con pico vanilla. Si está apagado, un túnel
+vanilla hiere el sustrato. El campamento queda bloqueado por el establecimiento.
 Claims y facciones siguen decidiendo el terreno alrededor.
 
 ### Visibilidad
@@ -914,30 +915,33 @@ No hace falta una tabla por cada `Material` de Bukkit.
 
 La velocidad no se ata al pico vanilla ni a `block_break_speed`.
 
-### Rotura de bloques — cara de trabajo
+### Rotura de bloques — prisma
 
-Los hallazgos son datos (formas de celdas), no bloques sospechosos. No hay
-que proteger el prisma entero.
+Los hallazgos son datos (formas de celdas), no bloques sospechosos.
 
-La **cara de trabajo** es terreno natural **dentro del prisma** con al menos
-una cara al aire, agua o plantas (suelo y paredes del hoyo). Tablones,
-cobble de obra, máquinas, aire y agua no son sustrato.
+Si `establish.protect-dig-site` está **activo**, se protege el **prisma entero**
+(todas las bandas presentes del chunk arqueológico). No se calcula si un
+bloque tiene cara al aire. Tablones, cobble de obra, máquinas, aire y agua
+no son sustrato y no entran en esa protección.
 
 Ahí se cancela la rotura vanilla (fuego / explosiones / pistones igual).
-Pico vanilla: *Usa una herramienta de excavación.*
+Pico vanilla: *Usa una herramienta de excavación.* El Hand Pick sigue
+retirando relleno con su reloj.
 
-| Zona | Rotura vanilla | Efecto Archaeo |
+Si la protección está **apagada**, el minado vanilla en el prisma está
+permitido y hiere el dossier (capa revuelta; hallazgos de esa celda dañados).
+
+| Zona | Rotura vanilla (`protect-dig-site: true`) | Efecto Archaeo |
 | --- | --- | --- |
 | Por encima de `datumY` | Permitida | Sin hallazgos |
-| Cara de trabajo | Solo Hand Pick | El corte |
-| Interior cerrado del prisma | Permitida | Capa revuelta; hallazgos de esa celda dañados |
+| Prisma (cualquier banda, cubierto o al descubierto) | Solo Hand Pick | El corte |
 | Aire, agua, construcciones | Permitida | No se convierten en relleno |
 | Por debajo de la última banda | Permitida | Fuera del yacimiento |
 
 Al **confirmar** el kit, las celdas de hallazgo que ya no son terreno se
 marcan dañadas. El claim no se rechaza.
 
-El Hand Pick solo actúa sobre esa cara. No pisa agua ni construcciones.
+El Hand Pick actúa sobre relleno del prisma. No pisa agua ni construcciones.
 
 ### HUD mínimo
 
@@ -1213,7 +1217,7 @@ Integración **débil**:
 
 - Acceso: el director puede autorizar una **facción** entera a excavar (§1d); Archaeo pregunta quién es miembro, no copia el roster.
 - Contexto opcional: “territorio actual: X”.
-- El director Archaeo no es el claim de facciones. El chunk de **establecimiento** puede protegerse mientras la excavación esté activa. El prisma no es un plot: solo la cara de trabajo (terreno abierto al aire) exige herramientas de excavación.
+- El director Archaeo no es el claim de facciones. El chunk de **establecimiento** se bloquea mientras la excavación esté activa. El prisma **puede** protegerse entero (`establish.protect-dig-site`); no se protege bloque a bloque según si está al descubierto.
 - El control *actual* no explica el pasado: es contexto presente (quién excava con permiso, quién disputa el terreno).
 - Sin facciones, esas líneas simplemente no aparecen.
 
