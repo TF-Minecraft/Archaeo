@@ -39,7 +39,6 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class RecoverService {
     private static final long WARN_MS = 3000L;
-    private static final double MOVE_CANCEL = 2.0;
 
     private final JavaPlugin plugin;
     private final SiteRepository sites;
@@ -86,7 +85,9 @@ public class RecoverService {
      */
     public void stop() {
         for (UUID id : List.copyOf(channels.keySet())) {
-            Channel channel = channels.remove(id);
+            Channel channel = channels.get(id);
+            stash(channel);
+            channels.remove(id);
             hideBar(channel);
             if (channel != null && channel.task != null) {
                 channel.task.cancel();
@@ -95,18 +96,39 @@ public class RecoverService {
     }
 
     /**
+     * Parks HUD and remaining ticks, then stops the look watcher.
+     *
      * @param player holder
      */
     public void cancel(Player player) {
-        Channel channel = channels.remove(player.getUniqueId());
-        hideBar(channel);
-        if (channel != null && channel.task != null) {
-            channel.task.cancel();
-        }
+        Channel channel = channels.get(player.getUniqueId());
+        stash(channel);
+        teardown(player);
     }
 
     /**
-     * Starts a timed brush on a fully exposed find cell. Other blocks are ignored so vanilla can run.
+     * Keeps a look watcher so an unfinished cube can show its bar again when aimed with the brush.
+     *
+     * @param player holder
+     */
+    public void watch(Player player) {
+        if (!settings.enabled()) {
+            return;
+        }
+        if (!brush.isBrush(player.getInventory().getItemInMainHand())) {
+            return;
+        }
+        if (channels.containsKey(player.getUniqueId())) {
+            return;
+        }
+        Channel channel = new Channel(createBar(player), Math.max(1, settings.channelTicks()));
+        channels.put(player.getUniqueId(), channel);
+        channel.task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> pulse(player, channel), 1L, 1L);
+    }
+
+    /**
+     * Starts or resumes dusting on a fully exposed find cell. Remaining ticks live on the find cube
+     * so looking away does not reset the bar.
      *
      * @param player holder
      * @param block clicked cell
@@ -143,29 +165,29 @@ public class RecoverService {
             warn(player, "That cube is already clean.");
             return;
         }
-        Channel existing = channels.get(player.getUniqueId());
-        if (existing != null && existing.sameCell(block) && existing.findId.equals(find.getId())) {
+        watch(player);
+        Channel channel = channels.get(player.getUniqueId());
+        if (channel == null) {
             return;
         }
-        cancel(player);
-        int ticks = Math.max(1, settings.channelTicks());
-        Channel channel = new Channel(
-                site.getId(),
-                find.getId(),
-                block.getX(),
-                block.getY(),
-                block.getZ(),
-                player.getLocation().clone(),
-                ticks,
-                createBar(player));
-        channels.put(player.getUniqueId(), channel);
-        channel.task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> pulse(player, channel), 1L, 1L);
+        if (channel.focused && channel.sameCell(block) && channel.findId.equals(find.getId())) {
+            channel.startGrace = 3;
+            return;
+        }
+        stash(channel);
+        attach(channel, site, find, block);
+        channel.startGrace = 3;
+        find.setBrushRemaining(cell, channel.remaining);
+        showHud(channel, player);
         playBrush(block);
     }
 
     /**
+     * Hides the bar when the player looks away; restores the stored remaining ticks when they
+     * aim at that cube again with the brush.
+     *
      * @param player holder
-     * @param channel open brush
+     * @param channel look watcher
      */
     private void pulse(Player player, Channel channel) {
         if (!player.isOnline()) {
@@ -176,26 +198,56 @@ public class RecoverService {
             cancel(player);
             return;
         }
-        if (player.getLocation().distanceSquared(channel.origin) > MOVE_CANCEL * MOVE_CANCEL) {
-            cancel(player);
+        Block target = player.getTargetBlockExact(6);
+        Site site = null;
+        BuriedFind find = null;
+        if (target != null) {
+            site = sites.findEstablishedPrism(
+                    target.getWorld().getName(),
+                    target.getX(),
+                    target.getY(),
+                    target.getZ()).orElse(null);
+            if (site != null) {
+                find = site.findAt(new BlockCell(target.getX(), target.getY(), target.getZ())).orElse(null);
+            }
+        }
+        if (!isDustable(target, find)) {
+            stash(channel);
+            hideHud(channel);
+            channel.clearFocus();
             return;
         }
-        Block target = player.getTargetBlockExact(6);
-        if (target == null || !channel.sameCell(target)) {
-            cancel(player);
+        BlockCell cell = new BlockCell(target.getX(), target.getY(), target.getZ());
+        if (!channel.focused || !channel.sameCell(target) || !channel.findId.equals(find.getId())) {
+            stash(channel);
+            attach(channel, site, find, target);
+        }
+        if (find.brushRemaining(cell) == null) {
+            hideHud(channel);
             return;
+        }
+        showHud(channel, player);
+        if (!isUsingBrush(player)) {
+            if (channel.startGrace > 0) {
+                channel.startGrace--;
+            } else {
+                return;
+            }
+        } else {
+            channel.startGrace = 0;
         }
         channel.remaining--;
-        Block block = player.getWorld().getBlockAt(channel.x, channel.y, channel.z);
+        find.setBrushRemaining(cell, channel.remaining);
         updateBar(channel);
         if (channel.remaining % 5 == 0) {
-            playBrush(block);
+            playBrush(target);
         }
         if (channel.remaining > 0) {
             return;
         }
-        cancel(player);
-        finishCell(player, block, channel);
+        find.setBrushRemaining(cell, 0);
+        teardown(player);
+        finishCell(player, target, site, find, cell);
     }
 
     /**
@@ -203,24 +255,14 @@ public class RecoverService {
      *
      * @param player holder
      * @param block cleaned cell
-     * @param channel finished channel
+     * @param site excavation
+     * @param find shape
+     * @param cell cleaned coordinates
      */
-    private void finishCell(Player player, Block block, Channel channel) {
-        Site site = sites.findById(channel.siteId).orElse(null);
-        if (site == null) {
+    private void finishCell(Player player, Block block, Site site, BuriedFind find, BlockCell cell) {
+        if (find.getState() != FindState.DISCOVERED) {
             return;
         }
-        BuriedFind find = null;
-        for (BuriedFind candidate : site.getFinds()) {
-            if (candidate.getId().equals(channel.findId)) {
-                find = candidate;
-                break;
-            }
-        }
-        if (find == null || find.getState() != FindState.DISCOVERED) {
-            return;
-        }
-        BlockCell cell = new BlockCell(block.getX(), block.getY(), block.getZ());
         if (!find.getCells().contains(cell) || find.isCleaned(cell)) {
             return;
         }
@@ -359,7 +401,7 @@ public class RecoverService {
         }
         BossBar bar = Bukkit.createBossBar("Brushing", BarColor.YELLOW, BarStyle.SEGMENTED_10);
         bar.setProgress(0);
-        bar.setVisible(true);
+        bar.setVisible(false);
         bar.addPlayer(player);
         return bar;
     }
@@ -401,57 +443,181 @@ public class RecoverService {
     }
 
     /**
-     * One player's brush hold on a find cell.
+     * Writes remaining ticks onto the find cube so a later look with the brush can restore the bar.
+     *
+     * @param channel watcher, or {@code null}
+     */
+    private void stash(Channel channel) {
+        if (channel == null || !channel.focused || channel.siteId == null || channel.findId == null) {
+            return;
+        }
+        Site site = sites.findById(channel.siteId).orElse(null);
+        if (site == null) {
+            return;
+        }
+        BuriedFind find = findOn(site, channel.findId);
+        if (find == null) {
+            return;
+        }
+        BlockCell cell = new BlockCell(channel.x, channel.y, channel.z);
+        if (channel.remaining <= 0 || find.isCleaned(cell)) {
+            find.setBrushRemaining(cell, 0);
+        } else {
+            find.setBrushRemaining(cell, channel.remaining);
+        }
+        sites.save(site);
+    }
+
+    /**
+     * Loads stored remaining ticks for this cube onto the watcher.
+     *
+     * @param channel watcher
+     * @param site excavation
+     * @param find shape
+     * @param block aimed cell
+     */
+    private void attach(Channel channel, Site site, BuriedFind find, Block block) {
+        channel.focused = true;
+        channel.siteId = site.getId();
+        channel.findId = find.getId();
+        channel.x = block.getX();
+        channel.y = block.getY();
+        channel.z = block.getZ();
+        channel.duration = Math.max(1, settings.channelTicks());
+        Integer saved = find.brushRemaining(new BlockCell(block.getX(), block.getY(), block.getZ()));
+        channel.remaining = saved == null ? channel.duration : Math.min(channel.duration, saved);
+        channel.startGrace = 0;
+    }
+
+    /**
+     * @param block aimed cube, or {@code null}
+     * @param find shape at that cube, or {@code null}
+     * @return whether the brush can still work this fill cell
+     */
+    private static boolean isDustable(Block block, BuriedFind find) {
+        if (block == null || find == null) {
+            return false;
+        }
+        if (find.getState() != FindState.DISCOVERED) {
+            return false;
+        }
+        BlockCell cell = new BlockCell(block.getX(), block.getY(), block.getZ());
+        if (find.isCleaned(cell)) {
+            return false;
+        }
+        return PrismFill.isTerrainFill(block.getType());
+    }
+
+    /**
+     * @param site excavation
+     * @param findId shape id
+     * @return the find, or {@code null}
+     */
+    private static BuriedFind findOn(Site site, UUID findId) {
+        for (BuriedFind candidate : site.getFinds()) {
+            if (candidate.getId().equals(findId)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * @param channel watcher
+     * @param player viewer
+     */
+    private static void showHud(Channel channel, Player player) {
+        if (channel.bar == null) {
+            return;
+        }
+        if (!channel.bar.getPlayers().contains(player)) {
+            channel.bar.addPlayer(player);
+        }
+        channel.bar.setVisible(true);
+        updateBar(channel);
+    }
+
+    /**
+     * @param channel watcher, or {@code null}
+     */
+    private static void hideHud(Channel channel) {
+        if (channel == null || channel.bar == null) {
+            return;
+        }
+        channel.bar.setVisible(false);
+    }
+
+    /**
+     * @param player holder
+     */
+    private void teardown(Player player) {
+        Channel channel = channels.remove(player.getUniqueId());
+        hideBar(channel);
+        if (channel != null && channel.task != null) {
+            channel.task.cancel();
+        }
+    }
+
+    /**
+     * Spigot does not fire {@code PlayerInteractEvent} again while a brush is held
+     * ({@code SPIGOT-7501}). {@link Player#getItemInUse()} is true for those few ticks.
+     *
+     * @param player holder
+     * @return whether the main-hand brush is currently being used
+     */
+    private boolean isUsingBrush(Player player) {
+        if (!brush.isBrush(player.getInventory().getItemInMainHand())) {
+            return false;
+        }
+        ItemStack using = player.getItemInUse();
+        if (using != null) {
+            return brush.isBrush(using);
+        }
+        return player.getItemInUseTicks() > 0;
+    }
+
+    /**
+     * One player's brush look-watcher. Remaining ticks are stored on the find cube, not only here.
      */
     private static final class Channel {
-        private final UUID siteId;
-        private final UUID findId;
-        private final int x;
-        private final int y;
-        private final int z;
-        private final Location origin;
-        private final int duration;
+        private boolean focused;
+        private UUID siteId;
+        private UUID findId;
+        private int x;
+        private int y;
+        private int z;
+        private int duration;
         private final BossBar bar;
         private int remaining;
+        /** First pulses after a click may run before the server marks the brush as in-use. */
+        private int startGrace;
         private BukkitTask task;
 
         /**
-         * @param siteId excavation
-         * @param findId shape
-         * @param x block X
-         * @param y block Y
-         * @param z block Z
-         * @param origin player location at start
-         * @param duration ticks until this cube is clean
          * @param bar progress shown to the player, or {@code null}
+         * @param duration ticks until a fresh cube is clean
          */
-        private Channel(
-                UUID siteId,
-                UUID findId,
-                int x,
-                int y,
-                int z,
-                Location origin,
-                int duration,
-                BossBar bar
-        ) {
-            this.siteId = siteId;
-            this.findId = findId;
-            this.x = x;
-            this.y = y;
-            this.z = z;
-            this.origin = origin;
+        private Channel(BossBar bar, int duration) {
+            this.bar = bar;
             this.duration = duration;
             this.remaining = duration;
-            this.bar = bar;
+        }
+
+        /**
+         * Forgets the aimed cube without dropping stored remaining ticks.
+         */
+        private void clearFocus() {
+            focused = false;
+            siteId = null;
+            findId = null;
         }
 
         /**
          * @param block world cell
-         * @return whether this channel is still on that cube
+         * @return whether this watcher is still on that cube
          */
         private boolean sameCell(Block block) {
-            return block.getX() == x && block.getY() == y && block.getZ() == z;
+            return focused && block.getX() == x && block.getY() == y && block.getZ() == z;
         }
     }
 }

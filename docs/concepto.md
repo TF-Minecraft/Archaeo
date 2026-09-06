@@ -922,7 +922,7 @@ No hace falta una tabla por cada `Material` de Bukkit.
 La velocidad de las pistas **sí** sigue el minado vanilla (herramienta ×
 bloque × haste / eficiencia). Lo que YAML guarda es lo que vanilla no sabe:
 cuántos cubos salen a tiempo o tarde, `break-shape` (pozo o área),
-`release-window-ticks`, `workday-cost`, y opcionalmente `works-on`.
+`release-window-ticks`, `workday-cost`.
 
 ### Rotura de bloques — prisma
 
@@ -1079,14 +1079,15 @@ ese hueco y no aparece en las trazas.
 | **Descubierto** | Toda la forma restante tiene cara al aire (mismo goteo). El **pincel** puede recuperar. |
 | **Recuperado** | La pieza está fuera del corte (ítem con PDC). |
 
-El pico no dropea la pieza. Con la forma **descubierta**, mantener clic derecho
-con el pincel (`items.brush`) sobre un cubo que aún gotea hasta llenar la
-barra (`recovery.channel-ticks`, por defecto 2 s). Ese cubo deja de emitir
-partículas. Tras `recovery.max-cells-to-clean` cubos distintos (o todos si
-hay menos), las celdas restantes pasan a aire y **cae un ítem** con
-conservación y procedencia. Conservación 0: sin ítem. No gasta jornada. En
-cualquier bloque que **no** sea celda de hallazgo el pincel vanilla no se
-cancela.
+El pico no dropea la pieza. Con la forma **descubierta**, clic derecho con el
+pincel (`items.brush`) sobre un cubo que aún gotea. La barra
+(`excavation.brush.hold-ticks`, por defecto 2 s) es **por cubo**: si miras a
+otro lado se pausa; si vuelves a mirar ese cubo con el pincel, se restaura
+en el mismo punto. Ese cubo deja de emitir partículas. Tras
+`recovery.max-cells-to-clean` cubos distintos (o todos si hay menos), las
+celdas restantes pasan a aire y **cae un ítem** con conservación y
+procedencia. Conservación 0: sin ítem. No gasta jornada. En cualquier
+bloque que **no** sea celda de hallazgo el pincel vanilla no se cancela.
 
 ### Conservación (acordado)
 

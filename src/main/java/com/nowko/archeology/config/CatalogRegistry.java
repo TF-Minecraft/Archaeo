@@ -2,7 +2,6 @@ package com.nowko.archeology.config;
 
 import com.nowko.archeology.item.ItemRef;
 import com.nowko.archeology.model.InterestLevel;
-import org.bukkit.Particle;
 import org.bukkit.configuration.Configuration;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -534,12 +533,10 @@ public class CatalogRegistry {
                     inherit.cellsOnLate(),
                     inherit.breakShape(),
                     inherit.jornadaCost(),
-                    inherit.readyWindowTicks(),
-                    inherit.fill()
+                    inherit.readyWindowTicks()
             );
         }
         int cellsOnTime = Math.max(1, sectionInt(section, inherit.cellsOnTime(), "lift-on-ready", "blocks-on-time", "cells-on-time"));
-        String worksOn = sectionString(section, "works-on", "fill");
         String shape = sectionString(section, "break-shape", "lift-shape", "late-extras", "late-shape", "extra-shape");
         int chimeTicks = Math.max(0, sectionInt(section, inherit.chimeTicks(),
                 "chime-ticks", "beat-ticks", "strike-interval-ticks"));
@@ -553,8 +550,7 @@ public class CatalogRegistry {
                 Math.max(cellsOnTime, sectionInt(section, inherit.cellsOnLate(), "lift-if-late", "blocks-on-late", "cells-on-late")),
                 shape != null ? BreakShape.parse(shape) : inherit.breakShape(),
                 Math.max(1, sectionInt(section, inherit.jornadaCost(), "workday-cost", "jornada-cost")),
-                Math.max(1, sectionInt(section, inherit.readyWindowTicks(), "release-window-ticks", "ready-ticks", "ready-window-ticks")),
-                worksOn != null ? FillKind.parse(worksOn) : inherit.fill()
+                Math.max(1, sectionInt(section, inherit.readyWindowTicks(), "release-window-ticks", "ready-ticks", "ready-window-ticks"))
         );
     }
 

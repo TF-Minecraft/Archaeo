@@ -328,6 +328,12 @@ public class SiteRepository {
             node.put("direct-hit-cells", find.getDirectHitCells().stream()
                     .map(cell -> cell.x() + "," + cell.y() + "," + cell.z())
                     .toList());
+            List<String> brush = new ArrayList<>();
+            for (Map.Entry<BlockCell, Integer> entry : find.getBrushRemaining().entrySet()) {
+                BlockCell cell = entry.getKey();
+                brush.add(cell.x() + "," + cell.y() + "," + cell.z() + ":" + entry.getValue());
+            }
+            node.put("brush-remaining", brush);
             finds.add(node);
         }
         yaml.set("finds", finds);
@@ -444,6 +450,7 @@ public class SiteRepository {
             addCells(map.get("cleaned-cells"), find.getCleanedCells());
             addCells(map.get("grazed-cells"), find.getGrazedCells());
             addCells(map.get("direct-hit-cells"), find.getDirectHitCells());
+            addRemaining(map.get("brush-remaining"), find.getBrushRemaining());
             if (find.getGrazedCells().isEmpty() && find.getDirectHitCells().isEmpty()) {
                 find.setConservation(parseConservation(map.get("conservation")));
             } else {
@@ -512,6 +519,41 @@ public class SiteRepository {
                     Integer.parseInt(parts[1].trim()),
                     Integer.parseInt(parts[2].trim())
             ));
+        }
+    }
+
+    /**
+     * @param raw YAML list of {@code x,y,z:ticks} strings
+     * @param into cell → remaining brush ticks
+     */
+    private static void addRemaining(Object raw, Map<BlockCell, Integer> into) {
+        if (!(raw instanceof List<?> list)) {
+            return;
+        }
+        for (Object entry : list) {
+            String text = String.valueOf(entry);
+            int split = text.lastIndexOf(':');
+            if (split < 0) {
+                continue;
+            }
+            String[] parts = text.substring(0, split).split(",");
+            if (parts.length < 3) {
+                continue;
+            }
+            try {
+                int ticks = Integer.parseInt(text.substring(split + 1).trim());
+                if (ticks <= 0) {
+                    continue;
+                }
+                into.put(
+                        new BlockCell(
+                                Integer.parseInt(parts[0].trim()),
+                                Integer.parseInt(parts[1].trim()),
+                                Integer.parseInt(parts[2].trim())),
+                        ticks);
+            } catch (NumberFormatException ignored) {
+                // skip a corrupt dossier line
+            }
         }
     }
 

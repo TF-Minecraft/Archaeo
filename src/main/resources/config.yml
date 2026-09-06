@@ -121,7 +121,8 @@ excavation:
     item: BRUSH
     # item: "itemsadder:archeo:field_brush"
     enabled: true
-    # How long you must hold right-click on one cube (20 ticks = 1 second). 40 = 2 seconds.
+    # Right-click a dripping cube to start dusting (hold-ticks, 20 = 1 second).
+    # Looking away pauses the bar on that cube; looking back with the brush restores it.
     hold-ticks: 40
     progress-bar: true
     max-cells-to-clean: 6

@@ -32,7 +32,7 @@ public final class LiftPlan {
     /**
      * @param site excavation prism
      * @param origin cube the player held
-     * @param tool lift counts, break shape, and fill gate
+     * @param tool lift counts and break shape
      * @param late whether the ready window was missed
      * @return cubes in lift order; may be shorter than the YAML count when fill runs out
      */
@@ -41,7 +41,7 @@ public final class LiftPlan {
         int count = late ? Math.max(onTime, tool.cellsOnLate()) : onTime;
         Set<Long> taken = new LinkedHashSet<>();
         List<Block> out = new ArrayList<>(count);
-        if (!tryAdd(out, taken, site, tool, origin)) {
+        if (!tryAdd(out, taken, site, origin)) {
             return out;
         }
         if (count <= 1) {
@@ -49,9 +49,9 @@ public final class LiftPlan {
         }
         int extra = count - 1;
         switch (tool.breakShape()) {
-            case AROUND -> addFootprint(out, taken, site, origin, tool, extra, false);
-            case RANDOM -> addFootprint(out, taken, site, origin, tool, extra, true);
-            case DOWN -> addDown(out, taken, site, origin, tool, extra);
+            case AROUND -> addFootprint(out, taken, site, origin, extra, false);
+            case RANDOM -> addFootprint(out, taken, site, origin, extra, true);
+            case DOWN -> addDown(out, taken, site, origin, extra);
         }
         return out;
     }
@@ -63,7 +63,6 @@ public final class LiftPlan {
      * @param taken packed keys of {@code out}
      * @param site excavation
      * @param origin aimed cell
-     * @param tool fill gate
      * @param extra how many to add under {@code origin}
      */
     private static void addDown(
@@ -71,12 +70,11 @@ public final class LiftPlan {
             Set<Long> taken,
             Site site,
             Block origin,
-            ExcavationTool tool,
             int extra
     ) {
         for (int i = 1; i <= extra; i++) {
             Block cell = origin.getRelative(0, -i, 0);
-            if (!tryAdd(out, taken, site, tool, cell)) {
+            if (!tryAdd(out, taken, site, cell)) {
                 break;
             }
         }
@@ -89,7 +87,6 @@ public final class LiftPlan {
      * @param taken packed keys of {@code out}
      * @param site excavation
      * @param origin aimed cell
-     * @param tool fill gate
      * @param extra how many to add
      * @param shuffle whether to pick the pool in random order
      */
@@ -98,7 +95,6 @@ public final class LiftPlan {
             Set<Long> taken,
             Site site,
             Block origin,
-            ExcavationTool tool,
             int extra,
             boolean shuffle
     ) {
@@ -106,7 +102,7 @@ public final class LiftPlan {
         for (int down = 0; down <= 1; down++) {
             for (int[] offset : FOOTPRINT) {
                 Block cell = origin.getRelative(offset[0], -down, offset[1]);
-                if (accept(site, tool, cell) && !taken.contains(pack(cell))) {
+                if (accept(site, cell) && !taken.contains(pack(cell))) {
                     pool.add(cell);
                 }
             }
@@ -119,7 +115,7 @@ public final class LiftPlan {
             if (need <= 0) {
                 return;
             }
-            if (tryAdd(out, taken, site, tool, cell)) {
+            if (tryAdd(out, taken, site, cell)) {
                 need--;
             }
         }
@@ -129,7 +125,6 @@ public final class LiftPlan {
      * @param out cubes already chosen
      * @param taken packed keys
      * @param site excavation
-     * @param tool fill gate
      * @param cell candidate
      * @return whether {@code cell} was appended
      */
@@ -137,10 +132,9 @@ public final class LiftPlan {
             List<Block> out,
             Set<Long> taken,
             Site site,
-            ExcavationTool tool,
             Block cell
     ) {
-        if (!accept(site, tool, cell)) {
+        if (!accept(site, cell)) {
             return false;
         }
         if (!taken.add(pack(cell))) {
@@ -152,18 +146,17 @@ public final class LiftPlan {
 
     /**
      * @param site excavation
-     * @param tool fill gate
      * @param cell world cube
-     * @return whether this profile may lift that cube
+     * @return whether this cube is prism fill
      */
-    private static boolean accept(Site site, ExcavationTool tool, Block cell) {
+    private static boolean accept(Site site, Block cell) {
         if (!site.isInPrism(cell.getX(), cell.getY(), cell.getZ())) {
             return false;
         }
         if (!PrismFill.isTerrainFill(cell.getType())) {
             return false;
         }
-        return tool.fill().allows(cell.getType());
+        return site.isInPrism(cell.getX(), cell.getY(), cell.getZ());
     }
 
     /**

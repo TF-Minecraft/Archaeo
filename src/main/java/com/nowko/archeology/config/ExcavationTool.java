@@ -22,7 +22,6 @@ import java.util.List;
  * @param breakShape YAML {@code break-shape}: same pattern for on-time and late lifts
  * @param jornadaCost work-day actions spent when the cut resolves
  * @param readyWindowTicks YAML {@code release-window-ticks}: ticks after Release in which letting go is still on time
- * @param fill YAML {@code works-on}: which ground this profile may lift
  */
 public record ExcavationTool(
         String id,
@@ -34,8 +33,7 @@ public record ExcavationTool(
         int cellsOnLate,
         BreakShape breakShape,
         int jornadaCost,
-        int readyWindowTicks,
-        FillKind fill
+        int readyWindowTicks
 ) {
     /**
      * Packaged lifts and whitelist for a YAML profile id.
@@ -70,8 +68,7 @@ public record ExcavationTool(
                 1,
                 BreakShape.DOWN,
                 1,
-                20,
-                FillKind.ANY
+                20
         );
     }
 
@@ -94,8 +91,7 @@ public record ExcavationTool(
                 2,
                 BreakShape.DOWN,
                 1,
-                20,
-                FillKind.ANY
+                20
         );
     }
 
@@ -128,8 +124,7 @@ public record ExcavationTool(
                 4,
                 BreakShape.AROUND,
                 1,
-                20,
-                FillKind.ANY
+                20
         );
     }
 

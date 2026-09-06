@@ -53,26 +53,6 @@ public final class PrismFill {
     }
 
     /**
-     * Loose ground a shovel profile may lift. Stone and ore stay for picks.
-     *
-     * @param material block type
-     * @return whether this is dirt, sand, gravel, or similar
-     */
-    public static boolean isSoftFill(Material material) {
-        if (!isTerrainFill(material)) {
-            return false;
-        }
-        if (Tag.DIRT.isTagged(material) || Tag.SAND.isTagged(material)) {
-            return true;
-        }
-        return switch (material) {
-            case GRAVEL, CLAY, MUD, PACKED_MUD, MOSS_BLOCK, SNOW_BLOCK,
-                 SOUL_SAND, SOUL_SOIL -> true;
-            default -> false;
-        };
-    }
-
-    /**
      * Open cut: at least one face meets air, fluid, or plants, so the block is part of the working face.
      *
      * @param block cell in the world

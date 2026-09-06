@@ -149,10 +149,6 @@ public class HandPickService {
         if (tool == null) {
             return;
         }
-        if (!tool.fill().allows(block.getType())) {
-            warn(player, "This tool is only for loose fill.");
-            return;
-        }
         ensureJornada(site, player.getWorld());
         if (site.getJornadaPickLeft() < tool.jornadaCost()) {
             warn(player, "The excavation work day is over.");
@@ -327,7 +323,7 @@ public class HandPickService {
             if (gameTick - cycle.lastActiveTick > ACTIVE_HOLD_TICKS) {
                 continue;
             }
-            if (!isExcavationFill(block) || !cycle.tool.fill().allows(block.getType())) {
+            if (!isExcavationFill(block)) {
                 finish(player);
                 continue;
             }

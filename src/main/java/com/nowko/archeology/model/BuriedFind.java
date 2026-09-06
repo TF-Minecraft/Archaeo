@@ -1,8 +1,10 @@
 package com.nowko.archeology.model;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -20,6 +22,8 @@ public class BuriedFind {
     private final Set<BlockCell> cleanedCells = new LinkedHashSet<>();
     private final Set<BlockCell> grazedCells = new LinkedHashSet<>();
     private final Set<BlockCell> directHitCells = new LinkedHashSet<>();
+    /** Ticks still needed to finish brushing a cube; absent means this cube has not been started. */
+    private final Map<BlockCell, Integer> brushRemaining = new LinkedHashMap<>();
 
     /** @return unique id of this find instance */
     public UUID getId() {
@@ -112,6 +116,37 @@ public class BuriedFind {
      */
     public void markCleaned(BlockCell cell) {
         cleanedCells.add(cell);
+        brushRemaining.remove(cell);
+    }
+
+    /**
+     * In-progress brush bar for this cube. Looking away hides the HUD; looking back with the brush
+     * restores the same remaining ticks.
+     *
+     * @return cell → ticks still needed
+     */
+    public Map<BlockCell, Integer> getBrushRemaining() {
+        return brushRemaining;
+    }
+
+    /**
+     * @param cell a shape cell
+     * @return ticks still needed, or {@code null} if dusting has not started
+     */
+    public Integer brushRemaining(BlockCell cell) {
+        return brushRemaining.get(cell);
+    }
+
+    /**
+     * @param cell cube being dusted
+     * @param remaining ticks until this cube is clean; {@code 0} or less clears the entry
+     */
+    public void setBrushRemaining(BlockCell cell, int remaining) {
+        if (cell == null || remaining <= 0) {
+            brushRemaining.remove(cell);
+            return;
+        }
+        brushRemaining.put(cell, remaining);
     }
 
     /**
