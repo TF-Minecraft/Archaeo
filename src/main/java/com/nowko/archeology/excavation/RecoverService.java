@@ -10,8 +10,7 @@ import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindState;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.site.SiteRepository;
-import net.md_5.bungee.api.ChatMessageType;
-import net.md_5.bungee.api.chat.TextComponent;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
@@ -20,6 +19,9 @@ import org.bukkit.SoundCategory;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -27,6 +29,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -82,12 +85,13 @@ public class RecoverService {
      * Cancels open brush channels.
      */
     public void stop() {
-        for (Channel channel : channels.values()) {
-            if (channel.task != null) {
+        for (UUID id : List.copyOf(channels.keySet())) {
+            Channel channel = channels.remove(id);
+            hideBar(channel);
+            if (channel != null && channel.task != null) {
                 channel.task.cancel();
             }
         }
-        channels.clear();
     }
 
     /**
@@ -95,24 +99,24 @@ public class RecoverService {
      */
     public void cancel(Player player) {
         Channel channel = channels.remove(player.getUniqueId());
+        hideBar(channel);
         if (channel != null && channel.task != null) {
             channel.task.cancel();
         }
     }
 
     /**
-     * Starts or ignores a right-click on prism fill with the field brush.
+     * Starts a timed brush on a fully exposed find cell. Other blocks are ignored so vanilla can run.
      *
      * @param player holder
      * @param block clicked cell
-     * @return whether this click was a recovery action (vanilla brush must not run)
      */
-    public boolean begin(Player player, Block block) {
+    public void begin(Player player, Block block) {
         if (!settings.enabled()) {
-            return false;
+            return;
         }
         if (!brush.isBrush(player.getInventory().getItemInMainHand())) {
-            return false;
+            return;
         }
         Site site = sites.findEstablishedPrism(
                 block.getWorld().getName(),
@@ -120,43 +124,43 @@ public class RecoverService {
                 block.getY(),
                 block.getZ()).orElse(null);
         if (site == null) {
-            return false;
+            return;
         }
         BuriedFind find = site.findAt(new BlockCell(block.getX(), block.getY(), block.getZ())).orElse(null);
         if (find == null || find.getState() == FindState.LOST || find.getState() == FindState.RECOVERED) {
-            return false;
+            return;
         }
         if (find.getState() != FindState.DISCOVERED) {
             warn(player, "The shape is not fully free.");
             playPuff(block);
-            return true;
+            return;
         }
         if (!PrismFill.isTerrainFill(block.getType())) {
-            return false;
+            return;
         }
         BlockCell cell = new BlockCell(block.getX(), block.getY(), block.getZ());
         if (find.isCleaned(cell)) {
             warn(player, "That cube is already clean.");
-            return true;
+            return;
         }
         Channel existing = channels.get(player.getUniqueId());
         if (existing != null && existing.sameCell(block) && existing.findId.equals(find.getId())) {
-            return true;
+            return;
         }
         cancel(player);
+        int ticks = Math.max(1, settings.channelTicks());
         Channel channel = new Channel(
                 site.getId(),
                 find.getId(),
                 block.getX(),
                 block.getY(),
                 block.getZ(),
-                player.getLocation().clone());
+                player.getLocation().clone(),
+                ticks,
+                createBar(player));
         channels.put(player.getUniqueId(), channel);
-        int ticks = Math.max(1, settings.channelTicks());
-        channel.remaining = ticks;
         channel.task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> pulse(player, channel), 1L, 1L);
         playBrush(block);
-        return true;
     }
 
     /**
@@ -183,11 +187,9 @@ public class RecoverService {
         }
         channel.remaining--;
         Block block = player.getWorld().getBlockAt(channel.x, channel.y, channel.z);
+        updateBar(channel);
         if (channel.remaining % 5 == 0) {
             playBrush(block);
-            player.spigot().sendMessage(
-                    ChatMessageType.ACTION_BAR,
-                    new TextComponent("Brushing the matrix."));
         }
         if (channel.remaining > 0) {
             return;
@@ -346,6 +348,45 @@ public class RecoverService {
     }
 
     /**
+     * Creates a boss bar for this hold when {@code recovery.progress-bar} is on.
+     *
+     * @param player viewer
+     * @return shown bar, or {@code null} when disabled
+     */
+    private BossBar createBar(Player player) {
+        if (!settings.progressBar()) {
+            return null;
+        }
+        BossBar bar = Bukkit.createBossBar("Brushing", BarColor.YELLOW, BarStyle.SEGMENTED_10);
+        bar.setProgress(0);
+        bar.setVisible(true);
+        bar.addPlayer(player);
+        return bar;
+    }
+
+    /**
+     * @param channel open brush
+     */
+    private static void updateBar(Channel channel) {
+        if (channel.bar == null) {
+            return;
+        }
+        double elapsed = channel.duration - channel.remaining;
+        channel.bar.setProgress(Math.max(0, Math.min(1, elapsed / channel.duration)));
+    }
+
+    /**
+     * @param channel finished or aborted brush, or {@code null}
+     */
+    private static void hideBar(Channel channel) {
+        if (channel == null || channel.bar == null) {
+            return;
+        }
+        channel.bar.removeAll();
+        channel.bar.setVisible(false);
+    }
+
+    /**
      * @param player holder
      * @param message English line
      */
@@ -369,6 +410,8 @@ public class RecoverService {
         private final int y;
         private final int z;
         private final Location origin;
+        private final int duration;
+        private final BossBar bar;
         private int remaining;
         private BukkitTask task;
 
@@ -379,14 +422,28 @@ public class RecoverService {
          * @param y block Y
          * @param z block Z
          * @param origin player location at start
+         * @param duration ticks until this cube is clean
+         * @param bar progress shown to the player, or {@code null}
          */
-        private Channel(UUID siteId, UUID findId, int x, int y, int z, Location origin) {
+        private Channel(
+                UUID siteId,
+                UUID findId,
+                int x,
+                int y,
+                int z,
+                Location origin,
+                int duration,
+                BossBar bar
+        ) {
             this.siteId = siteId;
             this.findId = findId;
             this.x = x;
             this.y = y;
             this.z = z;
             this.origin = origin;
+            this.duration = duration;
+            this.remaining = duration;
+            this.bar = bar;
         }
 
         /**

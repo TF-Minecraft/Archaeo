@@ -5,10 +5,14 @@ api-version: "1.21"
 author: nowko
 description: Persistent archaeology for a custom map.
 
+softdepend:
+  - ItemsAdder
+  - MMOItems
+
 commands:
   archaeo:
     description: Archaeo admin commands
-    usage: /archaeo <ruin|tracker|prospect|establish|pick|brush|find|reload> ...
+    usage: /archaeo <give|ruin|workday|find|reload> ...
     # Permission is config.yml permissions.staff (checked in code), default archaeo.admin.
 
 permissions:

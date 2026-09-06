@@ -1,9 +1,11 @@
 package com.nowko.archeology.config;
 
-import com.nowko.archeology.excavation.DigTools;
+import com.nowko.archeology.item.ItemRef;
 import com.nowko.archeology.model.InterestLevel;
 import org.bukkit.Particle;
+import org.bukkit.configuration.Configuration;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -25,6 +27,7 @@ public class CatalogRegistry {
     private final Map<String, StratumDefinition> strata = new LinkedHashMap<>();
     private final Map<String, ArtifactTemplate> artifacts = new LinkedHashMap<>();
     private final Map<String, HintTemplate> hints = new LinkedHashMap<>();
+    private final Map<String, FindMaterial> materials = new LinkedHashMap<>();
     private int maxShapeAttempts = 24;
     private boolean useWorldSeed = true;
     private TrackerSettings tracker = TrackerSettings.defaults();
@@ -47,6 +50,7 @@ public class CatalogRegistry {
      */
     public void load() {
         copyDefaultIfAbsent("config.yml");
+        copyDefaultIfAbsent("interest.yml");
         copyDefaultIfAbsent("strata.yml");
         copyDefaultIfAbsent("artifacts.yml");
         copyDefaultIfAbsent("hints.yml");
@@ -54,18 +58,20 @@ public class CatalogRegistry {
         copyDefaultIfAbsent("materials.yml");
 
         plugin.reloadConfig();
-        loadInterests(plugin.getConfig());
-        loadGeneration(plugin.getConfig());
-        loadTracker(plugin.getConfig());
-        loadProspect(plugin.getConfig());
-        loadEstablish(plugin.getConfig());
-        loadPick(plugin.getConfig());
-        loadRecovery(plugin.getConfig());
-        loadItems(plugin.getConfig());
-        loadStaffPermission(plugin.getConfig());
+        FileConfiguration config = plugin.getConfig();
+        loadItems(yaml("items.yml"), config);
+        loadInterests(yaml("interest.yml"), config);
+        loadGeneration(yaml("interest.yml"), config);
+        loadTracker(config);
+        loadProspect(config);
+        loadEstablish(config);
+        loadPick(config);
+        loadRecovery(config);
+        loadStaffPermission(config);
         loadStrata(yaml("strata.yml"));
         loadArtifacts(yaml("artifacts.yml"));
         loadHints(yaml("hints.yml"));
+        loadMaterials(yaml("materials.yml"));
     }
 
     /**
@@ -109,6 +115,21 @@ public class CatalogRegistry {
     }
 
     /**
+     * @param id material key from {@code artifacts.yml} / {@code materials.yml}
+     * @return English label for field traces
+     */
+    public String materialDisplayName(String id) {
+        if (id == null || id.isBlank()) {
+            return "unknown";
+        }
+        FindMaterial material = materials.get(id);
+        if (material != null) {
+            return material.displayName();
+        }
+        return Character.toUpperCase(id.charAt(0)) + id.substring(1);
+    }
+
+    /**
      * @return all hint templates
      */
     public List<HintTemplate> hints() {
@@ -144,7 +165,7 @@ public class CatalogRegistry {
     }
 
     /**
-     * @return Hand Pick cadence, empty-fill cue and window, find risk, and copy
+     * @return excavation flags and named tool profiles
      */
     public PickSettings pick() {
         return pick;
@@ -158,7 +179,7 @@ public class CatalogRegistry {
     }
 
     /**
-     * @return materials for tracker and excavation tools
+     * @return materials for tracker, kits, brush, and excavation profiles
      */
     public ItemMaterials items() {
         return items;
@@ -179,12 +200,13 @@ public class CatalogRegistry {
     }
 
     /**
-     * Reads shape-generation flags from {@code config.yml}.
+     * Reads shape-generation flags from {@code interest.yml}, falling back to {@code config.yml}.
      *
+     * @param interest parsed interest file
      * @param config root plugin config
      */
-    private void loadGeneration(org.bukkit.configuration.file.FileConfiguration config) {
-        ConfigurationSection section = config.getConfigurationSection("generation");
+    private void loadGeneration(YamlConfiguration interest, FileConfiguration config) {
+        ConfigurationSection section = sectionOr(interest, config, "generation");
         if (section == null) {
             return;
         }
@@ -193,7 +215,7 @@ public class CatalogRegistry {
     }
 
     /**
-     * Reads tracker item and scan settings from {@code config.yml}.
+     * Reads tracker scan radii and pip timing from {@code config.yml}.
      *
      * @param config root plugin config
      */
@@ -202,66 +224,177 @@ public class CatalogRegistry {
         if (section == null) {
             return;
         }
-        List<String> lore = section.getStringList("item-lore");
-        if (lore.isEmpty()) {
-            lore = List.of(
-                    "Turn. Stronger pulses mean you are facing a ruin.",
-                    "Arcs fire the way you look. A full ring means you are on it.",
-                    "No coordinates."
-            );
-        }
+        TrackerSettings fallback = TrackerSettings.defaults();
         List<Double> radii = section.getDoubleList("wave-radii");
         if (radii.size() < 3) {
-            radii = List.of(1.2, 2.6, 4.2);
+            radii = fallback.waveRadii();
         } else {
             radii = List.copyOf(radii.subList(0, 3));
         }
         tracker = new TrackerSettings(
-                section.getBoolean("enabled", true),
-                Math.max(1, section.getInt("default-max-range", 256)),
-                Math.max(1, section.getInt("near-range", 64)),
-                Math.max(1, section.getInt("detect-message-range", 32)),
-                Math.max(0, section.getInt("detect-message-share-range", 0)),
-                section.getBoolean("pulse-particles", true),
-                Math.max(1, section.getInt("beep-max-ticks", 70)),
-                Math.max(1, section.getInt("beep-min-ticks", 5)),
-                Math.max(1, section.getInt("detect-message-cooldown-ticks", 200)),
+                section.getBoolean("enabled", fallback.enabled()),
+                Math.max(1, sectionInt(section, fallback.defaultMaxRange(), "max-range", "default-max-range")),
+                Math.max(1, sectionInt(section, fallback.nearRange(), "medium-range", "near-range")),
+                Math.max(1, sectionInt(section, fallback.detectMessageRange(), "close-range", "detect-message-range")),
+                section.getBoolean("pulse-particles", fallback.pulseParticles()),
+                Math.max(1, sectionInt(section, fallback.beepMaxTicks(), "beep-max-ticks")),
+                Math.max(1, sectionInt(section, fallback.beepMinTicks(), "beep-min-ticks")),
+                Math.max(1, sectionInt(section, fallback.detectMessageCooldownTicks(), "detect-message-cooldown-ticks")),
                 radii,
-                Math.max(1, section.getInt("wave-step-ticks", 3)),
-                Math.max(1, section.getInt("particle-fade-ticks", 10)),
-                ConfigEnums.particle(plugin, section.getString("wave-particle"), Particle.ENCHANTED_HIT, "tracker.wave-particle"),
-                Math.max(0.0, section.getDouble("wave-bias-blocks", 1.2)),
-                Math.max(0.0, section.getDouble("target-switch-margin", 16)),
-                section.getString("item-name", "Archaeological tracker"),
-                List.copyOf(lore)
+                Math.max(1, sectionInt(section, fallback.waveStepTicks(), "wave-step-ticks")),
+                Math.max(1, sectionInt(section, fallback.particleFadeTicks(), "particle-fade-ticks")),
+                ConfigEnums.particle(
+                        plugin,
+                        section.getString("wave-particle"),
+                        fallback.waveParticle(),
+                        "tracker.wave-particle"),
+                Math.max(0.0, sectionDouble(section, fallback.waveBiasBlocks(), "wave-bias-blocks")),
+                Math.max(0.0, sectionDouble(section, fallback.targetSwitchMargin(), "target-switch-margin"))
         );
     }
 
     /**
-     * Reads Bukkit materials for plugin tools.
+     * Reads item ids from each feature section in {@code config.yml}.
+     * Older {@code items.yml} or {@code items:} maps are still accepted if those keys are missing.
      *
+     * @param itemsFile optional leftover {@code items.yml}
      * @param config root plugin config
      */
-    private void loadItems(org.bukkit.configuration.file.FileConfiguration config) {
-        ConfigurationSection section = config.getConfigurationSection("items");
+    private void loadItems(YamlConfiguration itemsFile, FileConfiguration config) {
         ItemMaterials fallback = ItemMaterials.defaults();
-        if (section == null) {
-            items = fallback;
-            return;
-        }
         items = new ItemMaterials(
-                ConfigEnums.material(plugin, section.getString("tracker"), fallback.tracker(), "items.tracker"),
-                ConfigEnums.material(plugin, section.getString("prospect"), fallback.prospect(), "items.prospect"),
-                ConfigEnums.material(plugin, section.getString("establish"), fallback.establish(), "items.establish"),
-                ConfigEnums.material(plugin, section.getString("pick"), fallback.pick(), "items.pick"),
-                ConfigEnums.material(plugin, section.getString("shovel"), fallback.shovel(), "items.shovel"),
-                ConfigEnums.material(plugin, section.getString("hammer"), fallback.hammer(), "items.hammer"),
-                ConfigEnums.material(plugin, section.getString("brush"), fallback.brush(), "items.brush")
+                parseItemId(fallback.tracker(), itemsFile, config,
+                        "tracker.item", "discovery.tracker", "items.tracker"),
+                parseItemId(fallback.prospect(), itemsFile, config,
+                        "prospect.item", "discovery.prospect", "items.prospect"),
+                parseItemId(fallback.establish(), itemsFile, config,
+                        "establish.item", "discovery.establish", "items.establish"),
+                parseItemId(fallback.brush(), itemsFile, config,
+                        "excavation.brush.item", "recovery.item", "recovery.brush", "items.brush"),
+                loadExcavationItemLists(itemsFile, config, fallback)
         );
     }
 
     /**
-     * Reads prospecting-kit sample rules and item copy.
+     * @param fallback packaged id
+     * @param itemsFile leftover items file
+     * @param config root plugin config
+     * @param paths dotted paths tried on {@code config} then {@code itemsFile}
+     * @return parsed ref
+     */
+    private ItemRef parseItemId(
+            ItemRef fallback,
+            YamlConfiguration itemsFile,
+            FileConfiguration config,
+            String... paths
+    ) {
+        String raw = firstPath(config, paths);
+        if (raw == null) {
+            raw = firstPath(itemsFile, paths);
+        }
+        return ItemRef.parseOr(plugin, raw, fallback);
+    }
+
+    /**
+     * @param root YAML root
+     * @param paths dotted keys
+     * @return first non-blank string that is not a section
+     */
+    private static String firstPath(Configuration root, String... paths) {
+        if (root == null) {
+            return null;
+        }
+        for (String path : paths) {
+            if (!root.contains(path) || root.isConfigurationSection(path)) {
+                continue;
+            }
+            String value = root.getString(path);
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Reads per-profile stack lists from {@code excavation.tools.<id>.items}, then leftover files.
+     *
+     * @param itemsFile leftover {@code items.yml}
+     * @param config root plugin config
+     * @param fallback packaged lists
+     * @return profile id to whitelist
+     */
+    private Map<String, List<ItemRef>> loadExcavationItemLists(
+            YamlConfiguration itemsFile,
+            FileConfiguration config,
+            ItemMaterials fallback
+    ) {
+        Map<String, List<ItemRef>> profiles = new LinkedHashMap<>();
+        ConfigurationSection tools = config.getConfigurationSection("excavation.tools");
+        ConfigurationSection itemsExcavation = itemsFile == null
+                ? null
+                : itemsFile.getConfigurationSection("excavation");
+        LinkedHashSet<String> ids = new LinkedHashSet<>(fallback.excavationProfiles().keySet());
+        if (tools != null) {
+            ids.addAll(tools.getKeys(false));
+        }
+        if (itemsExcavation != null) {
+            for (String key : itemsExcavation.getKeys(false)) {
+                if (!"pick".equals(key) && !"give".equals(key) && !"brush".equals(key)) {
+                    ids.add(key);
+                }
+            }
+        }
+        for (String id : ids) {
+            List<ItemRef> materials = List.of();
+            ConfigurationSection tool = tools == null ? null : tools.getConfigurationSection(id);
+            if (tool != null) {
+                materials = toolItems(tool);
+            }
+            if (materials.isEmpty() && itemsExcavation != null) {
+                materials = readItemList(itemsExcavation, id);
+            }
+            if (materials.isEmpty()) {
+                materials = fallback.profileMaterials(id);
+            }
+            if (!materials.isEmpty()) {
+                profiles.put(id, materials);
+            }
+        }
+        return Collections.unmodifiableMap(profiles);
+    }
+
+    /**
+     * @param tool one {@code excavation.tools} profile
+     * @return {@code items} or legacy {@code materials}
+     */
+    private List<ItemRef> toolItems(ConfigurationSection tool) {
+        List<String> raw = tool.getStringList("items");
+        if (raw.isEmpty()) {
+            raw = tool.getStringList("materials");
+        }
+        return ItemRef.parseList(plugin, raw);
+    }
+
+    /**
+     * @param parent excavation or tool parent
+     * @param id profile key
+     * @return parsed list, or empty
+     */
+    private List<ItemRef> readItemList(ConfigurationSection parent, String id) {
+        List<String> raw = parent.getStringList(id);
+        if (!raw.isEmpty()) {
+            return ItemRef.parseList(plugin, raw);
+        }
+        ConfigurationSection nested = parent.getConfigurationSection(id);
+        if (nested == null) {
+            return List.of();
+        }
+        return ItemRef.parseList(plugin, nested.getStringList("materials"));
+    }
+
+    /**
+     * Reads prospecting-kit sample rules.
      *
      * @param config root plugin config
      */
@@ -272,22 +405,16 @@ public class CatalogRegistry {
             prospect = fallback;
             return;
         }
-        List<String> lore = section.getStringList("item-lore");
-        if (lore.isEmpty()) {
-            lore = fallback.itemLore();
-        }
         prospect = new ProspectSettings(
                 section.getBoolean("enabled", true),
                 Math.max(1, section.getInt("points-required", 4)),
                 Math.max(1, section.getInt("use-ticks", 40)),
-                Math.max(1, section.getInt("min-sample-distance", 3)),
-                section.getString("item-name", fallback.itemName()),
-                List.copyOf(lore)
+                Math.max(1, section.getInt("min-sample-distance", 3))
         );
     }
 
     /**
-     * Reads establishment-kit rules, camp block, preview blocks, and item copy.
+     * Reads establishment-kit rules, camp block, and preview blocks.
      *
      * @param config root plugin config
      */
@@ -298,14 +425,9 @@ public class CatalogRegistry {
             establish = fallback;
             return;
         }
-        List<String> lore = section.getStringList("item-lore");
-        if (lore.isEmpty()) {
-            lore = fallback.itemLore();
-        }
         establish = new EstablishSettings(
                 section.getBoolean("enabled", true),
                 section.getBoolean("protect-dig-site", fallback.protectDigSite()),
-                ConfigEnums.material(plugin, section.getString("camp-block"), fallback.campBlock(), "establish.camp-block"),
                 ConfigEnums.material(
                         plugin,
                         section.getString("invalid-block"),
@@ -315,72 +437,270 @@ public class CatalogRegistry {
                         plugin,
                         section.getString("ruin-outline-block"),
                         fallback.ruinOutlineBlock(),
-                        "establish.ruin-outline-block"),
-                section.getString("item-name", fallback.itemName()),
-                List.copyOf(lore)
+                        "establish.ruin-outline-block")
         );
     }
 
     /**
-     * Reads Hand Pick cadence, empty-fill cue and window, find risk, and item copy.
+     * Reads shared excavation flags and named tool profiles.
+     * Cadence lives on {@code excavation.tools.<id>}. Shared keys may still sit on {@code pick:}.
      *
      * @param config root plugin config
      */
-    private void loadPick(org.bukkit.configuration.file.FileConfiguration config) {
-        ConfigurationSection section = config.getConfigurationSection("pick");
+    private void loadPick(FileConfiguration config) {
         PickSettings fallback = PickSettings.defaults();
-        if (section == null) {
-            pick = fallback;
-            return;
-        }
-        List<String> lore = section.getStringList("item-lore");
-        if (lore.isEmpty()) {
-            lore = fallback.itemLore();
-        }
-        int cueMin = Math.max(1, section.getInt("cue-clings-min", fallback.cueClingsMin()));
+        ConfigurationSection excavation = config.getConfigurationSection("excavation");
+        ConfigurationSection pickSection = config.getConfigurationSection("pick");
         pick = new PickSettings(
-                section.getBoolean("enabled", true),
-                Math.max(1, section.getInt("block-stages", fallback.blockStages())),
-                Math.max(1, section.getInt("jornada-actions", fallback.jornadaActions())),
-                Math.max(1, section.getInt("strike-interval-ticks", fallback.strikeIntervalTicks())),
-                cueMin,
-                Math.max(cueMin, section.getInt("cue-clings-max", fallback.cueClingsMax())),
-                Math.max(1, section.getInt("ready-window-ticks", fallback.readyWindowTicks())),
-                section.getBoolean("visual-cues", fallback.visualCues()),
-                section.getBoolean("find-dust", fallback.findDust()),
-                Math.max(1, section.getInt("find-dust-interval-ticks", fallback.findDustIntervalTicks())),
-                Math.max(1, section.getInt("find-dust-count", fallback.findDustCount())),
-                Math.max(0, section.getInt("conservation-loss-per-strike", fallback.conservationLossPerStrike())),
-                Math.max(0, section.getInt("conservation-loss-on-remove", fallback.conservationLossOnRemove())),
-                Math.max(0, Math.min(100, section.getInt("damaged-below-percent", fallback.damagedBelowPercent()))),
-                DigTools.parse(section.getStringList("tools")),
-                section.getString("item-name", fallback.itemName()),
-                List.copyOf(lore)
+                firstBool(excavation, pickSection, fallback.enabled(), "enabled"),
+                Math.max(1, firstInt(excavation, pickSection, fallback.jornadaActions(),
+                        "workday-actions", "workday-allowed-actions", "jornada-actions")),
+                firstBool(excavation, pickSection, fallback.visualCues(), "visual-cues"),
+                firstBool(excavation, pickSection, fallback.findDust(), "find-particles", "find-dust"),
+                Math.max(1, firstInt(excavation, pickSection, fallback.findDustIntervalTicks(),
+                        "find-particles-interval-ticks", "find-dust-interval-ticks")),
+                Math.max(1, firstInt(excavation, pickSection, fallback.findDustCount(),
+                        "find-particles-count", "find-dust-count")),
+                Math.max(0, Math.min(100, firstInt(excavation, pickSection, fallback.damagedBelowPercent(), "damaged-below-percent"))),
+                firstBool(excavation, pickSection, fallback.neighborTraces(), "neighbor-traces"),
+                loadProfiles(excavation, pickSection, fallback)
         );
     }
 
     /**
-     * Reads field-brush recovery channel, tedium cap, and item copy.
+     * Builds named tools from {@code excavation.tools} (whitelist, lifts, window; tempo is vanilla).
+     *
+     * @param excavation {@code excavation:} or {@code null}
+     * @param pickSection {@code pick:} or {@code null}
+     * @param fallback packaged profiles
+     * @return named tools; legacy {@code pick.tools} becomes one {@code hand} profile
+     */
+    private List<ExcavationTool> loadProfiles(
+            ConfigurationSection excavation,
+            ConfigurationSection pickSection,
+            PickSettings fallback
+    ) {
+        ConfigurationSection tools = excavation == null ? null : excavation.getConfigurationSection("tools");
+        LinkedHashSet<String> ids = new LinkedHashSet<>(items.excavationProfiles().keySet());
+        if (tools != null) {
+            ids.addAll(tools.getKeys(false));
+        }
+        if (!ids.isEmpty()) {
+            List<ExcavationTool> profiles = new ArrayList<>();
+            for (String id : ids) {
+                ConfigurationSection tool = tools == null ? null : tools.getConfigurationSection(id);
+                List<ItemRef> materials = items.profileMaterials(id);
+                if (materials.isEmpty() && tool != null) {
+                    materials = toolItems(tool);
+                }
+                if (materials.isEmpty()) {
+                    continue;
+                }
+                profiles.add(readTool(id, tool, materials, ExcavationTool.packaged(id)));
+            }
+            if (!profiles.isEmpty()) {
+                return List.copyOf(profiles);
+            }
+        }
+        if (pickSection != null && !pickSection.getStringList("tools").isEmpty()) {
+            List<ItemRef> materials = ItemRef.parseAll(plugin, pickSection.getStringList("tools"));
+            ExcavationTool inherit = ExcavationTool.hand();
+            return List.of(readTool("hand", pickSection, materials, inherit));
+        }
+        return fallback.profiles();
+    }
+
+    /**
+     * @param id profile key
+     * @param section tool (or legacy pick) keys; {@code null} uses {@code inherit} lifts and window
+     * @param materials already parsed stacks
+     * @param inherit defaults when a key is omitted
+     * @return one profile
+     */
+    private static ExcavationTool readTool(
+            String id,
+            ConfigurationSection section,
+            List<ItemRef> materials,
+            ExcavationTool inherit
+    ) {
+        if (section == null) {
+            return new ExcavationTool(
+                    id,
+                    materials,
+                    inherit.chimeTicks(),
+                    inherit.miningSpeed(),
+                    inherit.miningSpeedMultiplier(),
+                    inherit.cellsOnTime(),
+                    inherit.cellsOnLate(),
+                    inherit.breakShape(),
+                    inherit.jornadaCost(),
+                    inherit.readyWindowTicks(),
+                    inherit.fill()
+            );
+        }
+        int cellsOnTime = Math.max(1, sectionInt(section, inherit.cellsOnTime(), "lift-on-ready", "blocks-on-time", "cells-on-time"));
+        String worksOn = sectionString(section, "works-on", "fill");
+        String shape = sectionString(section, "break-shape", "lift-shape", "late-extras", "late-shape", "extra-shape");
+        int chimeTicks = Math.max(0, sectionInt(section, inherit.chimeTicks(),
+                "chime-ticks", "beat-ticks", "strike-interval-ticks"));
+        return new ExcavationTool(
+                id,
+                materials,
+                chimeTicks,
+                sectionFloat(section, inherit.miningSpeed(), "mining-speed", "default-mining-speed"),
+                sectionFloat(section, inherit.miningSpeedMultiplier(), "mining-speed-multiplier", "break-speed-multiplier"),
+                cellsOnTime,
+                Math.max(cellsOnTime, sectionInt(section, inherit.cellsOnLate(), "lift-if-late", "blocks-on-late", "cells-on-late")),
+                shape != null ? BreakShape.parse(shape) : inherit.breakShape(),
+                Math.max(1, sectionInt(section, inherit.jornadaCost(), "workday-cost", "jornada-cost")),
+                Math.max(1, sectionInt(section, inherit.readyWindowTicks(), "release-window-ticks", "ready-ticks", "ready-window-ticks")),
+                worksOn != null ? FillKind.parse(worksOn) : inherit.fill()
+        );
+    }
+
+    /**
+     * @param first preferred section
+     * @param second fallback section
+     * @param fallback when no key is present
+     * @param keys YAML keys in preference order
+     * @return integer value
+     */
+    private static int firstInt(ConfigurationSection first, ConfigurationSection second, int fallback, String... keys) {
+        Integer value = sectionIntOrNull(first, keys);
+        if (value != null) {
+            return value;
+        }
+        value = sectionIntOrNull(second, keys);
+        return value != null ? value : fallback;
+    }
+
+    /**
+     * @param first preferred section
+     * @param second fallback section
+     * @param fallback when no key is present
+     * @param keys YAML keys in preference order
+     * @return boolean value
+     */
+    private static boolean firstBool(ConfigurationSection first, ConfigurationSection second, boolean fallback, String... keys) {
+        for (String key : keys) {
+            if (first != null && first.contains(key)) {
+                return first.getBoolean(key);
+            }
+        }
+        for (String key : keys) {
+            if (second != null && second.contains(key)) {
+                return second.getBoolean(key);
+            }
+        }
+        return fallback;
+    }
+
+    /**
+     * @param section tool or feature block
+     * @param fallback when no key is present
+     * @param keys YAML keys in preference order
+     * @return integer value
+     */
+    private static int sectionInt(ConfigurationSection section, int fallback, String... keys) {
+        Integer value = sectionIntOrNull(section, keys);
+        return value != null ? value : fallback;
+    }
+
+    /**
+     * @param section YAML block
+     * @param fallback when no key is present ({@code null} means leave the live item)
+     * @param keys YAML keys in preference order
+     * @return first present float, or {@code fallback}
+     */
+    private static Float sectionFloat(ConfigurationSection section, Float fallback, String... keys) {
+        if (section == null) {
+            return fallback;
+        }
+        for (String key : keys) {
+            if (!section.contains(key) || section.isConfigurationSection(key)) {
+                continue;
+            }
+            String raw = section.getString(key);
+            if (raw == null || raw.isBlank()) {
+                return null;
+            }
+            return (float) section.getDouble(key);
+        }
+        return fallback;
+    }
+
+    /**
+     * @param section YAML block
+     * @param keys keys in preference order
+     * @return first present int, or {@code null}
+     */
+    private static Integer sectionIntOrNull(ConfigurationSection section, String... keys) {
+        if (section == null) {
+            return null;
+        }
+        for (String key : keys) {
+            if (section.contains(key)) {
+                return section.getInt(key);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * @param section tool block
+     * @param fallback when no key is present
+     * @param keys YAML keys in preference order
+     * @return double value
+     */
+    private static double sectionDouble(ConfigurationSection section, double fallback, String... keys) {
+        if (section == null) {
+            return fallback;
+        }
+        for (String key : keys) {
+            if (section.contains(key)) {
+                return section.getDouble(key);
+            }
+        }
+        return fallback;
+    }
+
+    /**
+     * @param section tool block
+     * @param keys YAML keys in preference order
+     * @return first present string, or {@code null}
+     */
+    private static String sectionString(ConfigurationSection section, String... keys) {
+        if (section == null) {
+            return null;
+        }
+        for (String key : keys) {
+            if (section.contains(key) && !section.isConfigurationSection(key)) {
+                return section.getString(key);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Reads field-brush recovery from {@code excavation.brush}, or leftover {@code recovery:}.
      *
      * @param config root plugin config
      */
-    private void loadRecovery(org.bukkit.configuration.file.FileConfiguration config) {
-        ConfigurationSection section = config.getConfigurationSection("recovery");
+    private void loadRecovery(FileConfiguration config) {
+        ConfigurationSection section = config.getConfigurationSection("excavation.brush");
+        if (section == null) {
+            section = config.getConfigurationSection("recovery");
+        }
         RecoverySettings fallback = RecoverySettings.defaults();
         if (section == null) {
             recovery = fallback;
             return;
         }
-        List<String> lore = section.getStringList("item-lore");
-        if (lore.isEmpty()) {
-            lore = fallback.itemLore();
-        }
         recovery = new RecoverySettings(
                 section.getBoolean("enabled", true),
-                Math.max(1, section.getInt("channel-ticks", fallback.channelTicks())),
+                Math.max(1, sectionInt(section, fallback.channelTicks(), "hold-ticks", "channel-ticks")),
                 Math.max(1, section.getInt("max-cells-to-clean", fallback.maxCellsToClean())),
-                section.getString("item-name", fallback.itemName()),
-                List.copyOf(lore)
+                section.getBoolean("progress-bar", fallback.progressBar())
         );
     }
 
@@ -395,16 +715,17 @@ public class CatalogRegistry {
     }
 
     /**
-     * Reads interest budgets used when creating a site.
+     * Reads interest budgets from {@code interest.yml}, falling back to {@code config.yml}.
      *
+     * @param interest parsed interest file
      * @param config root plugin config
      * @throws IllegalStateException if an interest-levels block is missing
      */
-    private void loadInterests(org.bukkit.configuration.file.FileConfiguration config) {
+    private void loadInterests(YamlConfiguration interest, FileConfiguration config) {
         interests.clear();
-        ConfigurationSection root = config.getConfigurationSection("interest-levels");
+        ConfigurationSection root = sectionOr(interest, config, "interest-levels");
         if (root == null) {
-            throw new IllegalStateException("Missing interest-levels in config.yml");
+            throw new IllegalStateException("Missing interest-levels in interest.yml");
         }
         for (InterestLevel level : InterestLevel.values()) {
             ConfigurationSection section = root.getConfigurationSection(level.yamlKey());
@@ -489,6 +810,26 @@ public class CatalogRegistry {
     }
 
     /**
+     * Reads field-trace labels from {@code materials.yml}. Lab steps are ignored until the lab exists.
+     *
+     * @param yaml parsed materials file
+     */
+    private void loadMaterials(YamlConfiguration yaml) {
+        materials.clear();
+        ConfigurationSection root = yaml.getConfigurationSection("materials");
+        if (root == null) {
+            return;
+        }
+        for (String id : root.getKeys(false)) {
+            ConfigurationSection section = root.getConfigurationSection(id);
+            if (section == null) {
+                continue;
+            }
+            materials.put(id, new FindMaterial(id, section.getString("display-name", id)));
+        }
+    }
+
+    /**
      * Reads site hint texts and filter rules from {@code hints.yml}.
      *
      * @param yaml parsed hints file
@@ -519,6 +860,26 @@ public class CatalogRegistry {
                     section.contains("require-disturbed") ? section.getBoolean("require-disturbed") : null
             ));
         }
+    }
+
+    /**
+     * @param preferred first file
+     * @param fallback second file
+     * @param path section path
+     * @return first non-null section
+     */
+    private static ConfigurationSection sectionOr(
+            YamlConfiguration preferred,
+            FileConfiguration fallback,
+            String path
+    ) {
+        if (preferred != null) {
+            ConfigurationSection section = preferred.getConfigurationSection(path);
+            if (section != null) {
+                return section;
+            }
+        }
+        return fallback == null ? null : fallback.getConfigurationSection(path);
     }
 
     /**

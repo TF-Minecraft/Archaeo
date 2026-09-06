@@ -21,7 +21,7 @@ import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.EquipmentSlot;
 
 /**
- * Left-click hold with a whitelisted tool drives the vanilla-break clock on prism fill.
+ * Left-click hold with a whitelisted tool drives the excavation clock on prism fill.
  */
 public class HandPickListener implements Listener {
     private final HandPickService pick;

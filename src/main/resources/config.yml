@@ -1,186 +1,127 @@
-# General settings. Catalogs live in the other YAML files.
+# Archaeo — gameplay. One section per step the player takes.
+#
+# Other files (edit those for catalogs, not for tools):
+#   interest.yml          how rich a ruin is
+#   strata.yml            depth bands
+#   artifacts.yml         find templates
+#   hints.yml             site clues
+#   interpretations.yml   player readings (not used in-game yet)
+#   materials.yml         find-material labels (and later lab chains)
+#
+# Item ids: STONE_HOE | itemsadder:namespace:id | mmoitems:TYPE:id
+# Any matching stack works (crafted, given, or from a pack). Pack items keep the pack look.
+# A vanilla id such as STICK matches every vanilla stick, not a custom pack stick.
 
 permissions:
-  # Bukkit / LuckPerms node for /archaeo staff commands. Default op via plugin.yml archaeo.admin.
   staff: archaeo.admin
 
-items:
-  tracker: RECOVERY_COMPASS
-  # Soil probe (cata). Keep this different from items.brush (excavation minigame).
-  prospect: STONE_HOE
-  # Camp kit. Keep this different from a vanilla stick.
-  establish: STICK
-  # Used by /archaeo pick give as a sample vanilla pickaxe if PICKAXES is in pick.tools.
-  pick: STONE_PICKAXE
-  shovel: IRON_SHOVEL
-  hammer: MACE
-  brush: BRUSH
-
-prospect:
-  enabled: true
-  # Distinct ground points in the ruin chunk before the site is confirmed.
-  points-required: 4
-  # Channel time per sample and action-bar duration (20 ticks = 1 second). Moving more than 2 blocks cancels.
-  use-ticks: 40
-  min-sample-distance: 3
-  item-name: "Prospecting kit"
-  item-lore:
-    - "Right-click several ground points in a suspected chunk."
-    - "Confirm the site before you can plant a camp."
-
-establish:
-  enabled: true
-  # Lock every present stratum band in the ruin chunk (not only blocks with an open face).
-  # Vanilla mining, fire, pistons, and explosions cannot remove that fill. Excavation tools still use the Hand Pick clock.
-  # false = the prism is vanilla-mineable; closed tunnels still wound the dossier.
-  protect-dig-site: true
-  # Landmark. Paper 1.21: ARCHAEOLOGY_TABLE. Falls back to lectern if unknown.
-  camp-block: ARCHAEOLOGY_TABLE
-  # Client-only. Template cells that cannot be planted.
-  invalid-block: RED_STAINED_GLASS
-  # Client-only. Perimeter of the archaeological chunk (not a full floor tint).
-  ruin-outline-block: LIGHT_BLUE_STAINED_GLASS
-  item-name: "Establishment kit"
-  item-lore:
-    - "Aim at the ground next to a confirmed ruin."
-    - "The ghost turns red where the camp cannot sit. Right-click to plant."
-
-pick:
-  enabled: true
-  # Plugin strikes (not vanilla mining) needed to remove one find-cell fill. Hidden from the HUD.
-  block-stages: 6
-  # One jornada action is spent when empty fill is lifted (on time or late), or when a find-cell cycle ends.
-  jornada-actions: 8
-  # Ticks between strikes while left-click is held (20 = one second). Independent of the item material.
-  strike-interval-ticks: 25
-  # Soft clings from the first prevented vanilla break (inclusive), then one louder clang.
-  cue-clings-min: 1
-  cue-clings-max: 3
-  # Ticks after the ready chime in which release is on time. Later also breaks the block below.
-  ready-window-ticks: 20
-  # Main-hand items that may excavate on the dig site. AIR = empty hand.
-  # PICKAXES / SHOVELS expand to every Bukkit-tagged tier (wood through netherite, and later ones).
-  tools:
-    - AIR
-    - PICKAXES
-    - SHOVELS
-  # Particles + a short subtitle on each cling (no numbers). For mute / deaf play; hearing players can ignore it.
-  visual-cues: true
-  # Exposed find cells shed WAX_ON sparkles. The leak loop runs only while that ruin chunk is loaded.
-  find-dust: true
-  # Server re-spawns the burst this often (20 ticks = 1 s).
-  find-dust-interval-ticks: 6
-  # Motes per burst at the cube centre. Open faces get half (at least 1).
-  find-dust-count: 2
-  # After a find is detected, each extra Hand Pick strike on its cells lowers conservation.
-  conservation-loss-per-strike: 8
-  # Extra loss if the Hand Pick fully removes a fill cell that belongs to a find.
-  conservation-loss-on-remove: 20
-  # Mark the find damaged when conservation falls below this percent.
-  damaged-below-percent: 70
-  item-name: "Hand Pick"
-  item-lore:
-    - "Hold left-click on the open cut. Soft chimes, then release on the ready chime."
-    - "Not a mining pick."
-
-recovery:
-  enabled: true
-  # Hold time per uncleaned fill cube (20 ticks = 1 second). Look away or move to cancel.
-  channel-ticks: 20
-  # Larger shapes lift after this many distinct cubes; a coin still needs one.
-  max-cells-to-clean: 6
-  item-name: "Field brush"
-  item-lore:
-    - "Right-click a fully exposed find. Dust leaves each cube you clean."
-    - "The last cube lifts the piece onto the ground."
-
+# 1) Find a hidden ruin
 tracker:
+  item: RECOVERY_COMPASS
+  # item: "mmoitems:TOOL:ARCHAEO_TRACKER"
   enabled: true
-  # Radii in blocks. Effective range is the tighter of this cap and the site detection-radius.
-  default-max-range: 256
-  # Medium cone: two pips. Close cone (detect-message-range): three. On-chunk: same three rings, full circle.
-  near-range: 64
-  # Chat when this close to the site centre and facing it. Also the three-pip cone (outside the chunk).
-  detect-message-range: 32
-  # Extra viewers around the holder (0 = only the scanner). Cooldown is per viewer.
-  detect-message-share-range: 0
+  # Hard cap in blocks. Each ruin also has detection-radius in interest.yml; the smaller one wins.
+  max-range: 256
+  # Pulse strength by distance (weak → strong). Standing on the ruin chunk is always strongest.
+  # Chat ("prospect this area") also fires inside close-range when you face the ruin.
+  medium-range: 64
+  close-range: 32
   pulse-particles: true
-  # Ring sizes for the 1 / 2 / 3 pip bursts (on-chunk reuses the first three as a full circle).
+  # Ring sizes for the weak / medium / strong pulses.
   wave-radii: [1.2, 2.4, 3.6]
-  wave-step-ticks: 3
-  # Extra ticks after the last ring before the next burst. Lower = snappier; higher = less overlap.
-  particle-fade-ticks: 10
   wave-particle: ENCHANTED_HIT
-  # Arc centre offset along the look direction (blocks). 0 = centred on the player.
-  wave-bias-blocks: 1.2
-  # When two ruins are similarly ahead, another must be this many blocks closer to steal the lock.
-  target-switch-margin: 16
-  # Ticks between bursts: slow at the edge of range, fast next to the chunk.
+  # Ticks between pulses: slow far away, fast when close (20 ticks = 1 second).
   beep-max-ticks: 70
   beep-min-ticks: 5
-  detect-message-cooldown-ticks: 200
-  item-name: "Archaeological tracker"
-  item-lore:
-    - "Turn. Stronger pulses mean you are facing a ruin."
-    - "Arcs fire the way you look. A full ring means you are on it."
-    - "No coordinates."
 
-interest-levels:
-  low:
-    display-name: "low"
-    base-wealth: 1
-    variation: 0
-    detection-radius: 64
-    min-finds: 3
-    max-finds: 5
-    min-relics: 1
-    max-relics: 1
-    hint-count: 2
-    stratum-iv-chance: 0.0
-    disturbed-chance: 0.15
-  medium:
-    display-name: "medium"
-    base-wealth: 3
-    variation: 1
-    detection-radius: 128
-    min-finds: 5
-    max-finds: 8
-    min-relics: 1
-    max-relics: 1
-    hint-count: 3
-    stratum-iv-chance: 0.25
-    disturbed-chance: 0.2
-  high:
-    display-name: "high"
-    base-wealth: 6
-    variation: 1
-    detection-radius: 256
-    min-finds: 8
-    max-finds: 12
-    min-relics: 1
-    max-relics: 2
-    hint-count: 3
-    stratum-iv-chance: 0.6
-    disturbed-chance: 0.25
-  exceptional:
-    display-name: "exceptional"
-    base-wealth: 10
-    variation: 2
-    detection-radius: 512
-    min-finds: 12
-    max-finds: 18
-    min-relics: 2
-    max-relics: 3
-    hint-count: 4
-    stratum-iv-chance: 1.0
-    disturbed-chance: 0.3
+# 2) Confirm it (several ground samples)
+prospect:
+  item: STONE_HOE
+  enabled: true
+  points-required: 4
+  # 20 ticks = 1 second. Moving more than 2 blocks cancels.
+  use-ticks: 40
+  min-sample-distance: 3
 
-generation:
-  max-shape-attempts: 24
-  # Extra seed per chunk so shapes are reproducible in the same world.
-  use-world-seed: true
+# 3) Plant the camp on a neighbour chunk
+establish:
+  item: STICK
+  enabled: true
+  # Lock every present stratum band. false = vanilla mining still wounds the dossier.
+  protect-dig-site: true
+  invalid-block: RED_STAINED_GLASS
+  ruin-outline-block: LIGHT_BLUE_STAINED_GLASS
 
-shift:
-  pick: 8
-  hammer: 3
-  brush: 10
+# 4) Dig the prism, then brush exposed finds
+excavation:
+  enabled: true
+  visual-cues: true
+  # How many successful cuts per Minecraft day.
+  workday-actions: 8
+  # Below this conservation the find is stamped "damaged" (lore / recover chat). The % is always kept.
+  damaged-below-percent: 70
+  find-particles: true
+  find-particles-interval-ticks: 6
+  # After a cut, chat + HUD on the empty cube: adjacent find cubes grouped by material (minesweeper).
+  neighbor-traces: true
+  # Hold left-click on fill. Warning / ready sounds follow vanilla mining speed (tool vs block).
+  # Cracks stay frozen. First matching tool wins.
+  # How many cubes come out, and in what pattern. Both counts use the same break-shape.
+  # The aimed cube is always first. Then:
+  #   down    — straight down (Y-1, Y-2, …)
+  #   around  — 3×3 on this layer, then 3×3 one block below (includes the cube under the aim)
+  #             order: centre, N, E, S, W, then diagonals; then the same on the layer below
+  #   random  — same 3×3×2 as around, shuffled (aimed cube still first)
+  # lift-on-ready / lift-if-late = how many of those cubes on a timely vs late release.
+  tools:
+    # Bare hand: the aimed cube only, even if you miss the ready window.
+    hand:
+      items:
+        - AIR
+      lift-on-ready: 1
+      lift-if-late: 1
+      break-shape: down
+      workday-cost: 1
+      # After the loud Release chime, this many ticks you can still let go and only
+      # lift lift-on-ready cubes. Holding longer is late (20 ticks = 1 second).
+      release-window-ticks: 20
+      # Optional. Omit = cue clock uses the held item as-is: vanilla tool speed
+      # (pico vs pala vs bloque) plus whatever MMOItems / ItemsAdder already
+      # applied to that stack or the player. These two only replace that sample;
+      # they do not rewrite the item in the inventory.
+      # mining-speed: 6                  # tool defaultMiningSpeed (iron pick 6, diamond 8)
+      # mining-speed-multiplier: 1.0     # scale the full sampled break speed (2.0 = twice as fast)
+    # Wooden pick / wooden shovel: on time or late, a short shaft.
+    light:
+      items:
+        - WOODEN_PICKAXE
+        - WOODEN_SHOVEL
+      lift-on-ready: 1
+      lift-if-late: 2
+      break-shape: down
+      workday-cost: 1
+    # Stone pick / shovel: 3×3×2 around the aim (2 cubes on time, 4 if late).
+    heavy:
+      items:
+        - STONE_PICKAXE
+        - STONE_SHOVEL
+      lift-on-ready: 2
+      lift-if-late: 4
+      break-shape: around
+      workday-cost: 1
+    super-heavy:
+      items:
+        - IRON_PICKAXE
+        - IRON_SHOVEL
+      lift-on-ready: 4
+      lift-if-late: 8
+      break-shape: random
+      workday-cost: 1
+  brush:
+    item: BRUSH
+    # item: "itemsadder:archeo:field_brush"
+    enabled: true
+    # How long you must hold right-click on one cube (20 ticks = 1 second). 40 = 2 seconds.
+    hold-ticks: 40
+    progress-bar: true
+    max-cells-to-clean: 6

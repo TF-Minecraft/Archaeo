@@ -3,7 +3,7 @@ package com.nowko.archeology.config;
 import com.nowko.archeology.model.InterestLevel;
 
 /**
- * Generation budget for one {@link InterestLevel}, loaded from {@code config.yml}.
+ * Generation budget for one {@link InterestLevel}, loaded from {@code interest.yml}.
  *
  * @param level enum this row belongs to
  * @param displayName English label

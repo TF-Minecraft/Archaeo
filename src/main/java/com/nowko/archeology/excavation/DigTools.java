@@ -1,7 +1,10 @@
 package com.nowko.archeology.excavation;
 
+import com.nowko.archeology.config.ExcavationTool;
+import com.nowko.archeology.config.PickSettings;
+import com.nowko.archeology.item.ItemMatcher;
+import com.nowko.archeology.item.ItemRef;
 import org.bukkit.Material;
-import org.bukkit.Tag;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.inventory.ItemStack;
@@ -9,51 +12,57 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.LinkedHashSet;
-import java.util.Locale;
-import java.util.Set;
+import java.util.List;
+import java.util.Optional;
 
 /**
- * Whitelist of main-hand stacks that may run the excavation clock on prism fill.
+ * Named excavation profiles and the stacks that may run the cut clock on prism fill.
  * {@link Material#AIR} means an empty hand. Outside the dig site these items stay vanilla.
  */
 public class DigTools {
-    private Set<Material> allowed = defaultMaterials();
+    private List<ExcavationTool> profiles = PickSettings.defaults().profiles();
+    private ItemMatcher matcher = ItemMatcher.vanillaOnly();
 
     /**
-     * @return every pickaxe and shovel Bukkit currently tags, plus an empty hand
+     * @param matcher ItemsAdder / MMOItems lookup; vanilla-only when those plugins are missing
      */
-    public static Set<Material> defaultMaterials() {
-        Set<Material> materials = new LinkedHashSet<>();
-        materials.add(Material.AIR);
-        materials.addAll(Tag.ITEMS_PICKAXES.getValues());
-        materials.addAll(Tag.ITEMS_SHOVELS.getValues());
-        return Collections.unmodifiableSet(materials);
+    public void setMatcher(ItemMatcher matcher) {
+        this.matcher = matcher == null ? ItemMatcher.vanillaOnly() : matcher;
     }
 
     /**
-     * @param tokens YAML names: {@code AIR}/{@code HAND}, {@code PICKAXES}, {@code SHOVELS}, or a {@link Material}
-     * @return resolved whitelist; empty tokens yield {@link #defaultMaterials()}
+     * @param profiles named tools from {@code excavation.tools}
      */
-    public static Set<Material> parse(Collection<String> tokens) {
-        if (tokens == null || tokens.isEmpty()) {
-            return defaultMaterials();
-        }
-        Set<Material> materials = new LinkedHashSet<>();
-        for (String token : tokens) {
-            addToken(materials, token);
-        }
-        return materials.isEmpty() ? defaultMaterials() : Collections.unmodifiableSet(materials);
+    public void setProfiles(List<ExcavationTool> profiles) {
+        this.profiles = profiles == null || profiles.isEmpty()
+                ? PickSettings.defaults().profiles()
+                : List.copyOf(profiles);
     }
 
     /**
-     * @param materials allowed types, including {@link Material#AIR} for an empty hand
+     * First matching profile wins (YAML order).
+     *
+     * @param stack main-hand stack, or {@code null}
+     * @return profile for this stack
      */
-    public void setAllowed(Set<Material> materials) {
-        this.allowed = materials == null || materials.isEmpty()
-                ? defaultMaterials()
-                : Collections.unmodifiableSet(new LinkedHashSet<>(materials));
+    public Optional<ExcavationTool> match(ItemStack stack) {
+        for (ExcavationTool profile : profiles) {
+            for (ItemRef ref : profile.materials()) {
+                if (matcher.matches(stack, ref)) {
+                    return Optional.of(profile);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * @param ref configured id
+     * @return pack or vanilla stack (air when missing)
+     */
+    public ItemStack create(ItemRef ref) {
+        return matcher.create(ref);
     }
 
     /**
@@ -61,25 +70,69 @@ public class DigTools {
      * @return whether this stack may excavate on the dig site
      */
     public boolean isAllowed(ItemStack stack) {
-        Material type = stack == null || stack.getType().isAir() ? Material.AIR : stack.getType();
-        return allowed.contains(type);
+        return match(stack).isPresent();
     }
 
     /**
-     * @return a vanilla stack from the whitelist (first pickaxe, else first non-air) for {@code /archaeo pick give}
+     * @return a whitelist stack for {@code /archaeo give tool}
      */
     public ItemStack sampleStack() {
-        for (Material material : allowed) {
-            if (material != Material.AIR && Tag.ITEMS_PICKAXES.isTagged(material)) {
-                return new ItemStack(material);
-            }
-        }
-        for (Material material : allowed) {
-            if (!material.isAir()) {
-                return new ItemStack(material);
+        for (ExcavationTool profile : profiles) {
+            for (ItemRef ref : profile.materials()) {
+                if (ref.isAir()) {
+                    continue;
+                }
+                ItemStack stack = matcher.create(ref);
+                if (!stack.getType().isAir()) {
+                    return stack;
+                }
             }
         }
         return new ItemStack(Material.STONE_PICKAXE);
+    }
+
+    /**
+     * Configured excavation item ids, skipping empty-hand entries. Order follows YAML.
+     *
+     * @return tokens for {@code /archaeo give tool}
+     */
+    public List<String> giveTokens() {
+        LinkedHashSet<String> tokens = new LinkedHashSet<>();
+        for (ExcavationTool profile : profiles) {
+            for (ItemRef ref : profile.materials()) {
+                if (ref.isAir()) {
+                    continue;
+                }
+                tokens.add(ref.commandToken());
+            }
+        }
+        return List.copyOf(tokens);
+    }
+
+    /**
+     * @param token staff argument, case-insensitive
+     * @return stack for that whitelist id, or empty when unknown
+     */
+    public Optional<ItemStack> createByToken(String token) {
+        if (token == null || token.isBlank()) {
+            return Optional.empty();
+        }
+        String want = token.trim();
+        for (ExcavationTool profile : profiles) {
+            for (ItemRef ref : profile.materials()) {
+                if (ref.isAir()) {
+                    continue;
+                }
+                if (ref.commandToken().equalsIgnoreCase(want)) {
+                    ItemStack stack = matcher.create(ref);
+                    if (!stack.getType().isAir()) {
+                        return Optional.of(stack);
+                    }
+                    return Optional.empty();
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     /**
@@ -106,33 +159,6 @@ public class DigTools {
             meta.setTool(vanilla.getTool());
         }
         stack.setItemMeta(meta);
-    }
-
-    /**
-     * @param materials target set
-     * @param raw YAML token
-     */
-    private static void addToken(Set<Material> materials, String raw) {
-        if (raw == null || raw.isBlank()) {
-            return;
-        }
-        String token = raw.trim().toUpperCase(Locale.ROOT);
-        if ("AIR".equals(token) || "HAND".equals(token) || "EMPTY".equals(token) || "EMPTY_HAND".equals(token)) {
-            materials.add(Material.AIR);
-            return;
-        }
-        if ("PICKAXES".equals(token) || "PICKAXE".equals(token)) {
-            materials.addAll(Tag.ITEMS_PICKAXES.getValues());
-            return;
-        }
-        if ("SHOVELS".equals(token) || "SHOVEL".equals(token)) {
-            materials.addAll(Tag.ITEMS_SHOVELS.getValues());
-            return;
-        }
-        Material material = Material.matchMaterial(token);
-        if (material != null) {
-            materials.add(material.isAir() ? Material.AIR : material);
-        }
     }
 
     /**

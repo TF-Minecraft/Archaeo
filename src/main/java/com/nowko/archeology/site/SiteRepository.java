@@ -322,6 +322,12 @@ public class SiteRepository {
                     .map(cell -> cell.x() + "," + cell.y() + "," + cell.z())
                     .toList();
             node.put("cleaned-cells", cleaned);
+            node.put("grazed-cells", find.getGrazedCells().stream()
+                    .map(cell -> cell.x() + "," + cell.y() + "," + cell.z())
+                    .toList());
+            node.put("direct-hit-cells", find.getDirectHitCells().stream()
+                    .map(cell -> cell.x() + "," + cell.y() + "," + cell.z())
+                    .toList());
             finds.add(node);
         }
         yaml.set("finds", finds);
@@ -434,31 +440,14 @@ public class SiteRepository {
             find.setStratumId(String.valueOf(map.get("stratum")));
             find.setState(FindState.valueOf(stringOr(map.get("state"), "HIDDEN")));
             find.setDamaged(Boolean.parseBoolean(stringOr(map.get("damaged"), "false")));
-            find.setConservation(parseConservation(map.get("conservation")));
-            Object cells = map.get("cells");
-            if (cells instanceof List<?> list) {
-                for (Object cell : list) {
-                    String[] parts = String.valueOf(cell).split(",");
-                    find.getCells().add(new BlockCell(
-                            Integer.parseInt(parts[0]),
-                            Integer.parseInt(parts[1]),
-                            Integer.parseInt(parts[2])
-                    ));
-                }
-            }
-            Object cleaned = map.get("cleaned-cells");
-            if (cleaned instanceof List<?> list) {
-                for (Object cell : list) {
-                    String[] parts = String.valueOf(cell).split(",");
-                    if (parts.length < 3) {
-                        continue;
-                    }
-                    find.getCleanedCells().add(new BlockCell(
-                            Integer.parseInt(parts[0]),
-                            Integer.parseInt(parts[1]),
-                            Integer.parseInt(parts[2])
-                    ));
-                }
+            addCells(map.get("cells"), find.getCells());
+            addCells(map.get("cleaned-cells"), find.getCleanedCells());
+            addCells(map.get("grazed-cells"), find.getGrazedCells());
+            addCells(map.get("direct-hit-cells"), find.getDirectHitCells());
+            if (find.getGrazedCells().isEmpty() && find.getDirectHitCells().isEmpty()) {
+                find.setConservation(parseConservation(map.get("conservation")));
+            } else {
+                find.refreshConservation();
             }
             site.getFinds().add(find);
         }
@@ -503,6 +492,27 @@ public class SiteRepository {
             }
         }
         return site;
+    }
+
+    /**
+     * @param raw YAML list of {@code x,y,z} strings
+     * @param into destination
+     */
+    private static void addCells(Object raw, Collection<BlockCell> into) {
+        if (!(raw instanceof List<?> list)) {
+            return;
+        }
+        for (Object cell : list) {
+            String[] parts = String.valueOf(cell).split(",");
+            if (parts.length < 3) {
+                continue;
+            }
+            into.add(new BlockCell(
+                    Integer.parseInt(parts[0].trim()),
+                    Integer.parseInt(parts[1].trim()),
+                    Integer.parseInt(parts[2].trim())
+            ));
+        }
     }
 
     /**

@@ -889,8 +889,14 @@ de romper; no sabes en cuántos tiempos. El recuento se tira **por hold**.
 2. Mantener **izquierdo**. El plugin impide la rotura vanilla. **No** se
    avanza el overlay de grietas (ni vanilla ni del plugin): la textura no
    adelanta el ritmo. Al soltar no hay “estado de rotura” que recordar.
-3. Golpes a ritmo fijo del plugin (`strike-interval-ticks`), independiente
-   del material vanilla del ítem (piedra/hierro solo cambian el aspecto).
+3. Cada pista (Soon / Release) cae cuando **vanilla habría roto** ese cubo
+   (`getBreakSpeed` hasta `1.0`), con las grietas congeladas. Pico vs pala vs
+   dureza del bloque (y stats ya puestas en el ítem por MMOItems, etc.) marcan
+   el tempo. YAML `mining-speed` / `mining-speed-multiplier` pueden sustituir
+   esa velocidad **solo al muestrear el reloj** (vale para vanilla y para lo
+   que MMOItems/ItemsAdder ya hayan puesto en el ítem o el jugador).
+   Tras el chime de Release, `release-window-ticks` es el margen para soltar
+   a tiempo.
 4. Al soltar, el plugin aplica **antes / a tiempo / tarde** según las
    señales de ese hold.
 
@@ -899,8 +905,8 @@ de romper; no sabes en cuántos tiempos. El recuento se tira **por hold**.
 | Cuándo sueltas | Qué pasa |
 | --- | --- |
 | **Antes** del ting | El cubo sigue. No hace falta guardar `3/6` en disco: el siguiente hold empieza de cero. |
-| **En el ting** | Este cubo pasa a aire, limpio. Un ciclo basta (o pocas etapas internas de relleno **blando**; el compacto puede pedir un poco más, sin enseñar números). |
-| **Después** del ting (te pasas) | Este cubo se va **y el de abajo** (`Y−1`) también, si es relleno del prisma. Tras el break vanilla suena un golpe de **más fuerza**. Si el de abajo era celda de hallazgo: sonido de **destrucción**. Si **todas** las celdas de esa pieza pasan a no-relleno: texto de irrecuperable y **no hay ítem**. |
+| **En el ting** | Salen `lift-on-ready` cubos con la `break-shape` (siempre el apuntado primero). |
+| **Después** del ting (te pasas) | La misma forma, `lift-if-late` cubos. `down` = pozo; `around` = 3×3 esta capa y la de debajo; `random` = baraja ese 3×3×2 (el apuntado sigue primero). |
 
 **Hay hallazgo** en esa celda (o el de abajo es hallazgo):
 
@@ -913,7 +919,10 @@ Relleno **blando** (tierra, arena, grava) vs **compacto** (piedra): distinto
 tiempo/etapas internas hasta el ting, mismo significado de las señales.
 No hace falta una tabla por cada `Material` de Bukkit.
 
-La velocidad no se ata al pico vanilla ni a `block_break_speed`.
+La velocidad de las pistas **sí** sigue el minado vanilla (herramienta ×
+bloque × haste / eficiencia). Lo que YAML guarda es lo que vanilla no sabe:
+cuántos cubos salen a tiempo o tarde, `break-shape` (pozo o área),
+`release-window-ticks`, `workday-cost`, y opcionalmente `works-on`.
 
 ### Rotura de bloques — prisma
 
@@ -956,10 +965,15 @@ ESTRATO III · 700–900 años
 Si el cubo apuntado es un hallazgo **ya detectado**, se añade la
 conservación: `92 %`. Dos vasijas iguales pueden valer distinto al recuperar.
 
+Si se mira un **hueco ya abierto** (aire del prisma, o la pared a través de
+ese aire), el HUD añade las trazas vecinas: `Ceramic: 1 · Bone: 1` o
+`clear`. El relleno aún no abierto no enseña número.
+
 Al apuntar fuera del prisma: *Fuera del área arqueológica* (cooldown).
 
 Avisos cortos cuando hacen falta:
 
+- *Traces of Ceramic: 1 · Bone: 1* (trazas del hueco recién abierto)
 - *Material arqueológico detectado. Extensión desconocida.*
 - *El material arqueológico puede estar siendo alterado.*
 - *La evidencia ha resultado dañada.*
@@ -969,11 +983,9 @@ Avisos cortos cuando hacen falta:
 
 ### Herramientas
 
-**Campo:** Hand Pick para retirar relleno; **pincel** para extraer un hallazgo
-ya descubierto. Blando vs compacto cambia el tiempo hasta el ting del pico,
-no el ítem.
-
-Pala y paleta no se añaden por cambiar de velocidad.
+**Campo:** picos y palas de la whitelist; **pincel** para extraer un hallazgo
+ya descubierto. Blando vs compacto (y pico vs pala) cambia el tiempo hasta
+el ting por velocidad vanilla, no por un timer YAML.
 
 **Maza / martillo en área:** otro verbo (volumen a cambio de control). No
 es el flujo por defecto. Si se hace más adelante: cara en jornada, cualquier
@@ -1036,6 +1048,28 @@ Tamaños orientativos (`finds.yml`):
 | Enterramiento | 8–15 |
 | Estructura | 20–50 |
 
+**Trazas vecinas (buscaminas)** — acordado:
+
+Al retirar un cubo de relleno con el Hand Pick, el plugin mira las **seis
+caras** del cubo apuntado. Cada vecino que sigue siendo relleno y forma
+parte de un hallazgo vivo (no perdido ni recuperado) suma **un cubo** a su
+material de catálogo (`artifacts.yml` / `materials.yml`). El recuento es de
+cubos, no de piezas: dos artefactos distintos (cerámica y hueso) que tocan
+el hueco con una celda cada uno se leen:
+
+```
+Traces of Ceramic: 1 · Bone: 1
+```
+
+Si tres celdas de la misma vasija tocan el hueco: `Ceramic: 3`. Sin trazas
+no hay chat (el corte está limpio). El mismo recuento se puede releer en el
+HUD al apuntar al aire. Sirve para decidir si el siguiente golpe puede ser
+una herramienta más rápida (hueco `clear` o lejos del material frágil) o
+hay que frenar.
+
+Las diagonales no cuentan: si no comparten cara, el hallazgo no gotea hacia
+ese hueco y no aparece en las trazas.
+
 **Exposición** (por hallazgo):
 
 | Estado | Qué sabe el jugador |
@@ -1045,13 +1079,14 @@ Tamaños orientativos (`finds.yml`):
 | **Descubierto** | Toda la forma restante tiene cara al aire (mismo goteo). El **pincel** puede recuperar. |
 | **Recuperado** | La pieza está fuera del corte (ítem con PDC). |
 
-El pico no dropea la pieza. Con la forma **descubierta**, clic derecho con el
-pincel (`items.brush`, por defecto el pincel vanilla) sobre un cubo que aún
-gotea: ~1 s de canal. Ese cubo deja de emitir partículas. Tras
-`recovery.max-cells-to-clean` cubos distintos (o todos si hay menos), las
-celdas restantes pasan a aire y **cae un ítem** con conservación y
-procedencia. Conservación 0: sin ítem. No gasta jornada. Fuera del prisma el
-pincel vanilla sigue siendo vanilla.
+El pico no dropea la pieza. Con la forma **descubierta**, mantener clic derecho
+con el pincel (`items.brush`) sobre un cubo que aún gotea hasta llenar la
+barra (`recovery.channel-ticks`, por defecto 2 s). Ese cubo deja de emitir
+partículas. Tras `recovery.max-cells-to-clean` cubos distintos (o todos si
+hay menos), las celdas restantes pasan a aire y **cae un ítem** con
+conservación y procedencia. Conservación 0: sin ítem. No gasta jornada. En
+cualquier bloque que **no** sea celda de hallazgo el pincel vanilla no se
+cancela.
 
 ### Conservación (acordado)
 

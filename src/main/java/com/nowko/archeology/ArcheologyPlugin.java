@@ -14,6 +14,7 @@ import com.nowko.archeology.excavation.RecoverListener;
 import com.nowko.archeology.excavation.RecoverService;
 import com.nowko.archeology.item.BrushItem;
 import com.nowko.archeology.item.EstablishItem;
+import com.nowko.archeology.item.ItemMatcher;
 import com.nowko.archeology.item.ProspectItem;
 import com.nowko.archeology.item.RecoveredFindItem;
 import com.nowko.archeology.item.TrackerItem;
@@ -55,18 +56,20 @@ public class ArcheologyPlugin extends JavaPlugin {
         sites = new SiteRepository(this);
         sites.loadAll();
         generator = new SiteGenerator(catalogs, sites);
-        trackerItem = new TrackerItem(this, catalogs.tracker(), catalogs.items().tracker());
+        trackerItem = new TrackerItem(catalogs.items().tracker());
+        prospectItem = new ProspectItem(catalogs.items().prospect());
+        establishItem = new EstablishItem(catalogs.items().establish());
+        brushItem = new BrushItem(catalogs.items().brush());
+        digTools = new DigTools();
+        bindItemMatcher(ItemMatcher.detect(this));
         tracker = new TrackerService(this, sites, trackerItem, catalogs.tracker());
         tracker.start();
-        prospectItem = new ProspectItem(this, catalogs.prospect(), catalogs.items().prospect());
         prospect = new ProspectService(this, catalogs, sites, prospectItem, catalogs.prospect());
         getServer().getPluginManager().registerEvents(new ProspectListener(prospectItem, prospect), this);
-        establishItem = new EstablishItem(this, catalogs.establish(), catalogs.items().establish());
         establish = new EstablishService(this, sites, establishItem, catalogs.establish());
         establish.start();
         getServer().getPluginManager().registerEvents(new EstablishListener(establishItem, establish), this);
         getServer().getPluginManager().registerEvents(new CampListener(this, sites, establishItem, establish), this);
-        digTools = new DigTools();
         handPick = new HandPickService(this, sites, catalogs, digTools, catalogs.pick());
         handPick.start();
         findDust = new FindDustService(this, sites, catalogs.pick());
@@ -76,7 +79,6 @@ public class ArcheologyPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new HandPickListener(handPick, sites), this);
         prismListener = new PrismListener(sites, digTools, catalogs.establish().protectDigSite());
         getServer().getPluginManager().registerEvents(prismListener, this);
-        brushItem = new BrushItem(catalogs.recovery(), catalogs.items().brush());
         recover = new RecoverService(
                 this,
                 sites,
@@ -87,6 +89,7 @@ public class ArcheologyPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new RecoverListener(brushItem, recover), this);
 
         ArchaeoCommand command = new ArchaeoCommand(
+                this,
                 catalogs,
                 generator,
                 sites,
@@ -110,7 +113,31 @@ public class ArcheologyPlugin extends JavaPlugin {
     }
 
     /**
-     * Stops tracker, prospecting, establishment, Hand Pick HUD, and find-dust tasks.
+     * Binds ItemsAdder / MMOItems lookups on role items and the excavation whitelist.
+     *
+     * @param matcher detected APIs, or vanilla-only
+     */
+    public void bindItemMatcher(ItemMatcher matcher) {
+        ItemMatcher bound = matcher == null ? ItemMatcher.vanillaOnly() : matcher;
+        if (trackerItem != null) {
+            trackerItem.setMatcher(bound);
+        }
+        if (prospectItem != null) {
+            prospectItem.setMatcher(bound);
+        }
+        if (establishItem != null) {
+            establishItem.setMatcher(bound);
+        }
+        if (brushItem != null) {
+            brushItem.setMatcher(bound);
+        }
+        if (digTools != null) {
+            digTools.setMatcher(bound);
+        }
+    }
+
+    /**
+     * Stops tracker, prospecting, establishment, Hand Pick HUD, and find-particles tasks.
      */
     @Override
     public void onDisable() {

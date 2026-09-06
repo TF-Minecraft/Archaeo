@@ -33,7 +33,7 @@ public enum InterestLevel {
     }
 
     /**
-     * @return config.yml key under {@code interest-levels}
+     * @return {@code interest.yml} key under {@code interest-levels}
      */
     public String yamlKey() {
         return name().toLowerCase();

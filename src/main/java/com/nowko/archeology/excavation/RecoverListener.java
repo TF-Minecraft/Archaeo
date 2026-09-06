@@ -2,7 +2,6 @@ package com.nowko.archeology.excavation;
 
 import com.nowko.archeology.item.BrushItem;
 import org.bukkit.block.Block;
-import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -13,7 +12,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlot;
 
 /**
- * Right-click with the configured brush on prism fill drives {@link RecoverService}.
+ * Right-click with the configured brush may start recovery; vanilla brush use is never cancelled.
  */
 public class RecoverListener implements Listener {
     private final BrushItem brush;
@@ -29,11 +28,11 @@ public class RecoverListener implements Listener {
     }
 
     /**
-     * Consumes vanilla brush use on a find cell so only the field channel runs.
+     * Starts the field channel only on a discovered find cell. Any other block stays vanilla.
      *
      * @param event interact
      */
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
     public void onInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
             return;
@@ -48,12 +47,7 @@ public class RecoverListener implements Listener {
         if (block == null) {
             return;
         }
-        if (!recover.begin(event.getPlayer(), block)) {
-            return;
-        }
-        event.setCancelled(true);
-        event.setUseInteractedBlock(Event.Result.DENY);
-        event.setUseItemInHand(Event.Result.DENY);
+        recover.begin(event.getPlayer(), block);
     }
 
     /**

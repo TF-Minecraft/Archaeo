@@ -18,6 +18,8 @@ public class BuriedFind {
     private int conservation = 100;
     private final List<BlockCell> cells = new ArrayList<>();
     private final Set<BlockCell> cleanedCells = new LinkedHashSet<>();
+    private final Set<BlockCell> grazedCells = new LinkedHashSet<>();
+    private final Set<BlockCell> directHitCells = new LinkedHashSet<>();
 
     /** @return unique id of this find instance */
     public UUID getId() {
@@ -110,5 +112,78 @@ public class BuriedFind {
      */
     public void markCleaned(BlockCell cell) {
         cleanedCells.add(cell);
+    }
+
+    /**
+     * Cells spent by collapsing from above (late pick or vanilla). At most once per cell.
+     *
+     * @return coordinates already grazed
+     */
+    public Set<BlockCell> getGrazedCells() {
+        return grazedCells;
+    }
+
+    /**
+     * Cells struck by lifting the find cube itself. At most once per cell.
+     *
+     * @return coordinates already hit directly
+     */
+    public Set<BlockCell> getDirectHitCells() {
+        return directHitCells;
+    }
+
+    /**
+     * Spends this cell from above: {@code 100 / n} of the piece. No-op if already grazed or not in the shape.
+     *
+     * @param cell find cell that was removed from above
+     * @return whether conservation changed
+     */
+    public boolean woundFromAbove(BlockCell cell) {
+        return applyWound(cell, grazedCells);
+    }
+
+    /**
+     * Direct hit on this find cube: {@code 200 / n} of the piece. No-op if already hit or not in the shape.
+     *
+     * @param cell find cell that was the aimed cube
+     * @return whether conservation changed
+     */
+    public boolean woundDirect(BlockCell cell) {
+        return applyWound(cell, directHitCells);
+    }
+
+    /**
+     * @param cell candidate
+     * @param bucket graze or direct set
+     * @return whether this was a new wound
+     */
+    private boolean applyWound(BlockCell cell, Set<BlockCell> bucket) {
+        if (cell == null || !cells.contains(cell) || bucket.contains(cell)) {
+            return false;
+        }
+        bucket.add(cell);
+        refreshConservation();
+        return true;
+    }
+
+    /**
+     * Recomputes {@code 0–100} from cell wounds: graze {@code 100/n}, direct {@code 200/n}, clamped.
+     */
+    public void refreshConservation() {
+        int n = Math.max(1, cells.size());
+        double share = 100.0 / n;
+        double remaining = 100.0;
+        for (BlockCell cell : cells) {
+            if (grazedCells.contains(cell)) {
+                remaining -= share;
+            }
+            if (directHitCells.contains(cell)) {
+                remaining -= 2 * share;
+            }
+        }
+        conservation = (int) Math.round(Math.max(0.0, Math.min(100.0, remaining)));
+        if (conservation <= 0 && state != FindState.RECOVERED && state != FindState.LOST) {
+            state = FindState.LOST;
+        }
     }
 }

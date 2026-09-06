@@ -1,8 +1,12 @@
 package com.nowko.archeology.excavation;
 
 import com.nowko.archeology.config.CatalogRegistry;
+import com.nowko.archeology.config.ExcavationTool;
 import com.nowko.archeology.config.PickSettings;
 import com.nowko.archeology.config.StratumDefinition;
+import com.nowko.archeology.model.BlockCell;
+import com.nowko.archeology.model.BuriedFind;
+import com.nowko.archeology.model.FindState;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.StratumBand;
 import com.nowko.archeology.site.SiteRepository;
@@ -21,7 +25,6 @@ import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.block.Block;
-import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlotGroup;
@@ -30,14 +33,18 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Hand Pick: client mining is frozen. Each prevented vanilla break advances {@link HoldCuePlan}.
- * Release on the clang lifts this cell with {@link Block#setType}({@link Material#AIR}, false);
- * one more vanilla beat after the clang also lifts {@link BlockFace#DOWN}.
+ * Hand Pick: client mining is frozen. Cue beats follow vanilla {@link Block#getBreakSpeed}
+ * (sampled with {@link VanillaBreakClock}), including speeds already on the live stack.
+ * YAML {@code mining-speed} / {@code mining-speed-multiplier} override that sample only.
+ * If sampled speed is still 0, leftover {@code chime-ticks} may beat instead.
+ * Release on the ready chime lifts {@code lift-on-ready}; later also lifts extra cubes downward.
  */
 public class HandPickService {
     private static final long WARN_MS = 3000L;
@@ -77,7 +84,7 @@ public class HandPickService {
         this.tools = tools;
         this.noVanillaMineKey = new NamespacedKey(plugin, "no_vanilla_mine");
         this.settings = settings;
-        this.tools.setAllowed(settings.tools());
+        this.tools.setProfiles(settings.profiles());
     }
 
     /**
@@ -85,7 +92,7 @@ public class HandPickService {
      */
     public void setSettings(PickSettings settings) {
         this.settings = settings;
-        this.tools.setAllowed(settings.tools());
+        this.tools.setProfiles(settings.profiles());
     }
 
     /**
@@ -138,13 +145,21 @@ public class HandPickService {
         if (site == null) {
             return;
         }
+        ExcavationTool tool = tools.match(player.getInventory().getItemInMainHand()).orElse(null);
+        if (tool == null) {
+            return;
+        }
+        if (!tool.fill().allows(block.getType())) {
+            warn(player, "This tool is only for loose fill.");
+            return;
+        }
         ensureJornada(site, player.getWorld());
-        if (site.getJornadaPickLeft() <= 0) {
+        if (site.getJornadaPickLeft() < tool.jornadaCost()) {
             warn(player, "The excavation work day is over.");
             return;
         }
         Cycle existing = cycles.get(player.getUniqueId());
-        if (existing != null && !existing.sameCell(block)) {
+        if (existing != null && (!existing.sameCell(block) || !existing.tool.id().equals(tool.id()))) {
             finish(player);
             existing = null;
         }
@@ -152,7 +167,7 @@ public class HandPickService {
         if (existing == null) {
             cycles.put(
                     player.getUniqueId(),
-                    new Cycle(block.getX(), block.getY(), block.getZ(), gameTick, HoldCuePlan.roll(settings)));
+                    new Cycle(block.getX(), block.getY(), block.getZ(), gameTick, HoldCuePlan.roll(), tool));
             return;
         }
         existing.lastActiveTick = gameTick;
@@ -190,10 +205,25 @@ public class HandPickService {
     }
 
     /**
-     * @return a vanilla whitelist stack for staff give
+     * @return the first non-air stack from {@code excavation.tools} (staff give suggestion)
      */
     public ItemStack sampleTool() {
         return tools.sampleStack();
+    }
+
+    /**
+     * @return YAML item ids listed under {@code excavation.tools}, excluding empty hand
+     */
+    public List<String> giveToolTokens() {
+        return tools.giveTokens();
+    }
+
+    /**
+     * @param token staff argument matching a configured tool id
+     * @return that stack, or empty when the token is not on the whitelist
+     */
+    public Optional<ItemStack> toolForGive(String token) {
+        return tools.createByToken(token);
     }
 
     /**
@@ -223,7 +253,7 @@ public class HandPickService {
         if (cycle.clangTick < 0) {
             return;
         }
-        boolean late = cycle.lastActiveTick - cycle.clangTick > settings.readyWindowTicks();
+        boolean late = cycle.lastActiveTick - cycle.clangTick > cycle.tool.readyWindowTicks();
         resolveCut(player, cycle, late);
     }
 
@@ -280,12 +310,13 @@ public class HandPickService {
         for (Map.Entry<UUID, Cycle> entry : new ArrayList<>(cycles.entrySet())) {
             Player player = Bukkit.getPlayer(entry.getKey());
             Cycle cycle = entry.getValue();
-            if (player == null || !player.isOnline() || !tools.isAllowed(player.getInventory().getItemInMainHand())) {
-                if (player != null) {
-                    finish(player);
-                } else {
-                    cycles.remove(entry.getKey());
-                }
+            if (player == null || !player.isOnline()) {
+                cycles.remove(entry.getKey());
+                continue;
+            }
+            ExcavationTool held = tools.match(player.getInventory().getItemInMainHand()).orElse(null);
+            if (held == null || !held.id().equals(cycle.tool.id())) {
+                finish(player);
                 continue;
             }
             if (gameTick - cycle.lastActiveTick > STALE_TICKS) {
@@ -296,32 +327,24 @@ public class HandPickService {
             if (gameTick - cycle.lastActiveTick > ACTIVE_HOLD_TICKS) {
                 continue;
             }
-            if (!isExcavationFill(block)) {
+            if (!isExcavationFill(block) || !cycle.tool.fill().allows(block.getType())) {
                 finish(player);
                 continue;
             }
             if (cycle.clangTick >= 0
-                    && cycle.lastActiveTick - cycle.clangTick > settings.readyWindowTicks()) {
+                    && cycle.lastActiveTick - cycle.clangTick > cycle.tool.readyWindowTicks()) {
                 resolveCut(player, cycle, true);
                 continue;
             }
-            float step = VanillaBreakClock.tickProgress(player, block, noVanillaMineKey);
-            if (step <= 0f) {
+            if (advanceCues(player, block, cycle)) {
                 continue;
-            }
-            cycle.progress += step;
-            while (cycle.progress >= 1.0f) {
-                cycle.progress -= 1.0f;
-                if (onVanillaBreak(player, block, cycle)) {
-                    break;
-                }
             }
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
             ItemStack held = player.getInventory().getItemInMainHand();
             boolean holding = tools.isAllowed(held);
             syncHeldTool(player, held);
-            if (holding && (isCycling(player) || isTargetingCut(player))) {
+            if (holding && (isCycling(player) || isTargetingCut(player) || isTargetingPrism(player))) {
                 showHud(player);
             }
         }
@@ -334,6 +357,24 @@ public class HandPickService {
     private boolean isTargetingCut(Player player) {
         Block target = player.getTargetBlockExact(6);
         return target != null && isExcavationFill(target);
+    }
+
+    /**
+     * Includes opened air so neighbour traces can sit on the empty cube like a minesweeper number.
+     *
+     * @param player viewer
+     * @return whether the crosshair is inside an established prism
+     */
+    private boolean isTargetingPrism(Player player) {
+        Block target = player.getTargetBlockExact(6);
+        if (target == null) {
+            return false;
+        }
+        return sites.findEstablishedPrism(
+                target.getWorld().getName(),
+                target.getX(),
+                target.getY(),
+                target.getZ()).isPresent();
     }
 
     /**
@@ -364,12 +405,47 @@ public class HandPickService {
     }
 
     /**
-     * One prevented vanilla break: cling, clang, or overshoot (this cell and the one below).
+     * Adds this tick of vanilla mining progress, or a YAML chime when that speed is zero.
      *
      * @param player miner
      * @param block unchanged cell
      * @param cycle this hold
-     * @return whether the hold was resolved and must stop
+     * @return whether the cycle already resolved (caller should skip remaining work)
+     */
+    private boolean advanceCues(Player player, Block block, Cycle cycle) {
+        float step = VanillaBreakClock.tickProgress(
+                player,
+                block,
+                noVanillaMineKey,
+                cycle.tool.miningSpeed(),
+                cycle.tool.miningSpeedMultiplier());
+        if (step > 0f) {
+            cycle.progress += step;
+            while (cycle.progress >= 1.0f) {
+                cycle.progress -= 1.0f;
+                if (onVanillaBreak(player, block, cycle)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (!cycle.tool.hasChimeFallback()) {
+            return false;
+        }
+        if (gameTick - cycle.lastStrikeTick < cycle.tool.chimeTicks()) {
+            return false;
+        }
+        cycle.lastStrikeTick = gameTick;
+        return onVanillaBreak(player, block, cycle);
+    }
+
+    /**
+     * One prevented vanilla break: cling, clang, or late cut according to this hold's plan.
+     *
+     * @param player miner
+     * @param block unchanged cell
+     * @param cycle this hold
+     * @return {@code true} when the cut already resolved
      */
     private boolean onVanillaBreak(Player player, Block block, Cycle cycle) {
         switch (cycle.cues.nextCue()) {
@@ -387,11 +463,11 @@ public class HandPickService {
     }
 
     /**
-     * Lifts the held cell, and the cell under it when the clang was overshot.
+     * Lifts cubes using {@code break-shape}: same pattern on time and late; only the count changes.
      *
      * @param player miner
      * @param cycle hold that just ended
-     * @param late whether a further vanilla beat happened after the clang
+     * @param late whether the ready window was missed
      */
     private void resolveCut(Player player, Cycle cycle, boolean late) {
         if (cycle.resolved) {
@@ -412,16 +488,73 @@ public class HandPickService {
             return;
         }
         ensureJornada(site, player.getWorld());
-        if (site.getJornadaPickLeft() <= 0) {
+        int cost = cycle.tool.jornadaCost();
+        if (site.getJornadaPickLeft() < cost) {
             warn(player, "The excavation work day is over.");
             return;
         }
-        site.setJornadaPickLeft(site.getJornadaPickLeft() - 1);
-        liftFill(block);
-        if (late) {
-            smashBelow(site, block);
+        site.setJornadaPickLeft(site.getJornadaPickLeft() - cost);
+        List<Block> lifted = LiftPlan.cells(site, block, cycle.tool, late);
+        boolean destroyed = false;
+        for (Block cell : lifted) {
+            destroyed |= woundFind(site, cell, cell.getX() == block.getX()
+                    && cell.getY() == block.getY()
+                    && cell.getZ() == block.getZ());
+            liftFill(cell);
+        }
+        if (destroyed) {
+            warn(player, "Those remains have been destroyed. Nothing can be recovered from them.");
+        }
+        tellNeighborTraces(player, site, block);
+        if (late && lifted.size() > 1) {
+            playLateSmash(block);
         }
         sites.save(site);
+    }
+
+    /**
+     * After a cut, reports how many live find cubes share a face with the aimed cell.
+     *
+     * @param player miner
+     * @param site excavation
+     * @param origin aimed cube, now usually air
+     */
+    private void tellNeighborTraces(Player player, Site site, Block origin) {
+        if (!settings.neighborTraces()) {
+            return;
+        }
+        String line = NeighborTraces.chatLine(catalogs, NeighborTraces.count(site, catalogs, origin));
+        if (line != null) {
+            player.sendMessage(line);
+        }
+    }
+
+    /**
+     * Spends a find cell: aimed cube is a direct hit ({@code 200/n}); cubes below are a graze ({@code 100/n}).
+     *
+     * @param site excavation
+     * @param block cell that will become air
+     * @param aimed whether this is the cube the player held on
+     * @return whether this lift dropped a find to conservation 0
+     */
+    private boolean woundFind(Site site, Block block, boolean aimed) {
+        BuriedFind find = site.findAt(new BlockCell(block.getX(), block.getY(), block.getZ())).orElse(null);
+        if (find == null) {
+            return false;
+        }
+        BlockCell cell = new BlockCell(block.getX(), block.getY(), block.getZ());
+        boolean changed = aimed ? find.woundDirect(cell) : find.woundFromAbove(cell);
+        if (!changed) {
+            return false;
+        }
+        if (find.getConservation() < settings.damagedBelowPercent()) {
+            find.setDamaged(true);
+        }
+        if (find.getConservation() <= 0 && find.getState() != FindState.RECOVERED) {
+            find.setState(FindState.LOST);
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -440,17 +573,11 @@ public class HandPickService {
     }
 
     /**
-     * Late blow: the cell under the lifted one, if it is still prism fill.
+     * Late blow sound after extra cells come out.
      *
-     * @param site excavation
-     * @param lifted cell that just became air
+     * @param lifted cell that just became air (or the origin of the column)
      */
-    private void smashBelow(Site site, Block lifted) {
-        Block below = lifted.getRelative(BlockFace.DOWN);
-        if (site.isInPrism(below.getX(), below.getY(), below.getZ())
-                && PrismFill.isTerrainFill(below.getType())) {
-            liftFill(below);
-        }
+    private void playLateSmash(Block lifted) {
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (!plugin.isEnabled()) {
                 return;
@@ -580,7 +707,48 @@ public class HandPickService {
         StratumDefinition definition = band == null ? null : catalogs.stratum(band.getId());
         String antiquity = definition == null ? "" : " · " + definition.antiquity();
         String text = "STRATUM " + layer + antiquity + "  ⛏ " + site.getJornadaPickLeft();
+        BuriedFind aimed = site.findAt(new BlockCell(target.getX(), target.getY(), target.getZ())).orElse(null);
+        if (aimed != null && aimed.getState() != FindState.HIDDEN && aimed.getState() != FindState.RECOVERED) {
+            text += "  " + aimed.getConservation() + "%";
+        } else if (settings.neighborTraces()) {
+            Block opened = openedPrismCell(player, site, cycle, target);
+            if (opened != null) {
+                text += "  " + NeighborTraces.hudFragment(
+                        catalogs, NeighborTraces.count(site, catalogs, opened));
+            }
+        }
         player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(text));
+    }
+
+    /**
+     * The revealed cube whose neighbour count should be shown: the held cell if it is already air,
+     * otherwise the air in front of the aimed wall (the hole the player is looking into).
+     *
+     * @param player viewer
+     * @param site excavation
+     * @param cycle open hold, or {@code null}
+     * @param target HUD focus cell
+     * @return opened prism cell, or {@code null} when still facing unrevealed fill from outside
+     */
+    private static Block openedPrismCell(Player player, Site site, Cycle cycle, Block target) {
+        if (!PrismFill.isTerrainFill(target.getType()) && site.isInPrism(target.getX(), target.getY(), target.getZ())) {
+            return target;
+        }
+        if (cycle != null) {
+            return null;
+        }
+        List<Block> line = player.getLastTwoTargetBlocks(null, 6);
+        if (line.size() < 2) {
+            return null;
+        }
+        Block previous = line.get(0);
+        if (!previous.getType().isAir()) {
+            return null;
+        }
+        if (!site.isInPrism(previous.getX(), previous.getY(), previous.getZ())) {
+            return null;
+        }
+        return previous;
     }
 
     /**
@@ -605,7 +773,9 @@ public class HandPickService {
         private final int y;
         private final int z;
         private final HoldCuePlan cues;
+        private final ExcavationTool tool;
         private int lastActiveTick;
+        private int lastStrikeTick;
         private float progress;
         private int clangTick = -1;
         private boolean resolved;
@@ -616,13 +786,16 @@ public class HandPickService {
          * @param z block Z
          * @param tick current service tick
          * @param cues cling / clang schedule for this hold
+         * @param tool profile that started the hold
          */
-        private Cycle(int x, int y, int z, int tick, HoldCuePlan cues) {
+        private Cycle(int x, int y, int z, int tick, HoldCuePlan cues, ExcavationTool tool) {
             this.x = x;
             this.y = y;
             this.z = z;
             this.lastActiveTick = tick;
+            this.lastStrikeTick = tick;
             this.cues = cues;
+            this.tool = tool;
         }
 
         /**

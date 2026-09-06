@@ -488,32 +488,19 @@ public class TrackerService {
             return;
         }
         sendDetectIfReady(scanner);
-        int share = settings.detectMessageShareRange();
-        if (share <= 0) {
-            return;
-        }
-        Location here = scanner.getLocation();
-        for (Player other : scanner.getWorld().getPlayers()) {
-            if (other.getUniqueId().equals(scanner.getUniqueId())) {
-                continue;
-            }
-            if (other.getLocation().distanceSquared(here) <= (double) share * share) {
-                sendDetectIfReady(other);
-            }
-        }
     }
 
     /**
-     * @param viewer player who may receive the detect chat
+     * @param scanner holder who may receive the detect chat
      */
-    private void sendDetectIfReady(Player viewer) {
-        int last = lastDetectMessageTick.getOrDefault(viewer.getUniqueId(), Integer.MIN_VALUE / 2);
+    private void sendDetectIfReady(Player scanner) {
+        int last = lastDetectMessageTick.getOrDefault(scanner.getUniqueId(), Integer.MIN_VALUE / 2);
         if (tick - last < settings.detectMessageCooldownTicks()) {
             return;
         }
-        lastDetectMessageTick.put(viewer.getUniqueId(), tick);
-        viewer.sendMessage("Archaeological signal detected.");
-        viewer.sendMessage("Prospect the area to determine the site location.");
+        lastDetectMessageTick.put(scanner.getUniqueId(), tick);
+        scanner.sendMessage("Archaeological signal detected.");
+        scanner.sendMessage("Prospect the area to determine the site location.");
     }
 
     /**

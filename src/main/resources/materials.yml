@@ -1,3 +1,5 @@
+# Find materials. display-name is used on neighbour traces in the cut.
+# Lab treatment chains are listed for later; they are not played in-game yet.
 materials:
   ceramic:
     display-name: Ceramic

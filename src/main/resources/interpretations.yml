@@ -1,3 +1,4 @@
+# Readings a player may attach to a find. Not loaded by the plugin yet.
 interpretations:
   conflict:
     display-name: "possible armed conflict"

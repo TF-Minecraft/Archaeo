@@ -1,14 +1,15 @@
 package com.nowko.archeology.excavation;
 
-import com.nowko.archeology.config.PickSettings;
-
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Per-hold cue schedule: 1–3 soft clings from the first prevented vanilla break, then one clang.
- * Rolled when the player starts holding.
+ * Rolled when the player starts holding. The range is fixed so Soon never becomes a HUD number.
  */
 public final class HoldCuePlan {
+    private static final int CLING_MIN = 1;
+    private static final int CLING_MAX = 3;
+
     private final int cueClings;
     private int vanillaBreaks;
 
@@ -20,13 +21,10 @@ public final class HoldCuePlan {
     }
 
     /**
-     * @param settings cling range
      * @return a new roll for this hold
      */
-    public static HoldCuePlan roll(PickSettings settings) {
-        int clingMin = Math.max(1, settings.cueClingsMin());
-        int clingMax = Math.max(clingMin, settings.cueClingsMax());
-        int clings = clingMin + ThreadLocalRandom.current().nextInt(clingMax - clingMin + 1);
+    public static HoldCuePlan roll() {
+        int clings = CLING_MIN + ThreadLocalRandom.current().nextInt(CLING_MAX - CLING_MIN + 1);
         return new HoldCuePlan(clings);
     }
 
@@ -54,7 +52,7 @@ public final class HoldCuePlan {
         CLING,
         /** Ready clang: ideal release. */
         CLANG,
-        /** Held past the clang: this cell and the one below come out. */
+        /** Held past the clang: extra cells come out. */
         AFTER
     }
 }

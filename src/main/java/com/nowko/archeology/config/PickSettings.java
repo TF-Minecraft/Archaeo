@@ -1,49 +1,30 @@
 package com.nowko.archeology.config;
 
-import com.nowko.archeology.excavation.DigTools;
-import org.bukkit.Material;
-
 import java.util.List;
-import java.util.Set;
+
 /**
- * Hand Pick from {@code config.yml}: cadence, empty-fill cue and window, find risk, and item copy.
+ * Shared excavation rules from {@code excavation:}.
  *
- * @param enabled whether the pick is issued and recognized
- * @param blockStages strikes to remove a find-cell fill (hidden; not shown on the HUD)
+ * @param enabled whether the cut clock runs
  * @param jornadaActions pick cycles restored each Minecraft day
- * @param strikeIntervalTicks ticks between counted strikes while left-click is held
- * @param cueClingsMin inclusive minimum soft clings before the ready clang (empty fill)
- * @param cueClingsMax inclusive maximum soft clings before the ready clang (empty fill)
- * @param readyWindowTicks ticks after the ting in which release is on time
  * @param visualCues particles and subtitles that mirror clings for players without sound
- * @param findDust whether exposed find cells shed motes (block type is unchanged)
+ * @param findDust whether exposed find cells shed motes
  * @param findDustIntervalTicks ticks between leak bursts on an open find cell
- * @param findDustCount motes per burst at the cube centre
- * @param conservationLossPerStrike conservation lost per extra strike on a detected find
- * @param conservationLossOnRemove extra loss when the pick fully removes a find cell
+ * @param findDustCount motes per burst
  * @param damagedBelowPercent mark the find damaged when conservation falls below this
- * @param tools main-hand materials allowed on the dig site ({@link org.bukkit.Material#AIR} = empty hand)
- * @param itemName unused leftover copy (tools are vanilla)
- * @param itemLore unused leftover copy
+ * @param neighborTraces whether lifting fill reports adjacent find cubes by material
+ * @param profiles named tools from {@code excavation.tools}
  */
 public record PickSettings(
         boolean enabled,
-        int blockStages,
         int jornadaActions,
-        int strikeIntervalTicks,
-        int cueClingsMin,
-        int cueClingsMax,
-        int readyWindowTicks,
         boolean visualCues,
         boolean findDust,
         int findDustIntervalTicks,
         int findDustCount,
-        int conservationLossPerStrike,
-        int conservationLossOnRemove,
         int damagedBelowPercent,
-        Set<Material> tools,
-        String itemName,
-        List<String> itemLore
+        boolean neighborTraces,
+        List<ExcavationTool> profiles
 ) {
     /**
      * @return packaged defaults matching {@code config.yml}
@@ -51,25 +32,14 @@ public record PickSettings(
     public static PickSettings defaults() {
         return new PickSettings(
                 true,
-                6,
                 8,
-                25,
-                1,
-                3,
-                20,
                 true,
                 true,
                 6,
                 2,
-                8,
-                20,
                 70,
-                DigTools.defaultMaterials(),
-                "Hand Pick",
-                List.of(
-                        "Hold left-click on the open cut. Soft chimes, then release on the ready chime.",
-                        "Not a mining pick."
-                )
+                true,
+                List.of(ExcavationTool.hand(), ExcavationTool.light(), ExcavationTool.heavy())
         );
     }
 }

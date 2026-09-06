@@ -1,36 +1,23 @@
 package com.nowko.archeology.config;
 
-import java.util.List;
-
 /**
- * Field brush recovery from {@code config.yml}: channel time, tedium cap, and item copy.
+ * Field brush recovery from {@code excavation.brush} in {@code config.yml}.
  *
  * @param enabled whether the brush can lift a fully exposed find
- * @param channelTicks hold time per uncleaned fill cell
+ * @param channelTicks hold time per uncleaned fill cell ({@code hold-ticks})
  * @param maxCellsToClean most cubes that must be brushed; larger shapes lift after this many
- * @param itemName English display name for {@code /archaeo brush give}
- * @param itemLore English lore lines
+ * @param progressBar whether a boss bar shows remaining brush time
  */
 public record RecoverySettings(
         boolean enabled,
         int channelTicks,
         int maxCellsToClean,
-        String itemName,
-        List<String> itemLore
+        boolean progressBar
 ) {
     /**
      * @return packaged defaults matching {@code config.yml}
      */
     public static RecoverySettings defaults() {
-        return new RecoverySettings(
-                true,
-                20,
-                6,
-                "Field brush",
-                List.of(
-                        "Right-click a fully exposed find. Dust leaves each cube you clean.",
-                        "The last cube lifts the piece onto the ground."
-                )
-        );
+        return new RecoverySettings(true, 40, 6, true);
     }
 }

@@ -1,39 +1,52 @@
 package com.nowko.archeology.config;
 
+import com.nowko.archeology.item.ItemRef;
 import org.bukkit.Material;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 /**
- * Bukkit materials for tools the plugin issues or will bind to later.
+ * Role-item ids from {@code config.yml} feature sections (vanilla, ItemsAdder, or MMOItems).
  *
- * @param tracker held scanner
- * @param prospect soil probe / cata (not the excavation brush)
- * @param establish camp kit (not a vanilla stick)
- * @param pick excavation Hand Pick
- * @param shovel excavation shovel (later)
- * @param hammer unused for now
- * @param brush field brush that lifts exposed finds
+ * @param tracker {@code tracker.item}
+ * @param prospect {@code prospect.item}
+ * @param establish {@code establish.item}
+ * @param brush {@code excavation.brush.item}
+ * @param excavationProfiles {@code excavation.tools.<id>.items}
  */
 public record ItemMaterials(
-        Material tracker,
-        Material prospect,
-        Material establish,
-        Material pick,
-        Material shovel,
-        Material hammer,
-        Material brush
+        ItemRef tracker,
+        ItemRef prospect,
+        ItemRef establish,
+        ItemRef brush,
+        Map<String, List<ItemRef>> excavationProfiles
 ) {
     /**
-     * @return packaged defaults
+     * @return packaged defaults matching {@code config.yml}
      */
     public static ItemMaterials defaults() {
+        Map<String, List<ItemRef>> profiles = new LinkedHashMap<>();
+        profiles.put("hand", ExcavationTool.hand().materials());
+        profiles.put("light", ExcavationTool.light().materials());
+        profiles.put("heavy", ExcavationTool.heavy().materials());
         return new ItemMaterials(
-                Material.RECOVERY_COMPASS,
-                Material.STONE_HOE,
-                Material.STICK,
-                Material.STONE_PICKAXE,
-                Material.IRON_SHOVEL,
-                Material.MACE,
-                Material.BRUSH
+                ItemRef.vanilla(Material.RECOVERY_COMPASS),
+                ItemRef.vanilla(Material.STONE_HOE),
+                ItemRef.vanilla(Material.STICK),
+                ItemRef.vanilla(Material.BRUSH),
+                Collections.unmodifiableMap(profiles)
         );
+    }
+
+    /**
+     * @param profileId YAML key such as {@code hand}
+     * @return whitelist for that profile, or empty if unknown
+     */
+    public List<ItemRef> profileMaterials(String profileId) {
+        List<ItemRef> list = excavationProfiles.get(profileId);
+        return list == null ? List.of() : list;
     }
 }

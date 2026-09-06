@@ -1,5 +1,6 @@
 package com.nowko.archeology.command;
 
+import com.nowko.archeology.ArcheologyPlugin;
 import com.nowko.archeology.config.ArtifactTemplate;
 import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.establish.EstablishService;
@@ -9,6 +10,7 @@ import com.nowko.archeology.excavation.PrismListener;
 import com.nowko.archeology.excavation.RecoverService;
 import com.nowko.archeology.item.BrushItem;
 import com.nowko.archeology.item.EstablishItem;
+import com.nowko.archeology.item.ItemMatcher;
 import com.nowko.archeology.item.ProspectItem;
 import com.nowko.archeology.item.TrackerItem;
 import com.nowko.archeology.model.BuriedFind;
@@ -30,6 +32,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,12 +47,14 @@ import java.util.stream.Collectors;
 public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private static final List<String> INTERESTS = List.of("low", "medium", "high", "exceptional");
     private static final List<String> ROOT = List.of(
-            "ruin", "tracker", "prospect", "establish", "pick", "brush", "find", "reload");
+            "give", "ruin", "workday", "find", "reload");
     private static final List<String> RUIN_ACTIONS = List.of("create", "info");
-    private static final List<String> GIVE_ACTIONS = List.of("give");
-    private static final List<String> PICK_ACTIONS = List.of("give", "reset");
+    private static final List<String> GIVE_KINDS = List.of(
+            "tracker", "prospect", "establish", "tool", "brush");
+    private static final List<String> WORKDAY_ACTIONS = List.of("reset");
     private static final List<String> FIND_ACTIONS = List.of("spawn");
 
+    private final ArcheologyPlugin plugin;
     private final CatalogRegistry catalogs;
     private final SiteGenerator generator;
     private final SiteRepository sites;
@@ -66,22 +71,24 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private final RecoverService recover;
 
     /**
+     * @param plugin owner used to re-bind ItemsAdder / MMOItems on reload
      * @param catalogs staff permission and YAML catalogs
      * @param generator used to persist a new managed ruin
      * @param sites lookup for {@code ruin info} and reload
-     * @param trackerItem factory for {@code tracker give}
+     * @param trackerItem factory for {@code give tracker}
      * @param tracker live scan loop, updated on reload
-     * @param prospectItem factory for {@code prospect give}
+     * @param prospectItem factory for {@code give prospect}
      * @param prospect sample loop, updated on reload
-     * @param establishItem factory for {@code establish give}
+     * @param establishItem factory for {@code give establish}
      * @param establish camp outline loop, updated on reload
      * @param handPick excavation loop and tool whitelist, updated on reload
      * @param findDust leak on exposed find cells, updated on reload
      * @param prism prism fill lock, updated on reload
-     * @param brushItem factory for {@code brush give}
+     * @param brushItem factory for {@code give brush}
      * @param recover field-brush loop, updated on reload
      */
     public ArchaeoCommand(
+            ArcheologyPlugin plugin,
             CatalogRegistry catalogs,
             SiteGenerator generator,
             SiteRepository sites,
@@ -97,6 +104,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             BrushItem brushItem,
             RecoverService recover
     ) {
+        this.plugin = plugin;
         this.catalogs = catalogs;
         this.generator = generator;
         this.sites = sites;
@@ -131,20 +139,11 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         if (args.length >= 1 && "reload".equalsIgnoreCase(args[0])) {
             return handleReload(sender);
         }
-        if (args.length >= 1 && "tracker".equalsIgnoreCase(args[0])) {
-            return handleTracker(sender, args);
+        if (args.length >= 1 && "give".equalsIgnoreCase(args[0])) {
+            return handleGive(sender, args);
         }
-        if (args.length >= 1 && "prospect".equalsIgnoreCase(args[0])) {
-            return handleProspect(sender, args);
-        }
-        if (args.length >= 1 && "establish".equalsIgnoreCase(args[0])) {
-            return handleEstablish(sender, args);
-        }
-        if (args.length >= 1 && "pick".equalsIgnoreCase(args[0])) {
-            return handlePick(sender, args);
-        }
-        if (args.length >= 1 && "brush".equalsIgnoreCase(args[0])) {
-            return handleBrush(sender, args);
+        if (args.length >= 1 && ("workday".equalsIgnoreCase(args[0]) || "pick".equalsIgnoreCase(args[0]))) {
+            return handleWorkday(sender, args);
         }
         if (args.length >= 1 && "find".equalsIgnoreCase(args[0])) {
             return handleFind(sender, args);
@@ -172,16 +171,17 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private boolean handleReload(CommandSender sender) {
         try {
             catalogs.load();
-            trackerItem.update(catalogs.tracker(), catalogs.items().tracker());
+            plugin.bindItemMatcher(ItemMatcher.detect(plugin));
+            trackerItem.update(catalogs.items().tracker());
             tracker.setSettings(catalogs.tracker());
-            prospectItem.update(catalogs.prospect(), catalogs.items().prospect());
+            prospectItem.update(catalogs.items().prospect());
             prospect.setSettings(catalogs.prospect());
-            establishItem.update(catalogs.establish(), catalogs.items().establish());
+            establishItem.update(catalogs.items().establish());
             establish.setSettings(catalogs.establish());
             handPick.setSettings(catalogs.pick());
             findDust.setSettings(catalogs.pick());
             prism.setProtectDigSite(catalogs.establish().protectDigSite());
-            brushItem.update(catalogs.recovery(), catalogs.items().brush());
+            brushItem.update(catalogs.items().brush());
             recover.setSettings(catalogs.recovery());
             sites.loadAll();
             sender.sendMessage("Reloaded Archaeo config, catalogs, and sites from disk.");
@@ -192,187 +192,169 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * Gives a tracker item. Players scan by holding it; they do not run this command.
+     * Staff spawn of a configured role item: {@code /archaeo give <kind> [player]}.
      *
      * @param sender staff issuer
-     * @param args {@code tracker give [player]}
+     * @param args {@code give <tracker|prospect|establish|tool|brush> [id] [player]}
      * @return {@code true} always (handled)
      */
-    private boolean handleTracker(CommandSender sender, String[] args) {
-        if (args.length < 2 || !"give".equalsIgnoreCase(args[1])) {
-            sender.sendMessage("Usage: /archaeo tracker give [player]");
-            return true;
-        }
-        Player target;
-        if (args.length >= 3) {
-            target = Bukkit.getPlayerExact(args[2]);
-            if (target == null) {
-                sender.sendMessage("Player not online: " + args[2]);
-                return true;
-            }
-        } else if (sender instanceof Player player) {
-            target = player;
-        } else {
-            sender.sendMessage("Console must name a player: /archaeo tracker give <player>");
-            return true;
-        }
-        target.getInventory().addItem(trackerItem.create());
-        sender.sendMessage("Gave an archaeological tracker to " + target.getName() + ".");
-        if (target != sender) {
-            target.sendMessage("You received an archaeological tracker. Hold it to listen for hidden ruins.");
-        }
-        return true;
-    }
-
-    /**
-     * Gives a prospecting kit. Players sample by right-clicking ground; they do not run this command.
-     *
-     * @param sender staff issuer
-     * @param args {@code prospect give [player]}
-     * @return {@code true} always (handled)
-     */
-    private boolean handleProspect(CommandSender sender, String[] args) {
-        if (args.length < 2 || !"give".equalsIgnoreCase(args[1])) {
-            sender.sendMessage("Usage: /archaeo prospect give [player]");
-            return true;
-        }
-        Player target;
-        if (args.length >= 3) {
-            target = Bukkit.getPlayerExact(args[2]);
-            if (target == null) {
-                sender.sendMessage("Player not online: " + args[2]);
-                return true;
-            }
-        } else if (sender instanceof Player player) {
-            target = player;
-        } else {
-            sender.sendMessage("Console must name a player: /archaeo prospect give <player>");
-            return true;
-        }
-        target.getInventory().addItem(prospectItem.create());
-        sender.sendMessage("Gave a prospecting kit to " + target.getName() + ".");
-        if (target != sender) {
-            target.sendMessage("You received a prospecting kit. Right-click ground in a suspected chunk.");
-        }
-        return true;
-    }
-
-    /**
-     * Gives an establishment kit. Players plant a camp in a neighbor chunk; they do not run this command.
-     *
-     * @param sender staff issuer
-     * @param args {@code establish give [player]}
-     * @return {@code true} always (handled)
-     */
-    private boolean handleEstablish(CommandSender sender, String[] args) {
-        if (args.length < 2 || !"give".equalsIgnoreCase(args[1])) {
-            sender.sendMessage("Usage: /archaeo establish give [player]");
-            return true;
-        }
-        Player target;
-        if (args.length >= 3) {
-            target = Bukkit.getPlayerExact(args[2]);
-            if (target == null) {
-                sender.sendMessage("Player not online: " + args[2]);
-                return true;
-            }
-        } else if (sender instanceof Player player) {
-            target = player;
-        } else {
-            sender.sendMessage("Console must name a player: /archaeo establish give <player>");
-            return true;
-        }
-        target.getInventory().addItem(establishItem.create());
-        sender.sendMessage("Gave an establishment kit to " + target.getName() + ".");
-        if (target != sender) {
-            target.sendMessage("You received an establishment kit. Use it next to a ruin you have confirmed.");
-        }
-        return true;
-    }
-
-    /**
-     * Gives a field brush. Any item of {@code items.brush} recovers finds; this is named copy for staff.
-     *
-     * @param sender staff issuer
-     * @param args {@code brush give [player]}
-     * @return {@code true} always (handled)
-     */
-    private boolean handleBrush(CommandSender sender, String[] args) {
-        if (args.length < 2 || !"give".equalsIgnoreCase(args[1])) {
-            sender.sendMessage("Usage: /archaeo brush give [player]");
-            return true;
-        }
-        Player target;
-        if (args.length >= 3) {
-            target = Bukkit.getPlayerExact(args[2]);
-            if (target == null) {
-                sender.sendMessage("Player not online: " + args[2]);
-                return true;
-            }
-        } else if (sender instanceof Player player) {
-            target = player;
-        } else {
-            sender.sendMessage("Console must name a player: /archaeo brush give <player>");
-            return true;
-        }
-        target.getInventory().addItem(brushItem.create());
-        sender.sendMessage("Gave a field brush to " + target.getName() + ".");
-        if (target != sender) {
-            target.sendMessage("You received a field brush. Right-click a fully exposed find to lift it.");
-        }
-        return true;
-    }
-
-    /**
-     * Gives a vanilla whitelist pickaxe or refills today's pick budget on an established excavation.
-     *
-     * @param sender staff issuer
-     * @param args {@code pick give [player]} or {@code pick reset [player|all]}
-     * @return {@code true} always (handled)
-     */
-    private boolean handlePick(CommandSender sender, String[] args) {
+    private boolean handleGive(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage("Usage: /archaeo pick give [player]");
-            sender.sendMessage("       /archaeo pick reset [player|all]");
+            sender.sendMessage("Usage: /archaeo give <tracker|prospect|establish|tool|brush> [player]");
+            sender.sendMessage("       /archaeo give tool <item> [player]");
             return true;
         }
-        if ("reset".equalsIgnoreCase(args[1])) {
-            return handlePickReset(sender, args);
+        String kind = args[1].toLowerCase(Locale.ROOT);
+        if ("pick".equals(kind)) {
+            kind = "tool";
         }
-        if (!"give".equalsIgnoreCase(args[1])) {
-            sender.sendMessage("Usage: /archaeo pick give [player]");
-            sender.sendMessage("       /archaeo pick reset [player|all]");
+        if ("tool".equals(kind)) {
+            return handleGiveTool(sender, args);
+        }
+        Player target = resolveOnlinePlayer(sender, args, 2, "/archaeo give <kind> <player>");
+        if (target == null) {
             return true;
         }
-        Player target;
-        if (args.length >= 3) {
-            target = Bukkit.getPlayerExact(args[2]);
-            if (target == null) {
-                sender.sendMessage("Player not online: " + args[2]);
-                return true;
+        return switch (kind) {
+            case "tracker" -> giveStack(
+                    sender,
+                    target,
+                    trackerItem.create(),
+                    "an archaeological tracker",
+                    "You received an archaeological tracker. Hold it to listen for hidden ruins.");
+            case "prospect" -> giveStack(
+                    sender,
+                    target,
+                    prospectItem.create(),
+                    "a prospecting kit",
+                    "You received a prospecting kit. Right-click ground in a suspected chunk.");
+            case "establish" -> giveStack(
+                    sender,
+                    target,
+                    establishItem.create(),
+                    "an establishment kit",
+                    "You received an establishment kit. Use it next to a ruin you have confirmed.");
+            case "brush" -> giveStack(
+                    sender,
+                    target,
+                    brushItem.create(),
+                    "a field brush",
+                    "You received a field brush. Right-click a fully exposed find to lift it.");
+            default -> {
+                sender.sendMessage("Unknown item. Use: tracker, prospect, establish, tool, or brush.");
+                yield true;
             }
-        } else if (sender instanceof Player player) {
-            target = player;
+        };
+    }
+
+    /**
+     * Gives one stack from {@code excavation.tools}. A missing id uses the first listed item.
+     *
+     * @param sender staff issuer
+     * @param args {@code give tool [item] [player]}
+     * @return {@code true} always
+     */
+    private boolean handleGiveTool(CommandSender sender, String[] args) {
+        ItemStack stack;
+        int playerIndex = 2;
+        Optional<ItemStack> named = args.length >= 3 ? handPick.toolForGive(args[2]) : Optional.empty();
+        if (named.isPresent()) {
+            stack = named.get();
+            playerIndex = 3;
+        } else if (args.length >= 3 && Bukkit.getPlayerExact(args[2]) == null
+                && !handPick.giveToolTokens().isEmpty()) {
+            sender.sendMessage("Unknown excavation tool. Tab-complete lists excavation.tools (empty hand is skipped).");
+            return true;
         } else {
-            sender.sendMessage("Console must name a player: /archaeo pick give <player>");
+            stack = handPick.sampleTool();
+        }
+        Player target = resolveOnlinePlayer(sender, args, playerIndex, "/archaeo give tool [item] <player>");
+        if (target == null) {
             return true;
         }
-        target.getInventory().addItem(handPick.sampleTool());
-        sender.sendMessage("Gave an excavation tool to " + target.getName() + ".");
+        String label = stack.getType().name().toLowerCase(Locale.ROOT).replace('_', ' ');
+        return giveStack(
+                sender,
+                target,
+                stack,
+                "an excavation tool (" + label + ")",
+                "You can excavate with any pickaxe or shovel listed under excavation.tools, or an empty hand.");
+    }
+
+    /**
+     * @param sender staff issuer
+     * @param target inventory to fill
+     * @param stack item to add
+     * @param givenLabel staff confirmation noun phrase
+     * @param receivedMessage line sent to {@code target} when they are not the issuer
+     * @return {@code true} always
+     */
+    private static boolean giveStack(
+            CommandSender sender,
+            Player target,
+            ItemStack stack,
+            String givenLabel,
+            String receivedMessage
+    ) {
+        target.getInventory().addItem(stack);
+        sender.sendMessage("Gave " + givenLabel + " to " + target.getName() + ".");
         if (target != sender) {
-            target.sendMessage("You can excavate with any pickaxe or shovel on the whitelist, or an empty hand.");
+            target.sendMessage(receivedMessage);
         }
         return true;
+    }
+
+    /**
+     * @param sender issuer
+     * @param args tokens
+     * @param playerIndex index of an optional player name
+     * @param consoleUsage usage shown when console omits the name
+     * @return online player, or {@code null} after an error message
+     */
+    private static Player resolveOnlinePlayer(
+            CommandSender sender,
+            String[] args,
+            int playerIndex,
+            String consoleUsage
+    ) {
+        if (args.length > playerIndex) {
+            Player target = Bukkit.getPlayerExact(args[playerIndex]);
+            if (target == null) {
+                sender.sendMessage("Player not online: " + args[playerIndex]);
+                return null;
+            }
+            return target;
+        }
+        if (sender instanceof Player player) {
+            return player;
+        }
+        sender.sendMessage("Console must name a player: " + consoleUsage);
+        return null;
+    }
+
+    /**
+     * Restores today's cut budget on the excavation at a player's feet, or every established site.
+     *
+     * @param sender staff issuer
+     * @param args {@code workday reset [player|all]} ( {@code pick reset} still accepted )
+     * @return {@code true} always (handled)
+     */
+    private boolean handleWorkday(CommandSender sender, String[] args) {
+        if (args.length < 2 || !"reset".equalsIgnoreCase(args[1])) {
+            sender.sendMessage("Usage: /archaeo workday reset [player|all]");
+            return true;
+        }
+        return handleWorkdayReset(sender, args);
     }
 
     /**
      * Restores Hand Pick jornada on the excavation at a player's feet, or every established site.
      *
      * @param sender staff issuer
-     * @param args {@code pick reset [player|all]}
+     * @param args {@code workday reset [player|all]}
      * @return {@code true} always (handled)
      */
-    private boolean handlePickReset(CommandSender sender, String[] args) {
+    private boolean handleWorkdayReset(CommandSender sender, String[] args) {
         if (args.length >= 3 && "all".equalsIgnoreCase(args[2])) {
             int count = 0;
             for (Site site : sites.all()) {
@@ -402,7 +384,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         } else if (sender instanceof Player player) {
             target = player;
         } else {
-            sender.sendMessage("Console must name a player or use: /archaeo pick reset all");
+            sender.sendMessage("Console must name a player or use: /archaeo workday reset all");
             return true;
         }
         Site site = establishedSiteNear(target).orElse(null);
@@ -695,12 +677,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private void sendUsage(CommandSender sender) {
         sender.sendMessage("Usage: /archaeo ruin create <low|medium|high|exceptional> [name]");
         sender.sendMessage("       /archaeo ruin info [name|#serial]");
-        sender.sendMessage("       /archaeo tracker give [player]");
-        sender.sendMessage("       /archaeo prospect give [player]");
-        sender.sendMessage("       /archaeo establish give [player]");
-        sender.sendMessage("       /archaeo pick give [player]");
-        sender.sendMessage("       /archaeo pick reset [player|all]");
-        sender.sendMessage("       /archaeo brush give [player]");
+        sender.sendMessage("       /archaeo give tracker|prospect|establish|tool|brush [player]");
+        sender.sendMessage("       /archaeo give tool <item> [player]");
+        sender.sendMessage("       /archaeo workday reset [player|all]");
         sender.sendMessage("       /archaeo find spawn [artifact] [size]");
         sender.sendMessage("       /archaeo reload");
     }
@@ -724,36 +703,48 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     .filter(value -> value.startsWith(args[0].toLowerCase(Locale.ROOT)))
                     .toList();
         }
-        if ("tracker".equalsIgnoreCase(args[0])
-                || "prospect".equalsIgnoreCase(args[0])
-                || "establish".equalsIgnoreCase(args[0])
-                || "pick".equalsIgnoreCase(args[0])
-                || "brush".equalsIgnoreCase(args[0])
-                || "find".equalsIgnoreCase(args[0])) {
+        if ("give".equalsIgnoreCase(args[0])) {
             if (args.length == 2) {
-                List<String> actions;
-                if ("pick".equalsIgnoreCase(args[0])) {
-                    actions = PICK_ACTIONS;
-                } else if ("find".equalsIgnoreCase(args[0])) {
-                    actions = FIND_ACTIONS;
-                } else {
-                    actions = GIVE_ACTIONS;
-                }
-                return actions.stream()
+                return GIVE_KINDS.stream()
                         .filter(value -> value.startsWith(args[1].toLowerCase(Locale.ROOT)))
                         .toList();
             }
-            if (args.length == 3 && "give".equalsIgnoreCase(args[1])) {
+            if (args.length == 3) {
+                if ("tool".equalsIgnoreCase(args[1]) || "pick".equalsIgnoreCase(args[1])) {
+                    String typed = args[2].toLowerCase(Locale.ROOT);
+                    return handPick.giveToolTokens().stream()
+                            .filter(token -> token.toLowerCase(Locale.ROOT).startsWith(typed))
+                            .toList();
+                }
                 return onlineNamesStartingWith(args[2]);
             }
-            if (args.length == 3 && "pick".equalsIgnoreCase(args[0]) && "reset".equalsIgnoreCase(args[1])) {
+            if (args.length == 4 && ("tool".equalsIgnoreCase(args[1]) || "pick".equalsIgnoreCase(args[1]))) {
+                return onlineNamesStartingWith(args[3]);
+            }
+            return List.of();
+        }
+        if ("workday".equalsIgnoreCase(args[0]) || "pick".equalsIgnoreCase(args[0])) {
+            if (args.length == 2) {
+                return WORKDAY_ACTIONS.stream()
+                        .filter(value -> value.startsWith(args[1].toLowerCase(Locale.ROOT)))
+                        .toList();
+            }
+            if (args.length == 3 && "reset".equalsIgnoreCase(args[1])) {
                 List<String> names = new ArrayList<>(onlineNamesStartingWith(args[2]));
                 if ("all".startsWith(args[2].toLowerCase(Locale.ROOT))) {
                     names.add(0, "all");
                 }
                 return names;
             }
-            if (args.length == 3 && "find".equalsIgnoreCase(args[0]) && "spawn".equalsIgnoreCase(args[1])) {
+            return List.of();
+        }
+        if ("find".equalsIgnoreCase(args[0])) {
+            if (args.length == 2) {
+                return FIND_ACTIONS.stream()
+                        .filter(value -> value.startsWith(args[1].toLowerCase(Locale.ROOT)))
+                        .toList();
+            }
+            if (args.length == 3 && "spawn".equalsIgnoreCase(args[1])) {
                 String typed = args[2].toLowerCase(Locale.ROOT);
                 return catalogs.artifacts().keySet().stream()
                         .filter(id -> id.startsWith(typed))

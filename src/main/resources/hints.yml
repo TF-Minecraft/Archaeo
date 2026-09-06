@@ -1,3 +1,4 @@
+# Clues attached to a generated site. Filters match artifact tags and interest wealth.
 hints:
   fire_multi:
     text: "Traces of fire or charcoal at more than one depth."

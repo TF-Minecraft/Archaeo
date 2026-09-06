@@ -25,11 +25,15 @@ public final class PrismWound {
     public static int markMissingTerrain(World world, Site site) {
         int count = 0;
         for (BuriedFind find : site.getFinds()) {
-            if (find.isDamaged()) {
-                continue;
+            boolean wounded = false;
+            for (BlockCell cell : find.getCells()) {
+                Block block = world.getBlockAt(cell.x(), cell.y(), cell.z());
+                Material type = block.getType();
+                if (type.isAir() || block.isLiquid() || !PrismFill.isTerrainFill(type)) {
+                    wounded |= find.woundFromAbove(cell);
+                }
             }
-            if (anyCellNotTerrain(world, find)) {
-                find.setDamaged(true);
+            if (wounded) {
                 count++;
             }
         }
@@ -57,30 +61,13 @@ public final class PrismWound {
         }
         BlockCell cell = new BlockCell(x, y, z);
         for (BuriedFind find : site.getFinds()) {
-            if (find.isDamaged()) {
+            if (!find.getCells().contains(cell)) {
                 continue;
             }
-            if (find.getCells().contains(cell)) {
-                find.setDamaged(true);
+            if (find.woundFromAbove(cell)) {
                 changed = true;
             }
         }
         return changed;
-    }
-
-    /**
-     * @param world ruin world
-     * @param find shape
-     * @return whether any cell is not natural fill
-     */
-    private static boolean anyCellNotTerrain(World world, BuriedFind find) {
-        for (BlockCell cell : find.getCells()) {
-            Block block = world.getBlockAt(cell.x(), cell.y(), cell.z());
-            Material type = block.getType();
-            if (type.isAir() || block.isLiquid() || !PrismFill.isTerrainFill(type)) {
-                return true;
-            }
-        }
-        return false;
     }
 }

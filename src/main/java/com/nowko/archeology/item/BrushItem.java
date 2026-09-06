@@ -1,56 +1,40 @@
 package com.nowko.archeology.item;
 
-import com.nowko.archeology.config.RecoverySettings;
-import org.bukkit.ChatColor;
-import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
- * Field brush used to lift exposed finds. Any stack of {@code items.brush} counts, including vanilla.
+ * Field brush used to lift exposed finds. Matches {@code excavation.brush.item}.
  */
 public class BrushItem {
-    private RecoverySettings settings;
-    private Material material;
+    private ItemRef ref;
+    private ItemMatcher matcher = ItemMatcher.vanillaOnly();
 
     /**
-     * @param settings display name and lore for staff give
-     * @param material Bukkit type from {@code items.brush}
+     * @param ref {@code excavation.brush.item}
      */
-    public BrushItem(RecoverySettings settings, Material material) {
-        this.settings = settings;
-        this.material = material;
+    public BrushItem(ItemRef ref) {
+        this.ref = ref;
     }
 
     /**
-     * @param settings copy after reload
-     * @param material type after reload
+     * @param matcher ItemsAdder / MMOItems lookup
      */
-    public void update(RecoverySettings settings, Material material) {
-        this.settings = settings;
-        this.material = material;
+    public void setMatcher(ItemMatcher matcher) {
+        this.matcher = matcher == null ? ItemMatcher.vanillaOnly() : matcher;
     }
 
     /**
-     * @return a named brush stack; recovery itself matches by material, not PDC
+     * @param ref {@code excavation.brush.item} after reload
+     */
+    public void update(ItemRef ref) {
+        this.ref = ref;
+    }
+
+    /**
+     * @return the configured brush (pack template or vanilla material, unchanged)
      */
     public ItemStack create() {
-        ItemStack stack = new ItemStack(material);
-        ItemMeta meta = stack.getItemMeta();
-        if (meta == null) {
-            return stack;
-        }
-        meta.setDisplayName(ChatColor.WHITE + settings.itemName());
-        List<String> lore = new ArrayList<>();
-        for (String line : settings.itemLore()) {
-            lore.add(ChatColor.GRAY + line);
-        }
-        meta.setLore(lore);
-        stack.setItemMeta(meta);
-        return stack;
+        return matcher.create(ref);
     }
 
     /**
@@ -58,9 +42,6 @@ public class BrushItem {
      * @return whether this stack is the configured recovery tool
      */
     public boolean isBrush(ItemStack stack) {
-        if (stack == null || stack.getType().isAir()) {
-            return false;
-        }
-        return stack.getType() == material;
+        return matcher.matches(stack, ref);
     }
 }

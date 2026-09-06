@@ -12,7 +12,10 @@ import java.util.List;
  * Distinguishes archaeological fill (must not break vanilla) from lights, scaffolding, and plants.
  */
 public final class PrismFill {
-    private static final BlockFace[] FACES = {
+    /**
+     * Six block faces used for open-cut leaks and neighbour-trace counts.
+     */
+    public static final BlockFace[] FACES = {
             BlockFace.UP, BlockFace.DOWN, BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST
     };
 
@@ -45,6 +48,26 @@ public final class PrismFill {
                  ICE, PACKED_ICE, BLUE_ICE, CALCITE, TUFF, DRIPSTONE_BLOCK,
                  SMOOTH_BASALT, SOUL_SAND, SOUL_SOIL, MAGMA_BLOCK,
                  OBSIDIAN, CRYING_OBSIDIAN, AMETHYST_BLOCK -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Loose ground a shovel profile may lift. Stone and ore stay for picks.
+     *
+     * @param material block type
+     * @return whether this is dirt, sand, gravel, or similar
+     */
+    public static boolean isSoftFill(Material material) {
+        if (!isTerrainFill(material)) {
+            return false;
+        }
+        if (Tag.DIRT.isTagged(material) || Tag.SAND.isTagged(material)) {
+            return true;
+        }
+        return switch (material) {
+            case GRAVEL, CLAY, MUD, PACKED_MUD, MOSS_BLOCK, SNOW_BLOCK,
+                 SOUL_SAND, SOUL_SOIL -> true;
             default -> false;
         };
     }
