@@ -294,6 +294,57 @@ public class Site {
         return excavators;
     }
 
+    /**
+     * @param playerId viewer or worker
+     * @return whether this player planted the camp
+     */
+    public boolean isDirector(UUID playerId) {
+        return director != null && director.equals(playerId);
+    }
+
+    /**
+     * Director and granted excavators may work on the dig site. Visibility modes are unused in v1.
+     *
+     * @param playerId worker
+     * @return whether field work is allowed on this established excavation
+     */
+    public boolean mayWork(UUID playerId) {
+        if (playerId == null || getStatus() != SiteStatus.ESTABLISHED) {
+            return false;
+        }
+        if (isDirector(playerId)) {
+            return true;
+        }
+        return excavators.contains(playerId);
+    }
+
+    /**
+     * Adds a worker. The director cannot be duplicated.
+     *
+     * @param playerId excavator to grant
+     * @return {@code true} if the roster changed
+     */
+    public boolean grantExcavator(UUID playerId) {
+        if (playerId == null || excavators.contains(playerId)) {
+            return false;
+        }
+        excavators.add(playerId);
+        return true;
+    }
+
+    /**
+     * Removes a worker. The director stays on the project.
+     *
+     * @param playerId excavator to revoke
+     * @return {@code true} if the roster changed
+     */
+    public boolean revokeExcavator(UUID playerId) {
+        if (playerId == null || isDirector(playerId)) {
+            return false;
+        }
+        return excavators.remove(playerId);
+    }
+
     /** @return faction ids granted access */
     public List<String> getFactions() {
         return factions;

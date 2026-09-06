@@ -939,6 +939,10 @@ retirando relleno con su reloj.
 
 Si la protección está **apagada**, el minado vanilla en el prisma está
 permitido y hiere el dossier (capa revuelta; hallazgos de esa celda dañados).
+Lo mismo ocurre en una **ruina aún no establecida**: el prisma ya existe en
+datos. Romper un cubo de hallazgo con pico vanilla suena a cerámica que
+se parte y el chat avisa *Buried archaeological remains were destroyed.*
+(sin trazas de buscaminas: eso es feedback de excavación, no de saqueo).
 
 | Zona | Rotura vanilla (`protect-dig-site: true`) | Efecto Archaeo |
 | --- | --- | --- |
@@ -973,11 +977,11 @@ Al apuntar fuera del prisma: *Fuera del área arqueológica* (cooldown).
 
 Avisos cortos cuando hacen falta:
 
-- *Traces of Ceramic: 1 · Bone: 1* (trazas del hueco recién abierto)
+- *Traces of Ceramic: 1 · Bone: 1* (trazas del hueco recién abierto; no si el cubo era un hallazgo)
+- *Buried archaeological remains were destroyed.* (cubo de hallazgo partido: Hand Pick o minado vanilla, también en ruina sin campamento)
 - *Material arqueológico detectado. Extensión desconocida.*
 - *El material arqueológico puede estar siendo alterado.*
 - *La evidencia ha resultado dañada.*
-- *Esos restos se han destruido. No se puede recuperar nada de ellos.*
 - *La jornada de excavación ha terminado.*
 - Más adelante: forma, *Hallazgo descubierto*. *Hallazgo recuperado* al pincelar.
 
@@ -1062,10 +1066,11 @@ Traces of Ceramic: 1 · Bone: 1
 ```
 
 Si tres celdas de la misma vasija tocan el hueco: `Ceramic: 3`. Sin trazas
-no hay chat (el corte está limpio). El mismo recuento se puede releer en el
-HUD al apuntar al aire. Sirve para decidir si el siguiente golpe puede ser
-una herramienta más rápida (hueco `clear` o lejos del material frágil) o
-hay que frenar.
+no hay chat (el corte está limpio). Si el cubo retirado **era** una celda de
+hallazgo, no hay trazas: suena la rotura y el chat de restos destruidos.
+El mismo recuento se puede releer en el HUD al apuntar al aire. Sirve para
+decidir si el siguiente golpe puede ser una herramienta más rápida (hueco
+`clear` o lejos del material frágil) o hay que frenar.
 
 Las diagonales no cuentan: si no comparten cara, el hallazgo no gotea hacia
 ese hueco y no aparece en las trazas.

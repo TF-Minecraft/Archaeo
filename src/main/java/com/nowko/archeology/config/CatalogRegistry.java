@@ -136,6 +136,17 @@ public class CatalogRegistry {
     }
 
     /**
+     * @param id hint template key
+     * @return template or {@code null}
+     */
+    public HintTemplate hint(String id) {
+        if (id == null || id.isBlank()) {
+            return null;
+        }
+        return hints.get(id);
+    }
+
+    /**
      * @return max retries when growing a connected find shape
      */
     public int maxShapeAttempts() {

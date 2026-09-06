@@ -145,6 +145,10 @@ public class HandPickService {
         if (site == null) {
             return;
         }
+        if (!site.mayWork(player.getUniqueId())) {
+            warn(player, "You are not authorised to work on this excavation.");
+            return;
+        }
         ExcavationTool tool = tools.match(player.getInventory().getItemInMainHand()).orElse(null);
         if (tool == null) {
             return;
@@ -290,7 +294,7 @@ public class HandPickService {
      * @param site excavation
      * @param world site world
      */
-    void ensureJornada(Site site, World world) {
+    public void ensureJornada(Site site, World world) {
         long day = world.getFullTime() / 24000L;
         if (site.getJornadaWorldDay() != day) {
             site.setJornadaWorldDay(day);
@@ -320,6 +324,16 @@ public class HandPickService {
                 continue;
             }
             Block block = player.getWorld().getBlockAt(cycle.x, cycle.y, cycle.z);
+            Site heldSite = sites.findEstablishedPrism(
+                    block.getWorld().getName(),
+                    block.getX(),
+                    block.getY(),
+                    block.getZ()).orElse(null);
+            if (heldSite != null && !heldSite.mayWork(player.getUniqueId())) {
+                cycles.remove(entry.getKey());
+                warn(player, "You are not authorised to work on this excavation.");
+                continue;
+            }
             if (gameTick - cycle.lastActiveTick > ACTIVE_HOLD_TICKS) {
                 continue;
             }
@@ -483,6 +497,10 @@ public class HandPickService {
         if (site == null) {
             return;
         }
+        if (!site.mayWork(player.getUniqueId())) {
+            warn(player, "You are not authorised to work on this excavation.");
+            return;
+        }
         ensureJornada(site, player.getWorld());
         int cost = cycle.tool.jornadaCost();
         if (site.getJornadaPickLeft() < cost) {
@@ -491,17 +509,25 @@ public class HandPickService {
         }
         site.setJornadaPickLeft(site.getJornadaPickLeft() - cost);
         List<Block> lifted = LiftPlan.cells(site, block, cycle.tool, late);
-        boolean destroyed = false;
+        boolean smashedFind = false;
         for (Block cell : lifted) {
-            destroyed |= woundFind(site, cell, cell.getX() == block.getX()
+            boolean aimed = cell.getX() == block.getX()
                     && cell.getY() == block.getY()
-                    && cell.getZ() == block.getZ());
+                    && cell.getZ() == block.getZ();
+            smashedFind |= PrismWound.smashFindAt(
+                    site,
+                    cell.getX(),
+                    cell.getY(),
+                    cell.getZ(),
+                    settings.damagedBelowPercent(),
+                    aimed);
             liftFill(cell);
         }
-        if (destroyed) {
-            warn(player, "Those remains have been destroyed. Nothing can be recovered from them.");
+        if (smashedFind) {
+            FindBreakCue.play(player, block);
+        } else {
+            tellNeighborTraces(player, site, block);
         }
-        tellNeighborTraces(player, site, block);
         if (late && lifted.size() > 1) {
             playLateSmash(block);
         }
@@ -510,6 +536,7 @@ public class HandPickService {
 
     /**
      * After a cut, reports how many live find cubes share a face with the aimed cell.
+     * Skipped when the lift itself smashed a find cube (shatter cue is the feedback).
      *
      * @param player miner
      * @param site excavation
@@ -523,34 +550,6 @@ public class HandPickService {
         if (line != null) {
             player.sendMessage(line);
         }
-    }
-
-    /**
-     * Spends a find cell: aimed cube is a direct hit ({@code 200/n}); cubes below are a graze ({@code 100/n}).
-     *
-     * @param site excavation
-     * @param block cell that will become air
-     * @param aimed whether this is the cube the player held on
-     * @return whether this lift dropped a find to conservation 0
-     */
-    private boolean woundFind(Site site, Block block, boolean aimed) {
-        BuriedFind find = site.findAt(new BlockCell(block.getX(), block.getY(), block.getZ())).orElse(null);
-        if (find == null) {
-            return false;
-        }
-        BlockCell cell = new BlockCell(block.getX(), block.getY(), block.getZ());
-        boolean changed = aimed ? find.woundDirect(cell) : find.woundFromAbove(cell);
-        if (!changed) {
-            return false;
-        }
-        if (find.getConservation() < settings.damagedBelowPercent()) {
-            find.setDamaged(true);
-        }
-        if (find.getConservation() <= 0 && find.getState() != FindState.RECOVERED) {
-            find.setState(FindState.LOST);
-            return true;
-        }
-        return false;
     }
 
     /**
@@ -695,6 +694,12 @@ public class HandPickService {
                 target.getY(),
                 target.getZ()).orElse(null);
         if (site == null) {
+            return;
+        }
+        if (!site.mayWork(player.getUniqueId())) {
+            player.spigot().sendMessage(
+                    ChatMessageType.ACTION_BAR,
+                    new TextComponent("Not authorised to work here"));
             return;
         }
         ensureJornada(site, player.getWorld());

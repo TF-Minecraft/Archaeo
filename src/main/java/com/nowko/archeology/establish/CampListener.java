@@ -1,8 +1,11 @@
 package com.nowko.archeology.establish;
 
 import com.nowko.archeology.item.EstablishItem;
+import com.nowko.archeology.config.CatalogRegistry;
+import com.nowko.archeology.excavation.HandPickService;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.site.SiteRepository;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.Tag;
 import org.bukkit.DyeColor;
 import org.bukkit.block.Block;
@@ -33,6 +36,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Locks camp blocks, opens the excavation board from the sign, and finishes board actions.
@@ -40,25 +46,34 @@ import java.util.List;
 public class CampListener implements Listener {
     private final JavaPlugin plugin;
     private final SiteRepository sites;
+    private final CatalogRegistry catalogs;
     private final EstablishItem establishItem;
     private final EstablishService establish;
+    private final HandPickService handPick;
+    private final Map<UUID, UUID> inviteForSite = new ConcurrentHashMap<>();
 
     /**
-     * @param plugin chat rename must run on the main thread
+     * @param plugin chat prompts must run on the main thread
      * @param sites camp lookup
+     * @param catalogs dossier texts and work-day size
      * @param establishItem kit recognition
      * @param establish plant / move / rename
+     * @param handPick refreshes the work-day figure on the board
      */
     public CampListener(
             JavaPlugin plugin,
             SiteRepository sites,
+            CatalogRegistry catalogs,
             EstablishItem establishItem,
-            EstablishService establish
+            EstablishService establish,
+            HandPickService handPick
     ) {
         this.plugin = plugin;
         this.sites = sites;
+        this.catalogs = catalogs;
         this.establishItem = establishItem;
         this.establish = establish;
+        this.handPick = handPick;
     }
 
     /**
@@ -273,17 +288,23 @@ public class CampListener implements Listener {
             player.closeInventory();
             return;
         }
+        int slot = event.getRawSlot();
+        if (slot == CampBoard.SLOT_PERSONAL) {
+            new CampStaffBoard(site.getId(), board.director()).open(player, site);
+            return;
+        }
         if (!board.director()) {
             return;
         }
-        int slot = event.getRawSlot();
         if (slot == CampBoard.SLOT_RENAME) {
             player.closeInventory();
+            inviteForSite.remove(player.getUniqueId());
             establish.beginRename(player, site);
             return;
         }
         if (slot == CampBoard.SLOT_MOVE) {
             player.closeInventory();
+            inviteForSite.remove(player.getUniqueId());
             establish.beginRelocate(player, site);
             return;
         }
@@ -294,6 +315,59 @@ public class CampListener implements Listener {
         if (slot == CampBoard.SLOT_WOOL_SECONDARY) {
             new CampWoolPicker(site.getId(), CampWoolRole.SECONDARY).open(player, site);
         }
+    }
+
+    /**
+     * @param event inventory click
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onStaffClick(InventoryClickEvent event) {
+        if (!(event.getInventory().getHolder() instanceof CampStaffBoard staff)) {
+            return;
+        }
+        event.setCancelled(true);
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
+        if (event.getClickedInventory() == null || event.getClickedInventory() != event.getView().getTopInventory()) {
+            return;
+        }
+        Site site = sites.findById(staff.siteId()).orElse(null);
+        if (site == null || !site.isCampLocked()) {
+            player.closeInventory();
+            return;
+        }
+        boolean director = site.isDirector(player.getUniqueId());
+        int slot = event.getRawSlot();
+        if (slot == CampStaffBoard.SLOT_BACK) {
+            openBoard(player, site);
+            return;
+        }
+        if (!director) {
+            return;
+        }
+        if (slot == CampStaffBoard.SLOT_ADD) {
+            player.closeInventory();
+            establish.abortRename(player);
+            inviteForSite.put(player.getUniqueId(), site.getId());
+            player.sendMessage("Type the player name in chat, or type cancel.");
+            return;
+        }
+        UUID member = staff.playerAt(slot);
+        if (member == null) {
+            return;
+        }
+        if (!site.revokeExcavator(member)) {
+            player.sendMessage("The director cannot be removed.");
+            return;
+        }
+        sites.save(site);
+        player.sendMessage("Removed " + CampNames.of(player, member) + " from the excavation staff.");
+        Player online = player.getServer().getPlayer(member);
+        if (online != null) {
+            online.sendMessage("You may no longer work on " + site.displayLabel() + ".");
+        }
+        new CampStaffBoard(site.getId(), true).open(player, site);
     }
 
     /**
@@ -316,13 +390,13 @@ public class CampListener implements Listener {
             player.closeInventory();
             return;
         }
-        if (site.getDirector() == null || !site.getDirector().equals(player.getUniqueId())) {
+        if (!site.isDirector(player.getUniqueId())) {
             player.closeInventory();
             return;
         }
         int slot = event.getRawSlot();
         if (slot == CampWoolPicker.SLOT_BACK) {
-            new CampBoard(site.getId(), true).open(player, site);
+            openBoard(player, site);
             return;
         }
         DyeColor color = CampWoolPicker.colorAt(slot);
@@ -330,7 +404,7 @@ public class CampListener implements Listener {
             return;
         }
         establish.applyCampWool(player, site, color, picker.role());
-        new CampBoard(site.getId(), true).open(player, site);
+        openBoard(player, site);
     }
 
     /**
@@ -339,7 +413,8 @@ public class CampListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBoardDrag(InventoryDragEvent event) {
         if (event.getInventory().getHolder() instanceof CampBoard
-                || event.getInventory().getHolder() instanceof CampWoolPicker) {
+                || event.getInventory().getHolder() instanceof CampWoolPicker
+                || event.getInventory().getHolder() instanceof CampStaffBoard) {
             event.setCancelled(true);
         }
     }
@@ -356,6 +431,11 @@ public class CampListener implements Listener {
             plugin.getServer().getScheduler().runTask(plugin, () -> establish.tryCancelMove(player));
             return;
         }
+        if (inviteForSite.containsKey(player.getUniqueId())) {
+            event.setCancelled(true);
+            plugin.getServer().getScheduler().runTask(plugin, () -> handleInviteChat(player, raw));
+            return;
+        }
         if (!establish.isRenaming(player)) {
             return;
         }
@@ -364,12 +444,60 @@ public class CampListener implements Listener {
     }
 
     /**
+     * Adds a known player to the excavation roster from chat.
+     *
+     * @param player director
+     * @param raw typed name
+     */
+    private void handleInviteChat(Player player, String raw) {
+        UUID siteId = inviteForSite.remove(player.getUniqueId());
+        if (siteId == null) {
+            return;
+        }
+        if (raw.equalsIgnoreCase("cancel")) {
+            player.sendMessage("Add worker cancelled.");
+            return;
+        }
+        Site site = sites.findById(siteId).orElse(null);
+        if (site == null || !site.isCampLocked() || !site.isDirector(player.getUniqueId())) {
+            player.sendMessage("That excavation is no longer yours to staff.");
+            return;
+        }
+        OfflinePlayer target = CampNames.known(raw);
+        if (target == null || target.getUniqueId() == null) {
+            player.sendMessage("No player with that name has joined this server.");
+            inviteForSite.put(player.getUniqueId(), siteId);
+            return;
+        }
+        if (site.mayWork(target.getUniqueId())) {
+            player.sendMessage(CampNames.of(player, target.getUniqueId()) + " can already excavate here.");
+            new CampStaffBoard(site.getId(), true).open(player, site);
+            return;
+        }
+        if (!site.grantExcavator(target.getUniqueId())) {
+            player.sendMessage("Could not add that player.");
+            return;
+        }
+        sites.save(site);
+        String added = CampNames.of(player, target.getUniqueId());
+        player.sendMessage("Added " + added + " to the excavation staff.");
+        Player online = player.getServer().getPlayer(target.getUniqueId());
+        if (online != null) {
+            online.sendMessage("You may now excavate " + site.displayLabel() + ".");
+        }
+        new CampStaffBoard(site.getId(), true).open(player, site);
+    }
+
+    /**
      * @param player viewer
      * @param site excavation
      */
     private void openBoard(Player player, Site site) {
-        boolean director = site.getDirector() != null && site.getDirector().equals(player.getUniqueId());
-        new CampBoard(site.getId(), director).open(player, site);
+        if (player.getWorld() != null) {
+            handPick.ensureJornada(site, player.getWorld());
+        }
+        boolean director = site.isDirector(player.getUniqueId());
+        new CampBoard(site.getId(), director, catalogs).open(player, site);
     }
 
     /**

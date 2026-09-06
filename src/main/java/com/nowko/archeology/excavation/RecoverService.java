@@ -148,6 +148,10 @@ public class RecoverService {
         if (site == null) {
             return;
         }
+        if (!site.mayWork(player.getUniqueId())) {
+            warn(player, "You are not authorised to work on this excavation.");
+            return;
+        }
         BuriedFind find = site.findAt(new BlockCell(block.getX(), block.getY(), block.getZ())).orElse(null);
         if (find == null || find.getState() == FindState.LOST || find.getState() == FindState.RECOVERED) {
             return;
@@ -208,6 +212,11 @@ public class RecoverService {
                     target.getY(),
                     target.getZ()).orElse(null);
             if (site != null) {
+                if (!site.mayWork(player.getUniqueId())) {
+                    cancel(player);
+                    warn(player, "You are not authorised to work on this excavation.");
+                    return;
+                }
                 find = site.findAt(new BlockCell(target.getX(), target.getY(), target.getZ())).orElse(null);
             }
         }

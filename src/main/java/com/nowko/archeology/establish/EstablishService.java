@@ -310,6 +310,15 @@ public class EstablishService {
     }
 
     /**
+     * Drops a pending rename so another board chat prompt can take the next line.
+     *
+     * @param player director
+     */
+    public void abortRename(Player player) {
+        renameForSite.remove(player.getUniqueId());
+    }
+
+    /**
      * Applies a chat line if this player is renaming.
      *
      * @param player director

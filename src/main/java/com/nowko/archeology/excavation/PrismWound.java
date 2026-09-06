@@ -2,6 +2,7 @@ package com.nowko.archeology.excavation;
 
 import com.nowko.archeology.model.BlockCell;
 import com.nowko.archeology.model.BuriedFind;
+import com.nowko.archeology.model.FindState;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.StratumBand;
 import org.bukkit.Material;
@@ -43,15 +44,16 @@ public final class PrismWound {
     /**
      * Vanilla (or explosion) removed this prism cell: that layer is disturbed and overlapping finds are damaged.
      *
-     * @param site established excavation
+     * @param site ruin or established excavation
      * @param x block X
      * @param y block Y
      * @param z block Z
-     * @return whether dossier data changed
+     * @param damagedBelowPercent conservation at which the find is stamped damaged
+     * @return whether the dossier changed and whether a live find cube was newly smashed
      */
-    public static boolean onCellRemoved(Site site, int x, int y, int z) {
+    public static Removal onCellRemoved(Site site, int x, int y, int z, int damagedBelowPercent) {
         if (!site.isInPrism(x, y, z)) {
-            return false;
+            return Removal.none();
         }
         boolean changed = false;
         StratumBand band = site.stratumAt(y);
@@ -59,15 +61,70 @@ public final class PrismWound {
             band.setDisturbed(true);
             changed = true;
         }
-        BlockCell cell = new BlockCell(x, y, z);
-        for (BuriedFind find : site.getFinds()) {
-            if (!find.getCells().contains(cell)) {
-                continue;
-            }
-            if (find.woundFromAbove(cell)) {
-                changed = true;
-            }
+        boolean findSmashed = smashFindAt(site, x, y, z, damagedBelowPercent);
+        return new Removal(changed || findSmashed, findSmashed);
+    }
+
+    /**
+     * Direct or vanilla hit on a still-recoverable find cube.
+     *
+     * @param site dossier
+     * @param x block X
+     * @param y block Y
+     * @param z block Z
+     * @param damagedBelowPercent conservation at which the find is stamped damaged
+     * @param aimed whether the miner was looking at this cube (Hand Pick) rather than collapsing onto it
+     * @return whether conservation changed
+     */
+    public static boolean smashFindAt(
+            Site site,
+            int x,
+            int y,
+            int z,
+            int damagedBelowPercent,
+            boolean aimed
+    ) {
+        BuriedFind find = site.findAt(new BlockCell(x, y, z)).orElse(null);
+        if (find == null || find.getState() == FindState.RECOVERED || find.getState() == FindState.LOST) {
+            return false;
         }
-        return changed;
+        BlockCell cell = new BlockCell(x, y, z);
+        boolean changed = aimed ? find.woundDirect(cell) : find.woundFromAbove(cell);
+        if (!changed) {
+            return false;
+        }
+        if (find.getConservation() < damagedBelowPercent) {
+            find.setDamaged(true);
+        }
+        return true;
+    }
+
+    /**
+     * Vanilla removal is a graze from above.
+     *
+     * @param site dossier
+     * @param x block X
+     * @param y block Y
+     * @param z block Z
+     * @param damagedBelowPercent conservation at which the find is stamped damaged
+     * @return whether conservation changed
+     */
+    public static boolean smashFindAt(Site site, int x, int y, int z, int damagedBelowPercent) {
+        return smashFindAt(site, x, y, z, damagedBelowPercent, false);
+    }
+
+    /**
+     * Outcome of removing one prism cell.
+     *
+     * @param dossierChanged whether the site should be saved
+     * @param findSmashed whether a live find cube was newly wounded
+     */
+    public record Removal(boolean dossierChanged, boolean findSmashed) {
+        /**
+         * @return no dossier write and no smash cue
+         */
+        public static Removal none() {
+            return new Removal(false, false);
+        }
     }
 }

@@ -1,8 +1,12 @@
 package com.nowko.archeology.establish;
 
-import com.nowko.archeology.model.InterestLevel;
+import com.nowko.archeology.config.CatalogRegistry;
+import com.nowko.archeology.config.StratumDefinition;
+import com.nowko.archeology.model.BuriedFind;
+import com.nowko.archeology.model.FindState;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.SiteStatus;
+import com.nowko.archeology.model.StratumBand;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.DyeColor;
@@ -18,26 +22,30 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Chest GUI for an excavation sign. Director sees rename, move, and primary / secondary wool.
+ * Chest GUI for an excavation sign: dossier, staff access, and director camp tools.
  */
 public final class CampBoard implements InventoryHolder {
-    static final int SLOT_INFO = 13;
-    static final int SLOT_RENAME = 11;
-    static final int SLOT_MOVE = 15;
+    static final int SLOT_INFO = 4;
+    static final int SLOT_RENAME = 10;
+    static final int SLOT_PERSONAL = 13;
+    static final int SLOT_MOVE = 16;
     static final int SLOT_WOOL_PRIMARY = 20;
     static final int SLOT_WOOL_SECONDARY = 24;
 
     private final UUID siteId;
     private final boolean director;
+    private final CatalogRegistry catalogs;
     private Inventory inventory;
 
     /**
      * @param siteId excavation
-     * @param director whether the viewer may edit
+     * @param director whether the viewer may edit camp and staff
+     * @param catalogs strata labels and work-day size for the record
      */
-    public CampBoard(UUID siteId, boolean director) {
+    public CampBoard(UUID siteId, boolean director, CatalogRegistry catalogs) {
         this.siteId = siteId;
         this.director = director;
+        this.catalogs = catalogs;
     }
 
     /**
@@ -79,6 +87,7 @@ public final class CampBoard implements InventoryHolder {
             inventory.setItem(slot, filler);
         }
         inventory.setItem(SLOT_INFO, infoItem(player, site));
+        inventory.setItem(SLOT_PERSONAL, staffItem(site));
         if (director) {
             inventory.setItem(SLOT_RENAME, named(
                     Material.NAME_TAG,
@@ -107,38 +116,121 @@ public final class CampBoard implements InventoryHolder {
     /**
      * @param player viewer (for director name lookup)
      * @param site excavation
-     * @return summary item
+     * @return dossier item
      */
     private ItemStack infoItem(Player player, Site site) {
         List<String> lore = new ArrayList<>();
         lore.add(ChatColor.GRAY + "Name: " + ChatColor.WHITE + site.displayLabel());
-        lore.add(ChatColor.GRAY + "Director: " + ChatColor.WHITE + directorName(player, site));
+        lore.add(ChatColor.GRAY + "Director: " + ChatColor.WHITE + CampNames.of(player, site.getDirector()));
         lore.add(ChatColor.GRAY + "Status: " + ChatColor.WHITE + statusLabel(site.getStatus()));
-        InterestLevel interest = site.getInterest();
-        if (interest != null) {
-            lore.add(ChatColor.GRAY + "Interest: " + ChatColor.WHITE + interest.yamlKey());
-        }
+        lore.add(ChatColor.GRAY + "Work day: " + ChatColor.WHITE
+                + site.getJornadaPickLeft() + " / " + catalogs.pick().jornadaActions());
+        lore.add(ChatColor.GRAY + "Progress: " + ChatColor.WHITE + progressBar(site));
+        lore.add("");
+        addStratumLines(lore, site);
         if (director) {
             lore.add("");
             lore.add(ChatColor.DARK_GRAY + "You are the director.");
+        } else if (site.mayWork(player.getUniqueId())) {
+            lore.add("");
+            lore.add(ChatColor.DARK_GRAY + "You may excavate.");
         }
         return named(Material.WRITABLE_BOOK, ChatColor.GOLD + "Record", lore.toArray(String[]::new));
     }
 
     /**
-     * @param player viewer
      * @param site excavation
-     * @return last known director name
+     * @return staff button
      */
-    private static String directorName(Player player, Site site) {
-        if (site.getDirector() == null) {
+    private ItemStack staffItem(Site site) {
+        int count = CampNames.roster(site).size();
+        List<String> lore = new ArrayList<>();
+        lore.add(ChatColor.GRAY + "Who may work on the dig site.");
+        lore.add(ChatColor.WHITE + String.valueOf(count) + ChatColor.GRAY + (count == 1 ? " person." : " people."));
+        if (director) {
+            lore.add(ChatColor.DARK_GRAY + "Open to add or remove workers.");
+        } else {
+            lore.add(ChatColor.DARK_GRAY + "Open to view the roster.");
+        }
+        return named(Material.PLAYER_HEAD, ChatColor.WHITE + "Staff", lore.toArray(String[]::new));
+    }
+
+    /**
+     * One lore line per present band: recovered, generated total, and destroyed finds.
+     *
+     * @param lore record lore
+     * @param site excavation
+     */
+    private void addStratumLines(List<String> lore, Site site) {
+        boolean any = false;
+        for (StratumBand band : site.getStrata().values()) {
+            if (!band.isPresent()) {
+                continue;
+            }
+            any = true;
+            lore.add(ChatColor.GRAY + stratumLabel(band) + ": " + ChatColor.WHITE + findCounts(site, band.getId()));
+        }
+        if (!any) {
+            lore.add(ChatColor.DARK_GRAY + "No strata recorded.");
+        }
+    }
+
+    /**
+     * @param band present stratum
+     * @return catalog display name, falling back to the roman id
+     */
+    private String stratumLabel(StratumBand band) {
+        StratumDefinition definition = catalogs.stratum(band.getId());
+        if (definition == null || definition.displayName().isBlank()) {
+            return band.getId();
+        }
+        return definition.displayName();
+    }
+
+    /**
+     * @param site excavation
+     * @param stratumId band id
+     * @return recovered, total, and lost counts for that layer
+     */
+    private static String findCounts(Site site, String stratumId) {
+        int recovered = 0;
+        int lost = 0;
+        int total = 0;
+        for (BuriedFind find : site.getFinds()) {
+            if (find.getStratumId() == null || !find.getStratumId().equals(stratumId)) {
+                continue;
+            }
+            total++;
+            if (find.getState() == FindState.RECOVERED) {
+                recovered++;
+            } else if (find.getState() == FindState.LOST) {
+                lost++;
+            }
+        }
+        return recovered + " recovered · " + total + " total · " + lost + " lost";
+    }
+
+    /**
+     * @param site excavation
+     * @return recovered share of generated finds
+     */
+    private static String progressBar(Site site) {
+        int total = site.getFinds().size();
+        if (total <= 0) {
             return "—";
         }
-        if (site.getDirector().equals(player.getUniqueId())) {
-            return player.getName();
+        int recovered = 0;
+        for (BuriedFind find : site.getFinds()) {
+            if (find.getState() == FindState.RECOVERED) {
+                recovered++;
+            }
         }
-        String name = player.getServer().getOfflinePlayer(site.getDirector()).getName();
-        return name != null ? name : site.getDirector().toString().substring(0, 8);
+        int filled = Math.round(10f * recovered / total);
+        StringBuilder bar = new StringBuilder();
+        for (int i = 0; i < 10; i++) {
+            bar.append(i < filled ? "█" : "░");
+        }
+        return bar + " " + recovered + "/" + total;
     }
 
     /**

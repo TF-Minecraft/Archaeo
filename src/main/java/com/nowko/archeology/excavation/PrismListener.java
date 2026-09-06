@@ -25,7 +25,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Optionally locks all prism fill of an established excavation; vanilla holes elsewhere wound the dossier.
+ * Optionally locks all prism fill of an established excavation; vanilla holes
+ * on claimed or unclaimed ruin prisms wound the dossier and smash exposed finds.
  */
 public class PrismListener implements Listener {
     private static final long MESSAGE_COOLDOWN_MS = 3000L;
@@ -34,16 +35,19 @@ public class PrismListener implements Listener {
     private final DigTools tools;
     private final Map<UUID, Long> lastWarn = new ConcurrentHashMap<>();
     private boolean protectDigSite;
+    private int damagedBelowPercent;
 
     /**
-     * @param sites established excavations
+     * @param sites ruin and excavation dossiers
      * @param tools excavation whitelist: those items use {@link HandPickListener} on prism fill
      * @param protectDigSite whether every present stratum band is locked against vanilla damage
+     * @param damagedBelowPercent conservation at which a smashed find is stamped damaged
      */
-    public PrismListener(SiteRepository sites, DigTools tools, boolean protectDigSite) {
+    public PrismListener(SiteRepository sites, DigTools tools, boolean protectDigSite, int damagedBelowPercent) {
         this.sites = sites;
         this.tools = tools;
         this.protectDigSite = protectDigSite;
+        this.damagedBelowPercent = damagedBelowPercent;
     }
 
     /**
@@ -51,6 +55,13 @@ public class PrismListener implements Listener {
      */
     public void setProtectDigSite(boolean protectDigSite) {
         this.protectDigSite = protectDigSite;
+    }
+
+    /**
+     * @param damagedBelowPercent after reload
+     */
+    public void setDamagedBelowPercent(int damagedBelowPercent) {
+        this.damagedBelowPercent = damagedBelowPercent;
     }
 
     /**
@@ -70,13 +81,13 @@ public class PrismListener implements Listener {
     }
 
     /**
-     * Closed-cut or side tunnels that vanilla was allowed to break.
+     * Vanilla break that went through: wound the dossier, including unclaimed ruin prisms.
      *
      * @param event break that actually happened
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBreakWound(BlockBreakEvent event) {
-        woundCell(event.getBlock());
+        woundCell(event.getBlock(), event.getPlayer());
     }
 
     /**
@@ -110,7 +121,7 @@ public class PrismListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBurnWound(BlockBurnEvent event) {
-        woundCell(event.getBlock());
+        woundCell(event.getBlock(), null);
     }
 
     /**
@@ -130,7 +141,8 @@ public class PrismListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityChangeWound(EntityChangeBlockEvent event) {
-        woundCell(event.getBlock());
+        Player player = event.getEntity() instanceof Player breaker ? breaker : null;
+        woundCell(event.getBlock(), player);
     }
 
     /**
@@ -146,7 +158,7 @@ public class PrismListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onExplodeWound(BlockExplodeEvent event) {
-        woundCells(event.blockList());
+        woundCells(event.blockList(), null);
     }
 
     /**
@@ -162,7 +174,8 @@ public class PrismListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityExplodeWound(EntityExplodeEvent event) {
-        woundCells(event.blockList());
+        Player player = event.getEntity() instanceof Player breaker ? breaker : null;
+        woundCells(event.blockList(), player);
     }
 
     /**
@@ -180,7 +193,7 @@ public class PrismListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPistonExtendWound(BlockPistonExtendEvent event) {
-        woundCells(event.getBlocks());
+        woundCells(event.getBlocks(), null);
     }
 
     /**
@@ -198,7 +211,7 @@ public class PrismListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPistonRetractWound(BlockPistonRetractEvent event) {
-        woundCells(event.getBlocks());
+        woundCells(event.getBlocks(), null);
     }
 
     /**
@@ -236,17 +249,28 @@ public class PrismListener implements Listener {
 
     /**
      * @param blocks cells vanilla was allowed to remove
+     * @param player breaker, or {@code null} when the world did it
      */
-    private void woundCells(List<Block> blocks) {
+    private void woundCells(List<Block> blocks, Player player) {
         Set<Site> dirty = new HashSet<>();
+        boolean cued = false;
         for (Block block : blocks) {
-            Site site = sites.findEstablishedPrism(
+            Site site = sites.findPrism(
                     block.getWorld().getName(),
                     block.getX(),
                     block.getY(),
                     block.getZ()).orElse(null);
-            if (site != null && PrismWound.onCellRemoved(site, block.getX(), block.getY(), block.getZ())) {
+            if (site == null) {
+                continue;
+            }
+            PrismWound.Removal removal = PrismWound.onCellRemoved(
+                    site, block.getX(), block.getY(), block.getZ(), damagedBelowPercent);
+            if (removal.dossierChanged()) {
                 dirty.add(site);
+            }
+            if (removal.findSmashed() && !cued) {
+                FindBreakCue.play(player, block);
+                cued = true;
             }
         }
         for (Site site : dirty) {
@@ -256,9 +280,10 @@ public class PrismListener implements Listener {
 
     /**
      * @param block cell that left the world as fill
+     * @param player breaker, or {@code null}
      */
-    private void woundCell(Block block) {
-        woundCells(List.of(block));
+    private void woundCell(Block block, Player player) {
+        woundCells(List.of(block), player);
     }
 
     /**
