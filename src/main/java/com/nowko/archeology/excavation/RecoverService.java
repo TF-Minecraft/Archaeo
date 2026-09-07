@@ -9,6 +9,7 @@ import com.nowko.archeology.model.BlockCell;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindState;
 import com.nowko.archeology.model.Site;
+import com.nowko.archeology.site.SiteClosure;
 import com.nowko.archeology.site.SiteRepository;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -285,6 +286,7 @@ public class RecoverService {
             liftFind(player, site, find, block);
         }
         sites.save(site);
+        SiteClosure.settle(sites, site);
     }
 
     /**

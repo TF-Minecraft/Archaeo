@@ -9,6 +9,7 @@ import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindState;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.StratumBand;
+import com.nowko.archeology.site.SiteClosure;
 import com.nowko.archeology.site.SiteRepository;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
@@ -531,6 +532,7 @@ public class HandPickService {
             playLateSmash(block);
         }
         sites.save(site);
+        SiteClosure.settle(sites, site);
     }
 
     /**

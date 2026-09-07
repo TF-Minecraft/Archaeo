@@ -487,8 +487,30 @@ public class CatalogRegistry {
                 Math.max(1, firstInt(excavation, pickSection, fallback.findDustCount(),
                         "find-particles-count", "find-dust-count")),
                 loadConservation(excavation, fallback.conservation()),
+                loadLimits(excavation, fallback.limits()),
                 firstBool(excavation, pickSection, fallback.neighborTraces(), "neighbor-traces"),
                 loadProfiles(excavation, pickSection, fallback)
+        );
+    }
+
+    /**
+     * Reads {@code excavation.limits}: how long the camp board shows the prism, and from how far.
+     *
+     * @param excavation {@code excavation:} or {@code null}
+     * @param fallback packaged outline timings
+     * @return merged settings; missing keys keep the packaged value
+     */
+    private LimitsSettings loadLimits(ConfigurationSection excavation, LimitsSettings fallback) {
+        ConfigurationSection root = excavation == null
+                ? null
+                : excavation.getConfigurationSection("limits");
+        if (root == null) {
+            return fallback;
+        }
+        return new LimitsSettings(
+                Math.max(1, root.getInt("seconds", fallback.seconds())),
+                Math.max(1, root.getInt("interval-ticks", fallback.intervalTicks())),
+                Math.max(16, root.getInt("view-distance", fallback.viewDistance()))
         );
     }
 

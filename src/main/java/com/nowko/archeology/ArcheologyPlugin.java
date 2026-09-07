@@ -10,6 +10,7 @@ import com.nowko.archeology.excavation.FindDustService;
 import com.nowko.archeology.excavation.HandPickListener;
 import com.nowko.archeology.excavation.HandPickService;
 import com.nowko.archeology.excavation.PrismListener;
+import com.nowko.archeology.excavation.PrismOutlineService;
 import com.nowko.archeology.excavation.RecoverListener;
 import com.nowko.archeology.excavation.RecoverService;
 import com.nowko.archeology.item.BrushItem;
@@ -42,6 +43,7 @@ public class ArcheologyPlugin extends JavaPlugin {
     private DigTools digTools;
     private HandPickService handPick;
     private FindDustService findDust;
+    private PrismOutlineService outline;
     private PrismListener prismListener;
     private BrushItem brushItem;
     private RecoverService recover;
@@ -71,7 +73,9 @@ public class ArcheologyPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new EstablishListener(establishItem, establish), this);
         handPick = new HandPickService(this, sites, catalogs, digTools, catalogs.pick());
         handPick.start();
-        getServer().getPluginManager().registerEvents(new CampListener(this, sites, catalogs, establishItem, establish, handPick), this);
+        outline = new PrismOutlineService(this, catalogs);
+        getServer().getPluginManager().registerEvents(
+                new CampListener(this, sites, catalogs, establishItem, establish, handPick, outline), this);
         findDust = new FindDustService(this, sites, catalogs.pick());
         establish.setFindDust(findDust);
         getServer().getPluginManager().registerEvents(findDust, this);
@@ -137,7 +141,7 @@ public class ArcheologyPlugin extends JavaPlugin {
     }
 
     /**
-     * Stops tracker, prospecting, establishment, Hand Pick HUD, and find-particles tasks.
+     * Stops tracker, prospecting, establishment, Hand Pick HUD, prism outlines, and find-particles tasks.
      */
     @Override
     public void onDisable() {
@@ -155,6 +159,9 @@ public class ArcheologyPlugin extends JavaPlugin {
         }
         if (findDust != null) {
             findDust.stop();
+        }
+        if (outline != null) {
+            outline.stop();
         }
         if (recover != null) {
             recover.stop();

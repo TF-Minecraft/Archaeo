@@ -1,6 +1,8 @@
 package com.nowko.archeology.establish;
 
 import com.nowko.archeology.config.CatalogRegistry;
+import com.nowko.archeology.config.HintTemplate;
+import com.nowko.archeology.config.InterestSettings;
 import com.nowko.archeology.config.StratumDefinition;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindState;
@@ -26,11 +28,15 @@ import java.util.UUID;
  */
 public final class CampBoard implements InventoryHolder {
     static final int SLOT_INFO = 4;
-    static final int SLOT_RENAME = 10;
-    static final int SLOT_PERSONAL = 13;
-    static final int SLOT_MOVE = 16;
-    static final int SLOT_WOOL_PRIMARY = 20;
-    static final int SLOT_WOOL_SECONDARY = 24;
+    static final int SLOT_PERSONAL = 11;
+    static final int SLOT_INFORMATION = 13;
+    static final int SLOT_LIMITS = 15;
+    static final int SLOT_RENAME = 19;
+    static final int SLOT_WOOL_PRIMARY = 21;
+    static final int SLOT_WOOL_SECONDARY = 23;
+    static final int SLOT_MOVE = 25;
+    /** Characters per lore line before a field note is broken. */
+    private static final int LINE_WIDTH = 34;
 
     private final UUID siteId;
     private final boolean director;
@@ -88,6 +94,8 @@ public final class CampBoard implements InventoryHolder {
         }
         inventory.setItem(SLOT_INFO, infoItem(player, site));
         inventory.setItem(SLOT_PERSONAL, staffItem(site));
+        inventory.setItem(SLOT_INFORMATION, dossierItem(site));
+        inventory.setItem(SLOT_LIMITS, limitsItem());
         if (director) {
             inventory.setItem(SLOT_RENAME, named(
                     Material.NAME_TAG,
@@ -128,6 +136,10 @@ public final class CampBoard implements InventoryHolder {
         lore.add(ChatColor.GRAY + "Progress: " + ChatColor.WHITE + progressBar(site));
         lore.add("");
         addStratumLines(lore, site);
+        if (site.getStatus() == SiteStatus.EXHAUSTED) {
+            lore.add("");
+            lore.add(ChatColor.DARK_GRAY + "The cut is closed; field work is over.");
+        }
         if (director) {
             lore.add("");
             lore.add(ChatColor.DARK_GRAY + "You are the director.");
@@ -153,6 +165,72 @@ public final class CampBoard implements InventoryHolder {
             lore.add(ChatColor.DARK_GRAY + "Open to view the roster.");
         }
         return named(Material.PLAYER_HEAD, ChatColor.WHITE + "Staff", lore.toArray(String[]::new));
+    }
+
+    /**
+     * The prospecting dossier: what the survey suggested and the field notes it produced.
+     * They live here rather than in the record so the record stays a progress sheet.
+     *
+     * @param site excavation
+     * @return information item
+     */
+    private ItemStack dossierItem(Site site) {
+        List<String> lore = new ArrayList<>();
+        if (site.getInterest() != null) {
+            InterestSettings interest = catalogs.interest(site.getInterest());
+            String label = interest == null ? site.getInterest().yamlKey() : interest.displayName();
+            lore.add(ChatColor.GRAY + "Approximate interest: " + ChatColor.WHITE + label);
+            lore.add("");
+        }
+        if (site.getHintIds().isEmpty()) {
+            lore.add(ChatColor.DARK_GRAY + "No field notes were filed for this dossier.");
+            return named(Material.BOOK, ChatColor.AQUA + "Information", lore.toArray(String[]::new));
+        }
+        lore.add(ChatColor.GRAY + "Field notes:");
+        for (String hintId : site.getHintIds()) {
+            HintTemplate hint = catalogs.hint(hintId);
+            String text = hint == null ? hintId : hint.text();
+            wrap(lore, text);
+        }
+        return named(Material.BOOK, ChatColor.AQUA + "Information", lore.toArray(String[]::new));
+    }
+
+    /**
+     * @return button that traces the prism for the viewer alone
+     */
+    private ItemStack limitsItem() {
+        return named(
+                Material.SPYGLASS,
+                ChatColor.WHITE + "Show limits",
+                ChatColor.GRAY + "Traces the dig chunk and each stratum.",
+                ChatColor.DARK_GRAY + "Only you see it, for "
+                        + catalogs.pick().limits().seconds() + " seconds.");
+    }
+
+    /**
+     * Field notes are sentences, and lore lines are not: this breaks one note on word
+     * boundaries and marks the continuation lines so the note still reads as one note.
+     *
+     * @param lore lore being built
+     * @param text one field note
+     */
+    private static void wrap(List<String> lore, String text) {
+        StringBuilder line = new StringBuilder();
+        String prefix = "- ";
+        for (String word : text.split("\\s+")) {
+            if (line.length() > 0 && line.length() + word.length() + 1 > LINE_WIDTH) {
+                lore.add(ChatColor.WHITE + prefix + line);
+                line.setLength(0);
+                prefix = "  ";
+            }
+            if (line.length() > 0) {
+                line.append(' ');
+            }
+            line.append(word);
+        }
+        if (line.length() > 0) {
+            lore.add(ChatColor.WHITE + prefix + line);
+        }
     }
 
     /**

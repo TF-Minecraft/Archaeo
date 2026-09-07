@@ -110,6 +110,14 @@ Visibilidad: privada | invitación | pública
 Estado: activa / agotada
 ```
 
+**Cuándo se agota (acordado).** El proyecto se cierra solo: en cuanto **ningún
+hallazgo** del corte puede recuperarse ya (todos levantados o destruidos), la
+excavación pasa a **agotada** y se avisa al personal conectado. Deja de admitir
+pico y pincel, y el radar ya la ignoraba desde que se estableció. El
+**campamento sobrevive**: sigue bloqueado y el tablón se sigue abriendo, porque
+el yacimiento agotado es memoria del sitio, no escombro. Un yacimiento sin
+hallazgos generados nunca se cierra por esta vía.
+
 ### Registro administrativo — primera versión
 
 El staff registra la ruina desde el chunk que quiere convertir en yacimiento.
@@ -556,8 +564,14 @@ ya no es el medio principal. Sirven:
 Los bordes del prisma **no** tienen que estar siempre visibles y **no** hay
 vallado obligatorio. Si el dueño o un autorizado está cerca y mira hacia el
 yacimiento, el plugin puede mostrarlos un rato (partículas, líneas, bloques
-fantasma u otro sistema). Se ocultan al dejar de mirar o al alejarse. Desde el
-panel del campamento: **«Mostrar límites»** para forzar esa vista. El Hand Pick
+fantasma u otro sistema). Se ocultan al dejar de mirar o al alejarse.
+
+**Implementado: «Mostrar límites» del panel.** Dibuja el prisma **solo para quien
+lo pide** durante `excavation.limits.seconds`: el perímetro del chunk a la altura
+del techo y del suelo del corte en color de **borde**, una anilla de **costura**
+en cada cambio de estrato presente, y las cuatro aristas verticales. No se dibuja
+más allá de `view-distance`, así que alejarse lo apaga sin cancelarlo. El
+auto-mostrado por mirada sigue pendiente. El Hand Pick
 puede hacer de herramienta contextual (HUD de excavación / estrato al
 equiparlo dentro del prisma; aviso al apuntar fuera).
 
@@ -592,6 +606,16 @@ Hallazgos: 7 · Evidencias: 12
 
 **EXCAVAR** no es un menú: el trabajo es en el prisma con HUD (§2).
 **PERSONAL** y **INFORMACIÓN** sí abren gestión.
+
+Reparto de textos en el tablón, para que ninguna casilla se vuelva un muro:
+
+- **Registro** (el libro): nombre, director, estado, jornada, progreso y una
+  línea **por estrato presente** con recuperados / totales / destruidos.
+- **INFORMACIÓN**: el dossier de la cata, o sea el **interés aproximado** y los
+  **indicios** de `hints.yml`, que si no viven aquí solo se leen una vez, en el
+  mensaje de la prospección.
+- **PERSONAL**: quién puede trabajar (§1d).
+- **Mostrar límites**: la vista temporal del prisma.
 
 ### Personal (v1: puede excavar sí/no)
 

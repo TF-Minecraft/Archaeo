@@ -3,6 +3,7 @@ package com.nowko.archeology.establish;
 import com.nowko.archeology.item.EstablishItem;
 import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.excavation.HandPickService;
+import com.nowko.archeology.excavation.PrismOutlineService;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.site.SiteRepository;
 import org.bukkit.OfflinePlayer;
@@ -50,6 +51,7 @@ public class CampListener implements Listener {
     private final EstablishItem establishItem;
     private final EstablishService establish;
     private final HandPickService handPick;
+    private final PrismOutlineService outline;
     private final Map<UUID, UUID> inviteForSite = new ConcurrentHashMap<>();
 
     /**
@@ -59,6 +61,7 @@ public class CampListener implements Listener {
      * @param establishItem kit recognition
      * @param establish plant / move / rename
      * @param handPick refreshes the work-day figure on the board
+     * @param outline draws the prism when the board asks for limits
      */
     public CampListener(
             JavaPlugin plugin,
@@ -66,7 +69,8 @@ public class CampListener implements Listener {
             CatalogRegistry catalogs,
             EstablishItem establishItem,
             EstablishService establish,
-            HandPickService handPick
+            HandPickService handPick,
+            PrismOutlineService outline
     ) {
         this.plugin = plugin;
         this.sites = sites;
@@ -74,6 +78,7 @@ public class CampListener implements Listener {
         this.establishItem = establishItem;
         this.establish = establish;
         this.handPick = handPick;
+        this.outline = outline;
     }
 
     /**
@@ -291,6 +296,11 @@ public class CampListener implements Listener {
         int slot = event.getRawSlot();
         if (slot == CampBoard.SLOT_PERSONAL) {
             new CampStaffBoard(site.getId(), board.director()).open(player, site);
+            return;
+        }
+        if (slot == CampBoard.SLOT_LIMITS) {
+            player.closeInventory();
+            outline.show(player, site);
             return;
         }
         if (!board.director()) {

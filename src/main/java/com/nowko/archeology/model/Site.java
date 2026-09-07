@@ -482,10 +482,13 @@ public class Site {
     }
 
     /**
-     * @return true while the excavation is active; template blocks stay locked
+     * The camp survives the dig: an exhausted excavation keeps its blocks and its board so the
+     * project can still be read, and so nobody carts the sign away when the cut runs dry.
+     *
+     * @return true once a camp is planted and until the site is deleted
      */
     public boolean isCampLocked() {
-        return getStatus() == SiteStatus.ESTABLISHED;
+        return getStatus() == SiteStatus.ESTABLISHED || getStatus() == SiteStatus.EXHAUSTED;
     }
 
     /**
@@ -690,6 +693,34 @@ public class Site {
         if (!getExcavators().contains(directorId)) {
             getExcavators().add(directorId);
         }
+    }
+
+    /**
+     * A find still owes the cut work while it can be lifted; a destroyed one owes nothing.
+     *
+     * @return whether any find is neither recovered nor lost
+     */
+    public boolean hasPendingFinds() {
+        for (BuriedFind find : finds) {
+            if (find.getState() != FindState.RECOVERED && find.getState() != FindState.LOST) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Closes the project when the cut has nothing left to give. A site without generated finds
+     * never closes this way, so a mis-generated ruin does not die on its first pick swing.
+     *
+     * @return {@code true} when this call turned an active excavation into an exhausted one
+     */
+    public boolean exhaustIfSettled() {
+        if (status != SiteStatus.ESTABLISHED || finds.isEmpty() || hasPendingFinds()) {
+            return false;
+        }
+        status = SiteStatus.EXHAUSTED;
+        return true;
     }
 
     /**

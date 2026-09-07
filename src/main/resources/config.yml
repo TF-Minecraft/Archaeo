@@ -90,6 +90,13 @@ excavation:
       - id: crumbling
         min-percent: 1
         label: "Crumbling"
+  # "Show limits" on the camp board: the prism drawn for that player only. An established dig
+  # no longer answers the tracker, so this (plus the camp) is how the cut is read on the ground.
+  limits:
+    seconds: 12
+    interval-ticks: 10
+    # Beyond this many blocks from the dig the outline is not drawn.
+    view-distance: 96
   find-particles: true
   find-particles-interval-ticks: 6
   # After a cut, chat + HUD on the empty cube: adjacent find cubes grouped by material (minesweeper).

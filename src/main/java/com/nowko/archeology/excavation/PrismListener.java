@@ -1,6 +1,7 @@
 package com.nowko.archeology.excavation;
 
 import com.nowko.archeology.model.Site;
+import com.nowko.archeology.site.SiteClosure;
 import com.nowko.archeology.site.SiteRepository;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
@@ -265,6 +266,7 @@ public class PrismListener implements Listener {
         }
         for (Site site : dirty) {
             sites.save(site);
+            SiteClosure.settle(sites, site);
         }
     }
 

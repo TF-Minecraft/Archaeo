@@ -12,6 +12,7 @@ import java.util.List;
  * @param findDustIntervalTicks ticks between leak bursts on an open find cell
  * @param findDustCount motes per burst
  * @param conservation buried-condition roll and the bands used to describe a piece
+ * @param limits temporary prism outline shown from the camp board
  * @param neighborTraces whether lifting fill reports adjacent find cubes by material
  * @param profiles named tools from {@code excavation.tools}
  */
@@ -23,6 +24,7 @@ public record PickSettings(
         int findDustIntervalTicks,
         int findDustCount,
         ConservationSettings conservation,
+        LimitsSettings limits,
         boolean neighborTraces,
         List<ExcavationTool> profiles
 ) {
@@ -38,6 +40,7 @@ public record PickSettings(
                 6,
                 2,
                 ConservationSettings.defaults(),
+                LimitsSettings.defaults(),
                 true,
                 List.of(ExcavationTool.hand(), ExcavationTool.light(), ExcavationTool.heavy())
         );
