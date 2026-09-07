@@ -12,7 +12,7 @@ softdepend:
 commands:
   archaeo:
     description: Archaeo admin commands
-    usage: /archaeo <give|ruin|workday|find|reload> ...
+    usage: /archaeo <give|ruin|workday|find|sketch|reload> ...
     # Permission is config.yml permissions.staff (checked in code), default archaeo.admin.
 
 permissions:

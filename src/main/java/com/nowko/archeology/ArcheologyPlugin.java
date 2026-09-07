@@ -23,12 +23,14 @@ import com.nowko.archeology.prospect.ProspectListener;
 import com.nowko.archeology.prospect.ProspectService;
 import com.nowko.archeology.site.SiteGenerator;
 import com.nowko.archeology.site.SiteRepository;
+import com.nowko.archeology.sketch.SketchListener;
+import com.nowko.archeology.sketch.SketchService;
 import com.nowko.archeology.tracker.TrackerService;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
- * Spigot entry point for Archaeo: catalogs, sites, staff commands, tracker, prospecting, camp, and dig prism.
+ * Spigot entry point for Archaeo: catalogs, sites, staff commands, tracker, prospecting, camp, dig prism, and the sketch prototype.
  */
 public class ArcheologyPlugin extends JavaPlugin {
     private CatalogRegistry catalogs;
@@ -47,6 +49,7 @@ public class ArcheologyPlugin extends JavaPlugin {
     private PrismListener prismListener;
     private BrushItem brushItem;
     private RecoverService recover;
+    private SketchService sketch;
 
     /**
      * Copies missing default YAML, loads catalogs and saved sites, and starts gameplay loops.
@@ -102,6 +105,9 @@ public class ArcheologyPlugin extends JavaPlugin {
                 recoveredFindItem,
                 catalogs.recovery());
         getServer().getPluginManager().registerEvents(new RecoverListener(brushItem, recover), this);
+        sketch = new SketchService(this);
+        sketch.start();
+        getServer().getPluginManager().registerEvents(new SketchListener(sketch), this);
 
         ArchaeoCommand command = new ArchaeoCommand(
                 this,
@@ -152,7 +158,7 @@ public class ArcheologyPlugin extends JavaPlugin {
     }
 
     /**
-     * Stops tracker, prospecting, establishment, Hand Pick HUD, prism outlines, and find-particles tasks.
+     * Stops tracker, prospecting, establishment, Hand Pick HUD, prism outlines, find-particles, and the sketch prototype.
      */
     @Override
     public void onDisable() {
@@ -177,6 +183,16 @@ public class ArcheologyPlugin extends JavaPlugin {
         if (recover != null) {
             recover.stop();
         }
+        if (sketch != null) {
+            sketch.stop();
+        }
+    }
+
+    /**
+     * @return in-memory 32×32 map sketch (staff prototype, not persisted)
+     */
+    public SketchService sketch() {
+        return sketch;
     }
 
     /**

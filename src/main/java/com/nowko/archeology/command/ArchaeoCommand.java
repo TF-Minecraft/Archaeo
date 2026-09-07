@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
 public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private static final List<String> INTERESTS = List.of("low", "medium", "high", "exceptional");
     private static final List<String> ROOT = List.of(
-            "give", "ruin", "workday", "find", "reload");
+            "give", "ruin", "workday", "find", "sketch", "reload");
     private static final List<String> RUIN_ACTIONS = List.of("create", "info");
     private static final List<String> GIVE_KINDS = List.of(
             "tracker", "prospect", "establish", "tool", "brush");
@@ -147,6 +147,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length >= 1 && "find".equalsIgnoreCase(args[0])) {
             return handleFind(sender, args);
+        }
+        if (args.length >= 1 && "sketch".equalsIgnoreCase(args[0])) {
+            return handleSketch(sender);
         }
         if (args.length < 2 || !"ruin".equalsIgnoreCase(args[0])) {
             sendUsage(sender);
@@ -687,7 +690,23 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("       /archaeo give tool <item> [player]");
         sender.sendMessage("       /archaeo workday reset [player|all]");
         sender.sendMessage("       /archaeo find spawn [artifact] [size]");
+        sender.sendMessage("       /archaeo sketch");
         sender.sendMessage("       /archaeo reload");
+    }
+
+    /**
+     * Toggles the in-memory 32×32 map editor. Staff-only feel test; nothing is written to disk.
+     *
+     * @param sender staff issuer; must be a player
+     * @return {@code true} always
+     */
+    private boolean handleSketch(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("Only a player can open the sketch prototype.");
+            return true;
+        }
+        plugin.sketch().begin(player);
+        return true;
     }
 
     /**
