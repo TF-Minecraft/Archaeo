@@ -202,7 +202,8 @@ public final class CampBoard implements InventoryHolder {
         return named(
                 Material.SPYGLASS,
                 ChatColor.WHITE + "Show limits",
-                ChatColor.GRAY + "Traces the dig chunk and each stratum.",
+                ChatColor.GRAY + "Traces the dig chunk and each stratum,",
+                ChatColor.GRAY + "through spoil heaps and walls.",
                 ChatColor.DARK_GRAY + "Only you see it, for "
                         + catalogs.pick().limits().seconds() + " seconds.");
     }

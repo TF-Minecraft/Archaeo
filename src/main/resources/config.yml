@@ -92,10 +92,13 @@ excavation:
         label: "Crumbling"
   # "Show limits" on the camp board: the prism drawn for that player only. An established dig
   # no longer answers the tracker, so this (plus the camp) is how the cut is read on the ground.
+  # The edges are glowing display bars, not particles: their outline is drawn through terrain,
+  # so a spoil heap or a hillside cannot hide the limit.
   limits:
     seconds: 12
-    interval-ticks: 10
-    # Beyond this many blocks from the dig the outline is not drawn.
+    # Bar width in blocks. A thread reads as a line; raise it for a scaffolding look.
+    thickness: 0.08
+    # Blocks from which the client still renders the bars.
     view-distance: 96
   find-particles: true
   find-particles-interval-ticks: 6

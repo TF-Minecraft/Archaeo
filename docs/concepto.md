@@ -569,9 +569,22 @@ fantasma u otro sistema). Se ocultan al dejar de mirar o al alejarse.
 **Implementado: «Mostrar límites» del panel.** Dibuja el prisma **solo para quien
 lo pide** durante `excavation.limits.seconds`: el perímetro del chunk a la altura
 del techo y del suelo del corte en color de **borde**, una anilla de **costura**
-en cada cambio de estrato presente, y las cuatro aristas verticales. No se dibuja
-más allá de `view-distance`, así que alejarse lo apaga sin cancelarlo. El
-auto-mostrado por mirada sigue pendiente. El Hand Pick
+en cada cambio de estrato presente, y las cuatro aristas verticales.
+
+**Nada de partículas para esto.** Un yacimiento no es un prado llano: hay
+escombreras, muros y ladera, y las partículas se dibujan con prueba de
+profundidad, así que cualquier bloque delante las borra justo cuando más falta
+hacen. Cada arista es un `BlockDisplay` aplanado a hilo (`limits.thickness`) con
+**brillo**: el cliente vanilla dibuja el contorno de una entidad que brilla **a
+través de bloques y entidades**, así que el límite enterrado se sigue leyendo.
+Las barras nacen invisibles para el mundo (`setVisibleByDefault(false)`) y se
+muestran solo al jugador que pulsó, no son persistentes —un cierre sucio no deja
+basura—, y declaran su caja de culling al largo completo para que no desaparezcan
+al mirarlas de punta. `view-distance` se traduce al rango de visión de la display,
+así que alejarse las apaga en el cliente. Sin mods ni resource pack; es la misma
+técnica que usan los plugins que pintan selecciones de WorldEdit sin CUI.
+
+El auto-mostrado por mirada sigue pendiente. El Hand Pick
 puede hacer de herramienta contextual (HUD de excavación / estrato al
 equiparlo dentro del prisma; aviso al apuntar fuera).
 

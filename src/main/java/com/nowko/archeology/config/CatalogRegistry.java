@@ -494,10 +494,11 @@ public class CatalogRegistry {
     }
 
     /**
-     * Reads {@code excavation.limits}: how long the camp board shows the prism, and from how far.
+     * Reads {@code excavation.limits}: how long the camp board shows the prism, how thin the
+     * edges are, and from how far the client still draws them.
      *
      * @param excavation {@code excavation:} or {@code null}
-     * @param fallback packaged outline timings
+     * @param fallback packaged outline settings
      * @return merged settings; missing keys keep the packaged value
      */
     private LimitsSettings loadLimits(ConfigurationSection excavation, LimitsSettings fallback) {
@@ -509,7 +510,7 @@ public class CatalogRegistry {
         }
         return new LimitsSettings(
                 Math.max(1, root.getInt("seconds", fallback.seconds())),
-                Math.max(1, root.getInt("interval-ticks", fallback.intervalTicks())),
+                Math.min(1.0, Math.max(0.01, root.getDouble("thickness", fallback.thickness()))),
                 Math.max(16, root.getInt("view-distance", fallback.viewDistance()))
         );
     }

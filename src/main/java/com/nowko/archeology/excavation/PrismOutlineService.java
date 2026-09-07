@@ -4,43 +4,61 @@ import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.config.LimitsSettings;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.StratumBand;
+import org.bukkit.Axis;
 import org.bukkit.Color;
 import org.bukkit.Location;
-import org.bukkit.Particle;
+import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.World;
+import org.bukkit.entity.BlockDisplay;
+import org.bukkit.entity.Display;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.util.Transformation;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Draws the excavation prism for one viewer for a few seconds ("Show limits" on the camp board).
  * An established dig stops answering the tracker, so the cut has to be readable on the ground:
  * where the chunk ends, how deep the work goes, and where one stratum hands over to the next.
+ *
+ * <p>The edges are thin {@link BlockDisplay} bars rather than particles, because a dig site is
+ * never a flat lawn: particles are depth-tested and any spoil heap, wall, or hillside hides them.
+ * A glowing entity, on the other hand, has its outline drawn through blocks by the vanilla client,
+ * so a buried edge stays readable. The bars are spawned invisible to the world and then shown to
+ * the one player who asked, and they are not persisted, so a hard shutdown leaves nothing behind.
  */
 public class PrismOutlineService {
     /** Chunk edge and the floor and ceiling of the whole cut. */
-    private static final Color EDGE = Color.fromRGB(255, 205, 120);
+    private static final Color EDGE_GLOW = Color.fromRGB(255, 205, 120);
     /** Where one present stratum meets the next. */
-    private static final Color SEAM = Color.fromRGB(170, 215, 255);
-    /** Blocks between two dots along a ring; the corners are always drawn. */
-    private static final int RING_STEP = 2;
+    private static final Color SEAM_GLOW = Color.fromRGB(170, 215, 255);
+    /** Bar block seen where nothing hides it; the glow carries the colour through terrain. */
+    private static final Material EDGE_BAR = Material.ORANGE_CONCRETE;
+    private static final Material SEAM_BAR = Material.LIGHT_BLUE_CONCRETE;
+    /** Blocks across an archaeological chunk. */
+    private static final double SPAN = 16.0;
+    /** Display view range is a multiple of this many blocks. */
+    private static final double VIEW_RANGE_UNIT = 64.0;
+    /** Slack added to the culling box so a bar seen end-on is not dropped by the client. */
+    private static final float CULL_MARGIN = 2.0f;
 
     private final JavaPlugin plugin;
     private final CatalogRegistry catalogs;
-    private final Map<UUID, BukkitTask> shows = new ConcurrentHashMap<>();
+    private final Map<UUID, List<Entity>> shows = new ConcurrentHashMap<>();
 
     /**
-     * @param plugin scheduler owner
-     * @param catalogs read live so {@code /archaeo reload} retimes running shows
+     * @param plugin scheduler owner and holder of the per-player visibility grants
+     * @param catalogs read live so {@code /archaeo reload} retimes the next show
      */
     public PrismOutlineService(JavaPlugin plugin, CatalogRegistry catalogs) {
         this.plugin = plugin;
@@ -48,49 +66,48 @@ public class PrismOutlineService {
     }
 
     /**
-     * Cancels every running outline; called when the plugin shuts down.
+     * Clears every running outline; called when the plugin shuts down.
      */
     public void stop() {
-        for (UUID id : List.copyOf(shows.keySet())) {
-            BukkitTask task = shows.remove(id);
-            if (task != null) {
-                task.cancel();
-            }
+        for (UUID viewer : List.copyOf(shows.keySet())) {
+            cancelById(viewer);
         }
     }
 
     /**
      * Starts (or restarts) the outline for this viewer.
      *
-     * @param player viewer; nobody else sees these particles
+     * @param player viewer; nobody else is shown these bars
      * @param site excavation whose prism is drawn
      */
     public void show(Player player, Site site) {
-        LimitsSettings limits = catalogs.pick().limits();
+        World world = player.getWorld();
+        if (!world.getName().equals(site.getWorldName())) {
+            player.sendMessage("That excavation is in another world.");
+            return;
+        }
         List<Ring> rings = rings(site);
         if (rings.isEmpty()) {
             player.sendMessage("This site has no excavated strata to outline.");
             return;
         }
         cancel(player);
-        int interval = Math.max(1, limits.intervalTicks());
-        int frames = Math.max(1, limits.seconds() * 20 / interval);
-        AtomicInteger left = new AtomicInteger(frames);
+        LimitsSettings limits = catalogs.pick().limits();
+        List<Entity> bars = new ArrayList<>();
+        paint(player, world, site, rings, limits, bars);
+        if (bars.isEmpty()) {
+            return;
+        }
+        shows.put(player.getUniqueId(), bars);
         UUID viewer = player.getUniqueId();
-        BukkitTask task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
-            if (!player.isOnline() || left.decrementAndGet() < 0) {
-                cancelById(viewer);
-                return;
-            }
-            draw(player, site, rings, limits);
-        }, 1L, interval);
-        shows.put(viewer, task);
+        plugin.getServer().getScheduler().runTaskLater(
+                plugin, () -> cancelById(viewer), Math.max(1L, limits.seconds() * 20L));
         player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, SoundCategory.PLAYERS, 0.6f, 1.4f);
         player.sendMessage("Excavation limits shown for " + limits.seconds() + " seconds.");
     }
 
     /**
-     * @param player viewer whose outline should stop
+     * @param player viewer whose outline should be removed now
      */
     public void cancel(Player player) {
         cancelById(player.getUniqueId());
@@ -100,100 +117,122 @@ public class PrismOutlineService {
      * @param viewer player id
      */
     private void cancelById(UUID viewer) {
-        BukkitTask task = shows.remove(viewer);
-        if (task != null) {
-            task.cancel();
+        List<Entity> bars = shows.remove(viewer);
+        if (bars == null) {
+            return;
+        }
+        for (Entity bar : bars) {
+            bar.remove();
         }
     }
 
     /**
-     * One frame: the chunk perimeter at every ring height, plus the four vertical corners.
+     * The box of the cut plus one ring per stratum seam: four horizontal bars at every traced
+     * height, and four vertical bars joining the ceiling to the floor.
      *
      * @param player viewer
+     * @param world site world
      * @param site excavation
-     * @param rings heights to trace
-     * @param limits view distance for this frame
+     * @param rings heights to trace, highest first
+     * @param limits bar thickness and view range
+     * @param bars spawned entities, for later removal
      */
-    private void draw(Player player, Site site, List<Ring> rings, LimitsSettings limits) {
-        World world = player.getWorld();
-        if (!world.getName().equals(site.getWorldName())) {
-            return;
-        }
-        double reach = limits.viewDistance();
-        Location eye = player.getLocation();
-        if (Math.abs(eye.getX() - site.centerBlockX()) > reach
-                || Math.abs(eye.getZ() - site.centerBlockZ()) > reach) {
-            return;
-        }
+    private void paint(
+            Player player,
+            World world,
+            Site site,
+            List<Ring> rings,
+            LimitsSettings limits,
+            List<Entity> bars
+    ) {
         double minX = site.getChunkX() << 4;
         double minZ = site.getChunkZ() << 4;
-        double maxX = minX + 16;
-        double maxZ = minZ + 16;
+        double maxX = minX + SPAN;
+        double maxZ = minZ + SPAN;
         for (Ring ring : rings) {
-            perimeter(player, ring.y(), minX, minZ, maxX, maxZ, ring.color());
+            bar(player, world, minX, ring.y(), minZ, Axis.X, SPAN, ring.seam(), limits, bars);
+            bar(player, world, minX, ring.y(), maxZ, Axis.X, SPAN, ring.seam(), limits, bars);
+            bar(player, world, minX, ring.y(), minZ, Axis.Z, SPAN, ring.seam(), limits, bars);
+            bar(player, world, maxX, ring.y(), minZ, Axis.Z, SPAN, ring.seam(), limits, bars);
         }
         double bottom = rings.get(rings.size() - 1).y();
-        double top = rings.get(0).y();
-        corners(player, bottom, top, minX, minZ, maxX, maxZ);
+        double height = rings.get(0).y() - bottom;
+        if (height <= 0) {
+            return;
+        }
+        bar(player, world, minX, bottom, minZ, Axis.Y, height, false, limits, bars);
+        bar(player, world, minX, bottom, maxZ, Axis.Y, height, false, limits, bars);
+        bar(player, world, maxX, bottom, minZ, Axis.Y, height, false, limits, bars);
+        bar(player, world, maxX, bottom, maxZ, Axis.Y, height, false, limits, bars);
     }
 
     /**
-     * @param player viewer
-     * @param y height of this ring
-     * @param minX west edge
-     * @param minZ north edge
-     * @param maxX east edge
-     * @param maxZ south edge
-     * @param color ring colour
+     * One edge: a block display squashed to a thread on its two short axes and stretched along the
+     * third. The declared display size is what the client culls against, so it covers the whole bar
+     * instead of its anchor block, and the brightness override keeps the edge lit down in the cut.
+     *
+     * @param player viewer the bar is shown to
+     * @param world site world
+     * @param x start X of the edge
+     * @param y start Y of the edge
+     * @param z start Z of the edge
+     * @param axis direction the bar runs along
+     * @param length blocks covered along {@code axis}
+     * @param seam whether this edge is a stratum seam rather than the outer box
+     * @param limits bar thickness and view range
+     * @param bars spawned entities, for later removal
      */
-    private void perimeter(Player player, double y, double minX, double minZ, double maxX, double maxZ, Color color) {
-        for (double x = minX; x <= maxX; x += RING_STEP) {
-            dot(player, x, y, minZ, color);
-            dot(player, x, y, maxZ, color);
+    private void bar(
+            Player player,
+            World world,
+            double x,
+            double y,
+            double z,
+            Axis axis,
+            double length,
+            boolean seam,
+            LimitsSettings limits,
+            List<Entity> bars
+    ) {
+        float thin = (float) Math.max(0.01, limits.thickness());
+        float span = (float) length;
+        Vector3f translation;
+        Vector3f scale;
+        switch (axis) {
+            case X -> {
+                translation = new Vector3f(0, -thin / 2, -thin / 2);
+                scale = new Vector3f(span, thin, thin);
+            }
+            case Y -> {
+                translation = new Vector3f(-thin / 2, 0, -thin / 2);
+                scale = new Vector3f(thin, span, thin);
+            }
+            default -> {
+                translation = new Vector3f(-thin / 2, -thin / 2, 0);
+                scale = new Vector3f(thin, thin, span);
+            }
         }
-        for (double z = minZ + RING_STEP; z < maxZ; z += RING_STEP) {
-            dot(player, minX, y, z, color);
-            dot(player, maxX, y, z, color);
-        }
-    }
-
-    /**
-     * @param player viewer
-     * @param bottom floor of the deepest present band
-     * @param top ceiling of the shallowest present band
-     * @param minX west edge
-     * @param minZ north edge
-     * @param maxX east edge
-     * @param maxZ south edge
-     */
-    private void corners(Player player, double bottom, double top, double minX, double minZ, double maxX, double maxZ) {
-        for (double y = bottom; y <= top; y += 1) {
-            dot(player, minX, y, minZ, EDGE);
-            dot(player, minX, y, maxZ, EDGE);
-            dot(player, maxX, y, minZ, EDGE);
-            dot(player, maxX, y, maxZ, EDGE);
-        }
-    }
-
-    /**
-     * @param player viewer
-     * @param x world X
-     * @param y world Y
-     * @param z world Z
-     * @param color dust colour
-     */
-    private void dot(Player player, double x, double y, double z, Color color) {
-        player.spawnParticle(
-                Particle.DUST,
-                x,
-                y,
-                z,
-                1,
-                0,
-                0,
-                0,
-                0,
-                new Particle.DustOptions(color, 0.9f));
+        Material material = seam ? SEAM_BAR : EDGE_BAR;
+        Color glow = seam ? SEAM_GLOW : EDGE_GLOW;
+        float cull = span + CULL_MARGIN;
+        float range = (float) (limits.viewDistance() / VIEW_RANGE_UNIT);
+        BlockDisplay display = world.spawn(new Location(world, x, y, z), BlockDisplay.class, entity -> {
+            entity.setVisibleByDefault(false);
+            entity.setPersistent(false);
+            entity.setBlock(material.createBlockData());
+            entity.setGlowing(true);
+            entity.setGlowColorOverride(glow);
+            entity.setBrightness(new Display.Brightness(15, 15));
+            entity.setShadowRadius(0f);
+            entity.setShadowStrength(0f);
+            entity.setBillboard(Display.Billboard.FIXED);
+            entity.setDisplayWidth(cull);
+            entity.setDisplayHeight(cull);
+            entity.setViewRange(range);
+            entity.setTransformation(new Transformation(translation, new Quaternionf(), scale, new Quaternionf()));
+        });
+        player.showEntity(plugin, display);
+        bars.add(display);
     }
 
     /**
@@ -215,11 +254,11 @@ public class PrismOutlineService {
         }
         present.sort((a, b) -> Integer.compare(b.getMaxY(), a.getMaxY()));
         List<Ring> rings = new ArrayList<>();
-        rings.add(new Ring(present.get(0).getMaxY() + 1.0, EDGE));
+        rings.add(new Ring(present.get(0).getMaxY() + 1.0, false));
         for (int index = 1; index < present.size(); index++) {
-            rings.add(new Ring(present.get(index).getMaxY() + 1.0, SEAM));
+            rings.add(new Ring(present.get(index).getMaxY() + 1.0, true));
         }
-        rings.add(new Ring(present.get(present.size() - 1).getMinY(), EDGE));
+        rings.add(new Ring(present.get(present.size() - 1).getMinY(), false));
         return List.copyOf(rings);
     }
 
@@ -227,8 +266,8 @@ public class PrismOutlineService {
      * One traced height of the prism.
      *
      * @param y world Y of the ring
-     * @param color dust colour that tells an edge from a seam
+     * @param seam whether it is a stratum seam rather than the ceiling or floor of the cut
      */
-    private record Ring(double y, Color color) {
+    private record Ring(double y, boolean seam) {
     }
 }
