@@ -1099,6 +1099,21 @@ bloque que **no** sea celda de hallazgo el pincel vanilla no se cancela.
 Una cifra **0–100 % por hallazgo**, no por cubo. Se ve en el ítem al
 recuperar: mismo template, distinto valor.
 
+**Dos fuentes, no una.** Lo que mandó es el tiempo bajo tierra; el pico solo
+puede quitar más:
+
+1. **Conservación enterrada.** Se tira **al generar el yacimiento**, una vez por
+   hallazgo, y es el techo de esa pieza. La tirada es **centrada**: lo normal es
+   una pieza mediana y los dos extremos son raros (`conservation.buried.bias`
+   inclina la curva hacia abajo si se sube). Después baja con la profundidad del
+   estrato (`depth-penalty`), baja más si la banda está revuelta
+   (`disturbed-penalty`) y se multiplica por la supervivencia del material
+   (`materials.yml`: la materia orgánica se pudre, la piedra aguanta). Con los
+   valores por defecto, sacar algo **intacto ronda el 4 %** en la capa superior y
+   es casi imposible en las hondas, por bien que excaves.
+2. **Heridas de excavación.** Se restan de ese techo con la regla de celdas de
+   abajo. Excavar de forma impecable **conserva** lo que quedaba; no lo mejora.
+
 El objeto se reparte en sus celdas. Un hallazgo de **4 bloques** → cada
 celda es el **25 %**. Si esa celda pide **dos** acciones de pico y fallas
 la primera pero aciertas la segunda: solo la mitad de esa celda → **−12,5 %**
@@ -1118,12 +1133,18 @@ Qué cuenta como fallo (ignorar el aviso, no el cling en sí):
 Cada celda: como mucho una rozadura desde arriba y como mucho un golpe
 directo. No se acumula picando el mismo aire.
 
-Bandas al recuperar:
+Bandas al recuperar. No hay una etiqueta binaria de «dañada»: el porcentaje se
+**describe** con grados configurables (`excavation.conservation.grades`), y
+aparte se marca si la pieza fue **herida al excavar**, que es información
+distinta de haber sobrevivido mal bajo tierra.
 
-| Conservación | Resultado |
+| Conservación | Lectura por defecto |
 | --- | --- |
-| ≥ umbral (p. ej. 70 %) | Pieza en buen estado |
-| &lt; umbral y &gt; 0 | Se recupera **dañada** (lore / valor) |
+| ≥ 92 % | Intact |
+| 72–91 % | Sound |
+| 48–71 % | Worn |
+| 24–47 % | Fragmentary |
+| 1–23 % | Crumbling |
 | 0 %, o todas las celdas gastadas del todo | **Irrecuperable** (no hay ítem, o solo resto de contexto) |
 
 Una moneda (\(n=1\)) es frágil. Una forma grande aguanta más nicks; machacar

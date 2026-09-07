@@ -11,7 +11,7 @@ import java.util.List;
  * @param findDust whether exposed find cells shed motes
  * @param findDustIntervalTicks ticks between leak bursts on an open find cell
  * @param findDustCount motes per burst
- * @param damagedBelowPercent mark the find damaged when conservation falls below this
+ * @param conservation buried-condition roll and the bands used to describe a piece
  * @param neighborTraces whether lifting fill reports adjacent find cubes by material
  * @param profiles named tools from {@code excavation.tools}
  */
@@ -22,7 +22,7 @@ public record PickSettings(
         boolean findDust,
         int findDustIntervalTicks,
         int findDustCount,
-        int damagedBelowPercent,
+        ConservationSettings conservation,
         boolean neighborTraces,
         List<ExcavationTool> profiles
 ) {
@@ -37,7 +37,7 @@ public record PickSettings(
                 true,
                 6,
                 2,
-                70,
+                ConservationSettings.defaults(),
                 true,
                 List.of(ExcavationTool.hand(), ExcavationTool.light(), ExcavationTool.heavy())
         );

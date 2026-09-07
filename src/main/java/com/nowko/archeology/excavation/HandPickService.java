@@ -519,7 +519,6 @@ public class HandPickService {
                     cell.getX(),
                     cell.getY(),
                     cell.getZ(),
-                    settings.damagedBelowPercent(),
                     aimed);
             liftFill(cell);
         }

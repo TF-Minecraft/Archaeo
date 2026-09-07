@@ -11,6 +11,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -126,6 +127,20 @@ public class CatalogRegistry {
             return material.displayName();
         }
         return Character.toUpperCase(id.charAt(0)) + id.substring(1);
+    }
+
+    /**
+     * How kindly the ground treats this material. Unknown materials survive fully.
+     *
+     * @param id material key from {@code artifacts.yml}
+     * @return multiplier applied to the buried-condition roll
+     */
+    public double materialSurvival(String id) {
+        if (id == null || id.isBlank()) {
+            return 1.0;
+        }
+        FindMaterial material = materials.get(id);
+        return material == null ? 1.0 : material.survival();
     }
 
     /**
@@ -471,10 +486,105 @@ public class CatalogRegistry {
                         "find-particles-interval-ticks", "find-dust-interval-ticks")),
                 Math.max(1, firstInt(excavation, pickSection, fallback.findDustCount(),
                         "find-particles-count", "find-dust-count")),
-                Math.max(0, Math.min(100, firstInt(excavation, pickSection, fallback.damagedBelowPercent(), "damaged-below-percent"))),
+                loadConservation(excavation, fallback.conservation()),
                 firstBool(excavation, pickSection, fallback.neighborTraces(), "neighbor-traces"),
                 loadProfiles(excavation, pickSection, fallback)
         );
+    }
+
+    /**
+     * Reads {@code excavation.conservation}: how much of a piece the ground already took,
+     * and the bands used to describe the final number.
+     *
+     * @param excavation {@code excavation:} or {@code null}
+     * @param fallback packaged conservation rules
+     * @return merged settings; missing keys keep the packaged value
+     */
+    private ConservationSettings loadConservation(ConfigurationSection excavation, ConservationSettings fallback) {
+        ConfigurationSection root = excavation == null
+                ? null
+                : excavation.getConfigurationSection("conservation");
+        if (root == null) {
+            return fallback;
+        }
+        ConfigurationSection buried = root.getConfigurationSection("buried");
+        int min = fallback.buriedMin();
+        int max = fallback.buriedMax();
+        double bias = fallback.bias();
+        int depthPenalty = fallback.depthPenalty();
+        int disturbedPenalty = fallback.disturbedPenalty();
+        if (buried != null) {
+            min = clampPercent(buried.getInt("min", fallback.buriedMin()));
+            max = clampPercent(buried.getInt("max", fallback.buriedMax()));
+            bias = Math.max(0.1, buried.getDouble("bias", fallback.bias()));
+            depthPenalty = Math.max(0, buried.getInt("depth-penalty", fallback.depthPenalty()));
+            disturbedPenalty = Math.max(0, buried.getInt("disturbed-penalty", fallback.disturbedPenalty()));
+        }
+        if (min > max) {
+            int swap = min;
+            min = max;
+            max = swap;
+        }
+        List<ConservationGrade> grades = loadGrades(root, fallback.grades());
+        return new ConservationSettings(min, max, bias, depthPenalty, disturbedPenalty, grades);
+    }
+
+    /**
+     * @param root {@code excavation.conservation}
+     * @param fallback packaged bands
+     * @return bands sorted from the best condition down
+     */
+    private List<ConservationGrade> loadGrades(ConfigurationSection root, List<ConservationGrade> fallback) {
+        List<?> raw = root.getList("grades");
+        if (raw == null || raw.isEmpty()) {
+            return fallback;
+        }
+        List<ConservationGrade> grades = new ArrayList<>();
+        for (Object entry : raw) {
+            if (!(entry instanceof Map<?, ?> map)) {
+                continue;
+            }
+            Object id = map.get("id");
+            if (id == null) {
+                continue;
+            }
+            String key = String.valueOf(id);
+            int minPercent = clampPercent(intOrDefault(map.get("min-percent"), 0));
+            String label = map.get("label") == null ? key : String.valueOf(map.get("label"));
+            grades.add(new ConservationGrade(key, minPercent, label));
+        }
+        if (grades.isEmpty()) {
+            return fallback;
+        }
+        grades.sort(Comparator.comparingInt(ConservationGrade::minPercent).reversed());
+        return List.copyOf(grades);
+    }
+
+    /**
+     * @param raw YAML scalar
+     * @param fallback when the value is missing or not a number
+     * @return parsed integer
+     */
+    private static int intOrDefault(Object raw, int fallback) {
+        if (raw instanceof Number number) {
+            return number.intValue();
+        }
+        if (raw == null) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(String.valueOf(raw).trim());
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    /**
+     * @param value raw percentage
+     * @return value clamped to 0–100
+     */
+    private static int clampPercent(int value) {
+        return Math.max(0, Math.min(100, value));
     }
 
     /**
@@ -832,7 +942,8 @@ public class CatalogRegistry {
             if (section == null) {
                 continue;
             }
-            materials.put(id, new FindMaterial(id, section.getString("display-name", id)));
+            double survival = Math.max(0.05, Math.min(1.0, section.getDouble("survival", 1.0)));
+            materials.put(id, new FindMaterial(id, section.getString("display-name", id), survival));
         }
     }
 

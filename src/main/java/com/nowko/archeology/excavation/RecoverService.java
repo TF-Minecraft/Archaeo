@@ -30,6 +30,7 @@ import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -329,8 +330,8 @@ public class RecoverService {
         }
         find.setState(FindState.RECOVERED);
         int conservation = find.getConservation();
-        int damagedBelow = catalogs.pick().damagedBelowPercent();
-        boolean damaged = find.isDamaged() || conservation < damagedBelow;
+        String grade = catalogs.pick().conservation().gradeLabel(conservation);
+        boolean fieldDamaged = find.isFieldDamaged();
         if (conservation <= 0) {
             player.sendMessage("Those remains were destroyed. Nothing could be recovered.");
             world.playSound(origin.getLocation(), Sound.ENTITY_ITEM_BREAK, SoundCategory.BLOCKS, 0.8f, 0.7f);
@@ -342,13 +343,19 @@ public class RecoverService {
             player.sendMessage("Recovered a find, but its template is missing from the catalog.");
             return;
         }
-        ItemStack stack = recoveredItem.create(template, site, find, player.getUniqueId(), damaged);
+        ItemStack stack = recoveredItem.create(template, site, find, player.getUniqueId(), grade, fieldDamaged);
         Location dropAt = origin.getLocation().add(0.5, 0.35, 0.5);
         Item dropped = world.dropItem(dropAt, stack);
         dropped.setVelocity(new Vector(0, 0.12, 0));
         world.playSound(dropAt, Sound.ITEM_BRUSH_BRUSHING_GENERIC, SoundCategory.BLOCKS, 1f, 1.35f);
         world.spawnParticle(Particle.CLOUD, dropAt, 12, 0.25, 0.2, 0.25, 0.02);
-        String quality = damaged ? " · damaged · " + conservation + "%" : " · " + conservation + "%";
+        StringBuilder quality = new StringBuilder(" · ").append(conservation).append('%');
+        if (!grade.isBlank()) {
+            quality.append(" · ").append(grade.toLowerCase(Locale.ROOT));
+        }
+        if (fieldDamaged) {
+            quality.append(" · hurt while digging");
+        }
         player.sendMessage("Recovered: " + template.displayName() + quality);
     }
 

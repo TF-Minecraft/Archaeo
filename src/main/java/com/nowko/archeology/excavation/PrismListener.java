@@ -35,19 +35,16 @@ public class PrismListener implements Listener {
     private final DigTools tools;
     private final Map<UUID, Long> lastWarn = new ConcurrentHashMap<>();
     private boolean protectDigSite;
-    private int damagedBelowPercent;
 
     /**
      * @param sites ruin and excavation dossiers
      * @param tools excavation whitelist: those items use {@link HandPickListener} on prism fill
      * @param protectDigSite whether every present stratum band is locked against vanilla damage
-     * @param damagedBelowPercent conservation at which a smashed find is stamped damaged
      */
-    public PrismListener(SiteRepository sites, DigTools tools, boolean protectDigSite, int damagedBelowPercent) {
+    public PrismListener(SiteRepository sites, DigTools tools, boolean protectDigSite) {
         this.sites = sites;
         this.tools = tools;
         this.protectDigSite = protectDigSite;
-        this.damagedBelowPercent = damagedBelowPercent;
     }
 
     /**
@@ -55,13 +52,6 @@ public class PrismListener implements Listener {
      */
     public void setProtectDigSite(boolean protectDigSite) {
         this.protectDigSite = protectDigSite;
-    }
-
-    /**
-     * @param damagedBelowPercent after reload
-     */
-    public void setDamagedBelowPercent(int damagedBelowPercent) {
-        this.damagedBelowPercent = damagedBelowPercent;
     }
 
     /**
@@ -264,7 +254,7 @@ public class PrismListener implements Listener {
                 continue;
             }
             PrismWound.Removal removal = PrismWound.onCellRemoved(
-                    site, block.getX(), block.getY(), block.getZ(), damagedBelowPercent);
+                    site, block.getX(), block.getY(), block.getZ());
             if (removal.dossierChanged()) {
                 dirty.add(site);
             }

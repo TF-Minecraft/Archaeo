@@ -1,23 +1,30 @@
 # Find materials. display-name is used on neighbour traces in the cut.
+# survival (0-1) scales the buried-conservation roll from config.yml: organic rots in the
+# ground, stone barely cares. It never depends on how well the player digs.
 # Lab treatment chains are listed for later; they are not played in-game yet.
 materials:
   ceramic:
     display-name: Ceramic
+    survival: 0.95
     wash: true
     steps: [clean, wash, dry, photograph, interpret]
   metal:
     display-name: Metal
+    survival: 0.85
     wash: false
     steps: [clean, stabilize, photograph, interpret]
   bone:
     display-name: Bone
+    survival: 0.8
     wash: false
     steps: [clean, dry, photograph, interpret]
   organic:
     display-name: Organic
+    survival: 0.7
     wash: false
     steps: [dry, conserve, photograph, interpret]
   stone:
     display-name: Stone
+    survival: 1.0
     wash: true
     steps: [clean, wash, dry, photograph, interpret]

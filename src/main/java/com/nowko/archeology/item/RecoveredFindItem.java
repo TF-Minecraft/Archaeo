@@ -27,7 +27,9 @@ public class RecoveredFindItem {
     private final NamespacedKey artifactIdKey;
     private final NamespacedKey stratumKey;
     private final NamespacedKey conservationKey;
-    private final NamespacedKey damagedKey;
+    private final NamespacedKey buriedConservationKey;
+    private final NamespacedKey gradeKey;
+    private final NamespacedKey fieldDamagedKey;
     private final NamespacedKey recoveredByKey;
     private final NamespacedKey recoveredAtKey;
 
@@ -42,7 +44,9 @@ public class RecoveredFindItem {
         this.artifactIdKey = new NamespacedKey(plugin, "artifact_id");
         this.stratumKey = new NamespacedKey(plugin, "stratum");
         this.conservationKey = new NamespacedKey(plugin, "conservation");
-        this.damagedKey = new NamespacedKey(plugin, "damaged");
+        this.buriedConservationKey = new NamespacedKey(plugin, "buried_conservation");
+        this.gradeKey = new NamespacedKey(plugin, "conservation_grade");
+        this.fieldDamagedKey = new NamespacedKey(plugin, "field_damaged");
         this.recoveredByKey = new NamespacedKey(plugin, "recovered_by");
         this.recoveredAtKey = new NamespacedKey(plugin, "recovered_at");
     }
@@ -52,7 +56,8 @@ public class RecoveredFindItem {
      * @param site excavation this piece left
      * @param find dossier row being lifted
      * @param recoverer player who finished the last brush
-     * @param damaged whether lore should mark the piece damaged
+     * @param grade condition band label for the final percentage
+     * @param fieldDamaged whether the dig itself wounded the piece
      * @return stack to drop, or {@code null} if the template item is unknown
      */
     public ItemStack create(
@@ -60,7 +65,8 @@ public class RecoveredFindItem {
             Site site,
             BuriedFind find,
             UUID recoverer,
-            boolean damaged
+            String grade,
+            boolean fieldDamaged
     ) {
         Material material = Material.matchMaterial(template.item());
         if (material == null || material.isAir()) {
@@ -79,9 +85,13 @@ public class RecoveredFindItem {
                 : site.getName();
         lore.add(ChatColor.GRAY + siteName);
         lore.add(ChatColor.DARK_GRAY + "Stratum " + find.getStratumId());
-        lore.add(ChatColor.DARK_GRAY + "Conservation " + find.getConservation() + "%");
-        if (damaged) {
-            lore.add(ChatColor.RED + "Damaged");
+        String condition = ChatColor.DARK_GRAY + "Conservation " + find.getConservation() + "%";
+        if (grade != null && !grade.isBlank()) {
+            condition += ChatColor.DARK_GRAY + " · " + grade;
+        }
+        lore.add(condition);
+        if (fieldDamaged) {
+            lore.add(ChatColor.RED + "Hurt while digging");
         }
         meta.setLore(lore);
         var pdc = meta.getPersistentDataContainer();
@@ -92,7 +102,9 @@ public class RecoveredFindItem {
         pdc.set(artifactIdKey, PersistentDataType.STRING, find.getArtifactId());
         pdc.set(stratumKey, PersistentDataType.STRING, find.getStratumId());
         pdc.set(conservationKey, PersistentDataType.INTEGER, find.getConservation());
-        pdc.set(damagedKey, PersistentDataType.BYTE, damaged ? (byte) 1 : (byte) 0);
+        pdc.set(buriedConservationKey, PersistentDataType.INTEGER, find.getBuriedConservation());
+        pdc.set(gradeKey, PersistentDataType.STRING, grade == null ? "" : grade);
+        pdc.set(fieldDamagedKey, PersistentDataType.BYTE, fieldDamaged ? (byte) 1 : (byte) 0);
         pdc.set(recoveredByKey, PersistentDataType.STRING, recoverer.toString());
         pdc.set(recoveredAtKey, PersistentDataType.STRING, Instant.now().toString());
         stack.setItemMeta(meta);

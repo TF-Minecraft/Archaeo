@@ -327,7 +327,7 @@ public class SiteRepository {
             node.put("artifact-id", find.getArtifactId());
             node.put("stratum", find.getStratumId());
             node.put("state", find.getState().name());
-            node.put("damaged", find.isDamaged());
+            node.put("buried-conservation", find.getBuriedConservation());
             node.put("conservation", find.getConservation());
             List<String> cells = find.getCells().stream()
                     .map(cell -> cell.x() + "," + cell.y() + "," + cell.z())
@@ -460,14 +460,16 @@ public class SiteRepository {
             find.setArtifactId(String.valueOf(map.get("artifact-id")));
             find.setStratumId(String.valueOf(map.get("stratum")));
             find.setState(FindState.valueOf(stringOr(map.get("state"), "HIDDEN")));
-            find.setDamaged(Boolean.parseBoolean(stringOr(map.get("damaged"), "false")));
             addCells(map.get("cells"), find.getCells());
             addCells(map.get("cleaned-cells"), find.getCleanedCells());
             addCells(map.get("grazed-cells"), find.getGrazedCells());
             addCells(map.get("direct-hit-cells"), find.getDirectHitCells());
             addRemaining(map.get("brush-remaining"), find.getBrushRemaining());
-            if (find.getGrazedCells().isEmpty() && find.getDirectHitCells().isEmpty()) {
-                find.setConservation(parseConservation(map.get("conservation")));
+            if (map.get("buried-conservation") != null) {
+                find.setBuriedConservation(parseConservation(map.get("buried-conservation")));
+            } else if (find.getGrazedCells().isEmpty() && find.getDirectHitCells().isEmpty()) {
+                // Pre-conservation-roll file: whatever it stored was the untouched value.
+                find.setBuriedConservation(parseConservation(map.get("conservation")));
             } else {
                 find.refreshConservation();
             }

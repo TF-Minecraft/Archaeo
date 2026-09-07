@@ -16,7 +16,7 @@ public class BuriedFind {
     private String artifactId;
     private String stratumId;
     private FindState state = FindState.HIDDEN;
-    private boolean damaged;
+    private int buriedConservation = 100;
     private int conservation = 100;
     private final List<BlockCell> cells = new ArrayList<>();
     private final Set<BlockCell> cleanedCells = new LinkedHashSet<>();
@@ -65,14 +65,31 @@ public class BuriedFind {
         this.state = state;
     }
 
-    /** @return whether recovery will yield a damaged item */
-    public boolean isDamaged() {
-        return damaged;
+    /**
+     * Excavation wounds are not the same as centuries underground: this reports only the dig.
+     *
+     * @return whether any cell of this find was grazed or struck while digging
+     */
+    public boolean isFieldDamaged() {
+        return !grazedCells.isEmpty() || !directHitCells.isEmpty();
     }
 
-    /** @param damaged whether recovery will yield a damaged item */
-    public void setDamaged(boolean damaged) {
-        this.damaged = damaged;
+    /**
+     * Condition the piece already had in the ground, rolled once when the site is generated.
+     * Field work can only subtract from it, so a flawless dig does not create a flawless piece.
+     *
+     * @return buried condition ceiling, 0–100
+     */
+    public int getBuriedConservation() {
+        return buriedConservation;
+    }
+
+    /**
+     * @param buriedConservation buried condition ceiling, 0–100
+     */
+    public void setBuriedConservation(int buriedConservation) {
+        this.buriedConservation = Math.max(0, Math.min(100, buriedConservation));
+        refreshConservation();
     }
 
     /**
@@ -202,12 +219,13 @@ public class BuriedFind {
     }
 
     /**
-     * Recomputes {@code 0–100} from cell wounds: graze {@code 100/n}, direct {@code 200/n}, clamped.
+     * Recomputes {@code 0–100} from the buried condition minus cell wounds:
+     * graze {@code 100/n}, direct {@code 200/n}, clamped.
      */
     public void refreshConservation() {
         int n = Math.max(1, cells.size());
         double share = 100.0 / n;
-        double remaining = 100.0;
+        double remaining = buriedConservation;
         for (BlockCell cell : cells) {
             if (grazedCells.contains(cell)) {
                 remaining -= share;

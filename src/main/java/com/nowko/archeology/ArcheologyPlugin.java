@@ -77,11 +77,7 @@ public class ArcheologyPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(findDust, this);
         findDust.start();
         getServer().getPluginManager().registerEvents(new HandPickListener(handPick, sites), this);
-        prismListener = new PrismListener(
-                sites,
-                digTools,
-                catalogs.establish().protectDigSite(),
-                catalogs.pick().damagedBelowPercent());
+        prismListener = new PrismListener(sites, digTools, catalogs.establish().protectDigSite());
         getServer().getPluginManager().registerEvents(prismListener, this);
         recover = new RecoverService(
                 this,

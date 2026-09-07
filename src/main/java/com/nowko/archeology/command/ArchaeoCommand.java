@@ -181,7 +181,6 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             handPick.setSettings(catalogs.pick());
             findDust.setSettings(catalogs.pick());
             prism.setProtectDigSite(catalogs.establish().protectDigSite());
-            prism.setDamagedBelowPercent(catalogs.pick().damagedBelowPercent());
             brushItem.update(catalogs.items().brush());
             recover.setSettings(catalogs.recovery());
             sites.loadAll();
@@ -666,9 +665,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     + " · stratum " + find.getStratumId()
                     + " · " + find.getState().name()
                     + " · " + find.getCells().size() + " cells"
-                    + " · " + find.getConservation() + "%"
+                    + " · " + find.getConservation() + "% of " + find.getBuriedConservation() + "% buried"
                     + (find.getCleanedCells().isEmpty() ? "" : " · cleaned " + find.getCleanedCells().size())
-                    + (find.isDamaged() ? " · damaged" : ""));
+                    + (find.isFieldDamaged() ? " · hurt while digging" : ""));
         }
     }
 

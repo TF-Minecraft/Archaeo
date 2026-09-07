@@ -48,10 +48,9 @@ public final class PrismWound {
      * @param x block X
      * @param y block Y
      * @param z block Z
-     * @param damagedBelowPercent conservation at which the find is stamped damaged
      * @return whether the dossier changed and whether a live find cube was newly smashed
      */
-    public static Removal onCellRemoved(Site site, int x, int y, int z, int damagedBelowPercent) {
+    public static Removal onCellRemoved(Site site, int x, int y, int z) {
         if (!site.isInPrism(x, y, z)) {
             return Removal.none();
         }
@@ -61,18 +60,18 @@ public final class PrismWound {
             band.setDisturbed(true);
             changed = true;
         }
-        boolean findSmashed = smashFindAt(site, x, y, z, damagedBelowPercent);
+        boolean findSmashed = smashFindAt(site, x, y, z);
         return new Removal(changed || findSmashed, findSmashed);
     }
 
     /**
-     * Direct or vanilla hit on a still-recoverable find cube.
+     * Direct or vanilla hit on a still-recoverable find cube. The wound is subtracted from
+     * the condition the piece already had underground.
      *
      * @param site dossier
      * @param x block X
      * @param y block Y
      * @param z block Z
-     * @param damagedBelowPercent conservation at which the find is stamped damaged
      * @param aimed whether the miner was looking at this cube (Hand Pick) rather than collapsing onto it
      * @return whether conservation changed
      */
@@ -81,7 +80,6 @@ public final class PrismWound {
             int x,
             int y,
             int z,
-            int damagedBelowPercent,
             boolean aimed
     ) {
         BuriedFind find = site.findAt(new BlockCell(x, y, z)).orElse(null);
@@ -89,14 +87,7 @@ public final class PrismWound {
             return false;
         }
         BlockCell cell = new BlockCell(x, y, z);
-        boolean changed = aimed ? find.woundDirect(cell) : find.woundFromAbove(cell);
-        if (!changed) {
-            return false;
-        }
-        if (find.getConservation() < damagedBelowPercent) {
-            find.setDamaged(true);
-        }
-        return true;
+        return aimed ? find.woundDirect(cell) : find.woundFromAbove(cell);
     }
 
     /**
@@ -106,11 +97,10 @@ public final class PrismWound {
      * @param x block X
      * @param y block Y
      * @param z block Z
-     * @param damagedBelowPercent conservation at which the find is stamped damaged
      * @return whether conservation changed
      */
-    public static boolean smashFindAt(Site site, int x, int y, int z, int damagedBelowPercent) {
-        return smashFindAt(site, x, y, z, damagedBelowPercent, false);
+    public static boolean smashFindAt(Site site, int x, int y, int z) {
+        return smashFindAt(site, x, y, z, false);
     }
 
     /**

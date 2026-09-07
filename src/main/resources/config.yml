@@ -58,8 +58,38 @@ excavation:
   visual-cues: true
   # How many successful cuts per Minecraft day.
   workday-actions: 8
-  # Below this conservation the find is stamped "damaged" (lore / recover chat). The % is always kept.
-  damaged-below-percent: 70
+  conservation:
+    # What the ground already took, rolled once per find when the site is generated.
+    # Digging can only subtract from this, so a flawless dig does not make a flawless piece.
+    buried:
+      min: 40
+      max: 100
+      # The roll is centred: a middling piece is common, a pristine one is rare.
+      # 1 keeps that curve; >1 leans it toward min (harsher ground).
+      bias: 1.0
+      # subtracted per stratum step below the top layer (older = worse)
+      depth-penalty: 4
+      # extra subtraction when that layer is disturbed
+      disturbed-penalty: 10
+      # materials.yml survival: <0-1> scales the roll (organic rots, stone lasts)
+    # How the final number reads on the piece. Highest match wins; below the last band,
+    # or at 0%, nothing is recovered.
+    grades:
+      - id: intact
+        min-percent: 92
+        label: "Intact"
+      - id: sound
+        min-percent: 72
+        label: "Sound"
+      - id: worn
+        min-percent: 48
+        label: "Worn"
+      - id: fragmentary
+        min-percent: 24
+        label: "Fragmentary"
+      - id: crumbling
+        min-percent: 1
+        label: "Crumbling"
   find-particles: true
   find-particles-interval-ticks: 6
   # After a cut, chat + HUD on the empty cube: adjacent find cubes grouped by material (minesweeper).

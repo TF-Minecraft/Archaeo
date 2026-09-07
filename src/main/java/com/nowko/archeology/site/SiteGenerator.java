@@ -2,6 +2,7 @@ package com.nowko.archeology.site;
 
 import com.nowko.archeology.config.ArtifactTemplate;
 import com.nowko.archeology.config.CatalogRegistry;
+import com.nowko.archeology.config.ConservationSettings;
 import com.nowko.archeology.config.HintTemplate;
 import com.nowko.archeology.config.InterestSettings;
 import com.nowko.archeology.config.StratumDefinition;
@@ -166,6 +167,7 @@ public class SiteGenerator {
         find.setStratumId(band.getId());
         find.setState(FindState.HIDDEN);
         find.getCells().addAll(grown.cells());
+        find.setBuriedConservation(rollBuriedConservation(template, band.getId(), band, new Random()));
         site.getFinds().add(find);
 
         site.establish(
@@ -348,8 +350,47 @@ public class SiteGenerator {
         find.setStratumId(stratumId);
         find.setState(FindState.HIDDEN);
         find.getCells().addAll(shape);
+        find.setBuriedConservation(rollBuriedConservation(template, stratumId, band, random));
         finds.add(find);
         return true;
+    }
+
+    /**
+     * How much of the piece the ground left before anyone dug. The roll is biased toward the
+     * low end, then cut by depth, a disturbed band, and how badly the material rots, so an
+     * untouched find is rare and a careful dig cannot invent one.
+     *
+     * @param template artifact row (its material decides how well it survives)
+     * @param stratumId band that holds the find
+     * @param band that band's disturbed flag
+     * @param random site RNG
+     * @return buried condition, 1–100
+     */
+    private int rollBuriedConservation(
+            ArtifactTemplate template,
+            String stratumId,
+            StratumBand band,
+            Random random
+    ) {
+        ConservationSettings settings = catalog.pick().conservation();
+        int min = settings.buriedMin();
+        int max = Math.max(min, settings.buriedMax());
+        // Two samples averaged: middling survival is common, both a pristine piece and a
+        // ruined one are rare. bias then leans the whole curve toward the low end.
+        double roll = (random.nextDouble() + random.nextDouble()) / 2.0;
+        double bias = Math.max(0.1, settings.bias());
+        if (bias != 1.0) {
+            roll = Math.pow(roll, bias);
+        }
+        double value = min + roll * (max - min);
+        StratumDefinition definition = catalog.stratum(stratumId);
+        int depthSteps = definition == null ? 0 : Math.max(0, definition.order() - 1);
+        value -= (double) depthSteps * settings.depthPenalty();
+        if (band != null && band.isDisturbed()) {
+            value -= settings.disturbedPenalty();
+        }
+        value *= catalog.materialSurvival(template.material());
+        return (int) Math.round(Math.max(1.0, Math.min(100.0, value)));
     }
 
     /**
