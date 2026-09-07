@@ -13,7 +13,6 @@ import com.nowko.archeology.site.SiteClosure;
 import com.nowko.archeology.site.SiteRepository;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
@@ -355,6 +354,9 @@ public class RecoverService {
         if (!grade.isBlank()) {
             quality.append(" · ").append(grade.toLowerCase(Locale.ROOT));
         }
+        if (find.isDisturbedBeforeDig()) {
+            quality.append(" · disturbed before the dig");
+        }
         if (fieldDamaged) {
             quality.append(" · hurt while digging");
         }
@@ -362,12 +364,16 @@ public class RecoverService {
     }
 
     /**
+     * Clears the matrix still holding the piece. Broken the vanilla way, with no tool argument:
+     * the matrix is being lifted properly, so it leaves its spoil and whatever sat on top of it
+     * comes down with it.
+     *
      * @param block remaining find fill
      */
     private static void clearFill(Block block) {
         BlockData data = block.getBlockData();
         Location at = block.getLocation().add(0.5, 0.5, 0.5);
-        block.setType(Material.AIR, false);
+        block.breakNaturally();
         block.getWorld().spawnParticle(Particle.BLOCK, at, 16, 0.2, 0.2, 0.2, 0.04, data);
     }
 

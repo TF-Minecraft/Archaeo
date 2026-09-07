@@ -17,28 +17,35 @@ public final class PrismWound {
     }
 
     /**
-     * At first claim: any find whose cells are already air, water, or builds is damaged.
+     * At first claim: every find cell that is already air, water, or a build has been spent, so it
+     * is charged to the piece now. A ruin can sit unclaimed for weeks while people tunnel through
+     * it, and the excavation must open with an honest dossier: what is missing is missing, and a
+     * find with nothing left is already lost before the first work day.
      *
      * @param world ruin world
      * @param site excavation being planted
-     * @return how many finds were newly damaged
+     * @return how many finds were newly disturbed and how many of those are beyond recovery
      */
-    public static int markMissingTerrain(World world, Site site) {
-        int count = 0;
+    public static Prior markMissingTerrain(World world, Site site) {
+        int disturbed = 0;
+        int lost = 0;
         for (BuriedFind find : site.getFinds()) {
             boolean wounded = false;
             for (BlockCell cell : find.getCells()) {
                 Block block = world.getBlockAt(cell.x(), cell.y(), cell.z());
                 Material type = block.getType();
                 if (type.isAir() || block.isLiquid() || !PrismFill.isTerrainFill(type)) {
-                    wounded |= find.woundFromAbove(cell);
+                    wounded |= find.woundBeforeDig(cell);
                 }
             }
             if (wounded) {
-                count++;
+                disturbed++;
+                if (find.getState() == FindState.LOST) {
+                    lost++;
+                }
             }
         }
-        return count;
+        return new Prior(disturbed, lost);
     }
 
     /**
@@ -101,6 +108,15 @@ public final class PrismWound {
      */
     public static boolean smashFindAt(Site site, int x, int y, int z) {
         return smashFindAt(site, x, y, z, false);
+    }
+
+    /**
+     * What the world had already taken when the camp was planted.
+     *
+     * @param disturbed finds that lost at least one cell before the dig opened
+     * @param lost how many of those have nothing recoverable left
+     */
+    public record Prior(int disturbed, int lost) {
     }
 
     /**

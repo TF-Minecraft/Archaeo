@@ -30,6 +30,7 @@ public class RecoveredFindItem {
     private final NamespacedKey buriedConservationKey;
     private final NamespacedKey gradeKey;
     private final NamespacedKey fieldDamagedKey;
+    private final NamespacedKey priorDamageKey;
     private final NamespacedKey recoveredByKey;
     private final NamespacedKey recoveredAtKey;
 
@@ -47,6 +48,7 @@ public class RecoveredFindItem {
         this.buriedConservationKey = new NamespacedKey(plugin, "buried_conservation");
         this.gradeKey = new NamespacedKey(plugin, "conservation_grade");
         this.fieldDamagedKey = new NamespacedKey(plugin, "field_damaged");
+        this.priorDamageKey = new NamespacedKey(plugin, "disturbed_before_dig");
         this.recoveredByKey = new NamespacedKey(plugin, "recovered_by");
         this.recoveredAtKey = new NamespacedKey(plugin, "recovered_at");
     }
@@ -90,6 +92,9 @@ public class RecoveredFindItem {
             condition += ChatColor.DARK_GRAY + " · " + grade;
         }
         lore.add(condition);
+        if (find.isDisturbedBeforeDig()) {
+            lore.add(ChatColor.GOLD + "Disturbed before the dig");
+        }
         if (fieldDamaged) {
             lore.add(ChatColor.RED + "Hurt while digging");
         }
@@ -105,6 +110,7 @@ public class RecoveredFindItem {
         pdc.set(buriedConservationKey, PersistentDataType.INTEGER, find.getBuriedConservation());
         pdc.set(gradeKey, PersistentDataType.STRING, grade == null ? "" : grade);
         pdc.set(fieldDamagedKey, PersistentDataType.BYTE, fieldDamaged ? (byte) 1 : (byte) 0);
+        pdc.set(priorDamageKey, PersistentDataType.BYTE, find.isDisturbedBeforeDig() ? (byte) 1 : (byte) 0);
         pdc.set(recoveredByKey, PersistentDataType.STRING, recoverer.toString());
         pdc.set(recoveredAtKey, PersistentDataType.STRING, Instant.now().toString());
         stack.setItemMeta(meta);

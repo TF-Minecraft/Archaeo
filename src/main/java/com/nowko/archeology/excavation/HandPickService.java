@@ -16,7 +16,6 @@ import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -510,6 +509,7 @@ public class HandPickService {
         }
         site.setJornadaPickLeft(site.getJornadaPickLeft() - cost);
         List<Block> lifted = LiftPlan.cells(site, block, cycle.tool, late);
+        ItemStack tool = player.getInventory().getItemInMainHand();
         boolean smashedFind = false;
         for (Block cell : lifted) {
             boolean aimed = cell.getX() == block.getX()
@@ -521,7 +521,7 @@ public class HandPickService {
                     cell.getY(),
                     cell.getZ(),
                     aimed);
-            liftFill(cell);
+            liftFill(cell, tool);
         }
         if (smashedFind) {
             FindBreakCue.play(player, block);
@@ -554,17 +554,20 @@ public class HandPickService {
     }
 
     /**
-     * Turns fill to air without vanilla drops. {@code applyPhysics = false} avoids neighbour updates
-     * (see {@link Block#setType(Material, boolean)}).
+     * Removes one fill cell the way vanilla would: spoil drops for the tool in hand, the block
+     * break effect, and real neighbour updates, so the grass, flower, or torch that was sitting on
+     * the cell pops off by itself instead of floating over the cut.
+     *
+     * <p>Only the release moment is ours. Passing the held tool keeps the drops honest: rock dug
+     * with a shovel leaves nothing behind, exactly as it would outside the excavation.
      *
      * @param block cell to remove
+     * @param tool item in the digger's main hand
      */
-    private void liftFill(Block block) {
+    private void liftFill(Block block, ItemStack tool) {
         BlockData data = block.getBlockData();
-        Sound breakSound = data.getSoundGroup().getBreakSound();
         Location at = block.getLocation().add(0.5, 0.5, 0.5);
-        block.setType(Material.AIR, false);
-        block.getWorld().playSound(block.getLocation(), breakSound, SoundCategory.BLOCKS, 1f, 1f);
+        block.breakNaturally(tool);
         block.getWorld().spawnParticle(Particle.BLOCK, at, 28, 0.3, 0.3, 0.3, 0.08, data);
     }
 

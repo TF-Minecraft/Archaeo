@@ -24,7 +24,9 @@ import org.bukkit.block.Block;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
@@ -90,7 +92,7 @@ public class SiteGenerator {
         site.setSurfaceY(GroundDatum.medianY(chunk));
 
         assignStrata(site, settings, random);
-        List<BuriedFind> finds = placeFinds(site, settings, random);
+        List<BuriedFind> finds = placeFinds(site, settings, random, chunk.getWorld());
         site.getFinds().addAll(finds);
         site.getHintIds().addAll(pickHints(site, settings, findTags(finds), random));
 
@@ -144,19 +146,11 @@ public class SiteGenerator {
             occupied.addAll(existing.getCells());
         }
 
-        int minX = site.getChunkX() << 4;
-        int minZ = site.getChunkZ() << 4;
-        LinkedCells grown = grow(
-                start,
-                band,
-                occupied,
-                size,
-                minX,
-                minX + 15,
-                minZ,
-                minZ + 15,
-                new Random(),
-                origin.getWorld());
+        // Sandbox tool: the staff member is standing on the block they aimed at, so the cover rule
+        // is not applied here. Only "is this excavation fill" is.
+        Set<BlockCell> allowed = new HashSet<>(buriedPocket(origin.getWorld(), site, band, 0));
+        allowed.add(start);
+        LinkedCells grown = grow(start, allowed, occupied, size, new Random());
         if (grown.cells().isEmpty()) {
             throw new IllegalStateException("Could not grow a find from this block");
         }
@@ -283,25 +277,41 @@ public class SiteGenerator {
     /**
      * Places relic finds first, then fills remaining slots with weighted templates.
      *
+     * <p>Shapes are drawn from a per-stratum pocket of cells that the terrain actually buries,
+     * so a band is skipped when the ground gives it nowhere to hide a find.
+     *
      * @param site site with strata already assigned
      * @param settings find counts
      * @param random site RNG
+     * @param world ruin world, read to keep finds under ground
      * @return finds to attach to the site
      */
-    List<BuriedFind> placeFinds(Site site, InterestSettings settings, Random random) {
+    List<BuriedFind> placeFinds(Site site, InterestSettings settings, Random random, World world) {
         int total = settings.minFinds() + random.nextInt(Math.max(1, settings.maxFinds() - settings.minFinds() + 1));
         int relics = settings.minRelics() + random.nextInt(Math.max(1, settings.maxRelics() - settings.minRelics() + 1));
         relics = Math.min(relics, total);
 
         Set<BlockCell> occupied = new HashSet<>();
         List<BuriedFind> finds = new ArrayList<>();
-        List<String> present = presentStrata(site);
+        Map<String, List<BlockCell>> pockets = new LinkedHashMap<>();
+        List<String> present = new ArrayList<>();
+        for (String stratumId : presentStrata(site)) {
+            List<BlockCell> pocket = buriedPocket(world, site, site.getStrata().get(stratumId), catalog.findMinCover());
+            if (pocket.isEmpty()) {
+                continue;
+            }
+            pockets.put(stratumId, pocket);
+            present.add(stratumId);
+        }
+        if (present.isEmpty()) {
+            return finds;
+        }
 
         for (int i = 0; i < relics; i++) {
-            placeOne(site, finds, occupied, present, true, random);
+            placeOne(site, finds, occupied, present, pockets, true, random);
         }
         while (finds.size() < total) {
-            if (!placeOne(site, finds, occupied, present, false, random)) {
+            if (!placeOne(site, finds, occupied, present, pockets, false, random)) {
                 break;
             }
         }
@@ -314,7 +324,8 @@ public class SiteGenerator {
      * @param site site bounds and strata
      * @param finds list to append
      * @param occupied cells already used by other finds
-     * @param present stratum ids that exist on this site
+     * @param present stratum ids that exist on this site and can bury a find
+     * @param pockets buried cells per stratum id
      * @param relic whether to pick from relic templates
      * @param random site RNG
      * @return {@code false} if no template or shape would fit
@@ -324,6 +335,7 @@ public class SiteGenerator {
             List<BuriedFind> finds,
             Set<BlockCell> occupied,
             List<String> present,
+            Map<String, List<BlockCell>> pockets,
             boolean relic,
             Random random
     ) {
@@ -338,7 +350,7 @@ public class SiteGenerator {
         String stratumId = compatible.get(random.nextInt(compatible.size()));
         StratumBand band = site.getStrata().get(stratumId);
         int size = template.sizeMin() + random.nextInt(template.sizeMax() - template.sizeMin() + 1);
-        List<BlockCell> shape = generateConnectedShape(site, band, occupied, size, random);
+        List<BlockCell> shape = generateConnectedShape(pockets.get(stratumId), occupied, size, random);
         if (shape.isEmpty()) {
             return false;
         }
@@ -394,33 +406,85 @@ public class SiteGenerator {
     }
 
     /**
-     * Grows a face-connected blob inside the chunk and stratum Y band.
+     * Cells of one stratum band that the ground really buries: excavation fill with at least
+     * {@code cover} fill blocks straight above.
      *
+     * <p>The band itself is not enough of a test. Its Y range comes from the chunk's <em>median</em>
+     * ground level, so on a slope, a shore, or a valley the same band runs through open air on one
+     * side of the chunk and deep rock on the other. Without this filter a find could be generated
+     * in the air or as the top block of the column, which is how a piece ends up lying in plain
+     * sight, recoverable without digging at all.
+     *
+     * @param world ruin world; the chunk is already loaded by the caller
+     * @param band stratum band, or {@code null}
      * @param site chunk bounds
-     * @param band Y range for this stratum
+     * @param cover fill blocks that must sit on top of a cell before it can hold a find
+     * @return usable cells, empty when the terrain leaves no room in this band
+     */
+    private List<BlockCell> buriedPocket(World world, Site site, StratumBand band, int cover) {
+        if (band == null || !band.isPresent()) {
+            return List.of();
+        }
+        int minX = site.getChunkX() << 4;
+        int minZ = site.getChunkZ() << 4;
+        List<BlockCell> pocket = new ArrayList<>();
+        for (int x = minX; x <= minX + 15; x++) {
+            for (int z = minZ; z <= minZ + 15; z++) {
+                for (int y = band.getMinY(); y <= band.getMaxY(); y++) {
+                    if (isBuried(world, x, y, z, cover)) {
+                        pocket.add(new BlockCell(x, y, z));
+                    }
+                }
+            }
+        }
+        return pocket;
+    }
+
+    /**
+     * @param world ruin world
+     * @param x block X
+     * @param y block Y
+     * @param z block Z
+     * @param cover fill blocks required above the cell
+     * @return whether the cell is fill under enough fill
+     */
+    private static boolean isBuried(World world, int x, int y, int z, int cover) {
+        if (!PrismFill.isTerrainFill(world.getBlockAt(x, y, z).getType())) {
+            return false;
+        }
+        for (int step = 1; step <= cover; step++) {
+            if (!PrismFill.isTerrainFill(world.getBlockAt(x, y + step, z).getType())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Grows a face-connected blob inside a stratum's buried pocket.
+     *
+     * @param pocket cells this stratum may use, or {@code null}
      * @param occupied cells claimed by other finds
      * @param targetSize desired cell count
      * @param random site RNG
      * @return cells, possibly smaller than {@code targetSize} if space is tight; empty if it failed
      */
-    List<BlockCell> generateConnectedShape(
-            Site site,
-            StratumBand band,
+    private List<BlockCell> generateConnectedShape(
+            List<BlockCell> pocket,
             Set<BlockCell> occupied,
             int targetSize,
             Random random
     ) {
-        int minX = site.getChunkX() << 4;
-        int minZ = site.getChunkZ() << 4;
-        int maxX = minX + 15;
-        int maxZ = minZ + 15;
-
+        if (pocket == null || pocket.isEmpty()) {
+            return List.of();
+        }
+        Set<BlockCell> allowed = new HashSet<>(pocket);
         for (int attempt = 0; attempt < catalog.maxShapeAttempts(); attempt++) {
-            BlockCell start = randomFreeCell(band, occupied, minX, maxX, minZ, maxZ, random);
+            BlockCell start = randomFreeCell(pocket, occupied, random);
             if (start == null) {
                 return List.of();
             }
-            LinkedCells grown = grow(start, band, occupied, targetSize, minX, maxX, minZ, maxZ, random, null);
+            LinkedCells grown = grow(start, allowed, occupied, targetSize, random);
             if (grown.cells.size() >= Math.max(1, targetSize / 2)) {
                 return grown.cells;
             }
@@ -429,31 +493,22 @@ public class SiteGenerator {
     }
 
     /**
-     * Expands from {@code start} on the same Y, picking random north/south/east/west neighbours.
+     * Expands from {@code start} on the same Y, picking random north/south/east/west neighbours
+     * that are still inside the allowed pocket.
      *
      * @param start first cell of the shape (locks the height)
-     * @param band Y range that must contain {@code start}
+     * @param allowed cells the shape may occupy
      * @param occupied cells claimed by other finds
      * @param targetSize desired cell count
-     * @param minX chunk min X
-     * @param maxX chunk max X
-     * @param minZ chunk min Z
-     * @param maxZ chunk max Z
      * @param random site RNG
-     * @param terrainWorld if set, only grow into {@link PrismFill} cells
      * @return grown cell list
      */
     private LinkedCells grow(
             BlockCell start,
-            StratumBand band,
+            Set<BlockCell> allowed,
             Set<BlockCell> occupied,
             int targetSize,
-            int minX,
-            int maxX,
-            int minZ,
-            int maxZ,
-            Random random,
-            World terrainWorld
+            Random random
     ) {
         List<BlockCell> cells = new ArrayList<>();
         Set<BlockCell> used = new HashSet<>();
@@ -464,8 +519,13 @@ public class SiteGenerator {
             List<BlockCell> candidates = new ArrayList<>();
             for (BlockCell cell : cells) {
                 for (int[] dir : HORIZONTAL) {
-                    addCandidate(candidates, used, occupied, band, minX, maxX, minZ, maxZ,
-                            cell.x() + dir[0], cell.y() + dir[1], cell.z() + dir[2], terrainWorld);
+                    BlockCell candidate = new BlockCell(
+                            cell.x() + dir[0], cell.y() + dir[1], cell.z() + dir[2]);
+                    if (allowed.contains(candidate)
+                            && !used.contains(candidate)
+                            && !occupied.contains(candidate)) {
+                        candidates.add(candidate);
+                    }
                 }
             }
             if (candidates.isEmpty()) {
@@ -479,76 +539,14 @@ public class SiteGenerator {
     }
 
     /**
-     * Adds {@code (x,y,z)} to {@code candidates} when it lies in the chunk, band, and is free.
-     *
-     * @param candidates neighbour pool being built
-     * @param used cells already in this shape
-     * @param occupied cells claimed by other finds
-     * @param band Y range
-     * @param minX chunk min X
-     * @param maxX chunk max X
-     * @param minZ chunk min Z
-     * @param maxZ chunk max Z
-     * @param x candidate X
-     * @param y candidate Y
-     * @param z candidate Z
-     * @param terrainWorld if set, skip cells that are not excavation fill
-     */
-    private void addCandidate(
-            List<BlockCell> candidates,
-            Set<BlockCell> used,
-            Set<BlockCell> occupied,
-            StratumBand band,
-            int minX,
-            int maxX,
-            int minZ,
-            int maxZ,
-            int x,
-            int y,
-            int z,
-            World terrainWorld
-    ) {
-        if (x < minX || x > maxX || z < minZ || z > maxZ) {
-            return;
-        }
-        if (y < band.getMinY() || y > band.getMaxY()) {
-            return;
-        }
-        BlockCell cell = new BlockCell(x, y, z);
-        if (used.contains(cell) || occupied.contains(cell)) {
-            return;
-        }
-        if (terrainWorld != null && !PrismFill.isTerrainFill(terrainWorld.getBlockAt(x, y, z).getType())) {
-            return;
-        }
-        candidates.add(cell);
-    }
-
-    /**
-     * @param band Y range
+     * @param pocket buried cells of one stratum
      * @param occupied cells already used
-     * @param minX chunk min X
-     * @param maxX chunk max X
-     * @param minZ chunk min Z
-     * @param maxZ chunk max Z
      * @param random site RNG
-     * @return a random unused cell in the band, or {@code null} if none were found quickly
+     * @return a random unclaimed cell of the pocket, or {@code null} if none were found quickly
      */
-    private BlockCell randomFreeCell(
-            StratumBand band,
-            Set<BlockCell> occupied,
-            int minX,
-            int maxX,
-            int minZ,
-            int maxZ,
-            Random random
-    ) {
+    private BlockCell randomFreeCell(List<BlockCell> pocket, Set<BlockCell> occupied, Random random) {
         for (int i = 0; i < 64; i++) {
-            int x = minX + random.nextInt(16);
-            int z = minZ + random.nextInt(16);
-            int span = Math.max(1, band.getMaxY() - band.getMinY() + 1);
-            int y = band.getMinY() + random.nextInt(span);
-            BlockCell cell = new BlockCell(x, y, z);
+            BlockCell cell = pocket.get(random.nextInt(pocket.size()));
             if (!occupied.contains(cell)) {
                 return cell;
             }

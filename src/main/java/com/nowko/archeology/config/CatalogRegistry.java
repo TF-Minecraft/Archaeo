@@ -30,6 +30,7 @@ public class CatalogRegistry {
     private final Map<String, FindMaterial> materials = new LinkedHashMap<>();
     private int maxShapeAttempts = 24;
     private boolean useWorldSeed = true;
+    private int findMinCover = 2;
     private TrackerSettings tracker = TrackerSettings.defaults();
     private ProspectSettings prospect = ProspectSettings.defaults();
     private EstablishSettings establish = EstablishSettings.defaults();
@@ -169,6 +170,17 @@ public class CatalogRegistry {
     }
 
     /**
+     * Ground a generated find must have over its head. Stratum bands are measured from the
+     * chunk's median surface, so this is what keeps a find off a slope or a shore where the
+     * band itself pokes out into the open.
+     *
+     * @return fill blocks required above every cell of a generated find
+     */
+    public int findMinCover() {
+        return findMinCover;
+    }
+
+    /**
      * @return tracker radii, pip timing, and item copy
      */
     public TrackerSettings tracker() {
@@ -237,6 +249,7 @@ public class CatalogRegistry {
         }
         maxShapeAttempts = section.getInt("max-shape-attempts", 24);
         useWorldSeed = section.getBoolean("use-world-seed", true);
+        findMinCover = Math.max(1, section.getInt("find-min-cover", 2));
     }
 
     /**

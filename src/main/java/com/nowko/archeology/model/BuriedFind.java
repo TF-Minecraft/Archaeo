@@ -22,6 +22,7 @@ public class BuriedFind {
     private final Set<BlockCell> cleanedCells = new LinkedHashSet<>();
     private final Set<BlockCell> grazedCells = new LinkedHashSet<>();
     private final Set<BlockCell> directHitCells = new LinkedHashSet<>();
+    private final Set<BlockCell> priorCells = new LinkedHashSet<>();
     /** Ticks still needed to finish brushing a cube; absent means this cube has not been started. */
     private final Map<BlockCell, Integer> brushRemaining = new LinkedHashMap<>();
 
@@ -72,6 +73,34 @@ public class BuriedFind {
      */
     public boolean isFieldDamaged() {
         return !grazedCells.isEmpty() || !directHitCells.isEmpty();
+    }
+
+    /**
+     * Cells that were already gone when the camp was planted: a vanilla tunnel, a lava flow, or a
+     * build put there while the ruin sat unclaimed. They cost the same as a graze, but they are
+     * nobody's fault in the field, so the piece must not be reported as hurt while digging.
+     *
+     * @return coordinates lost before the excavation opened
+     */
+    public Set<BlockCell> getPriorCells() {
+        return priorCells;
+    }
+
+    /**
+     * @return whether the ground was already broken over this find before the first work day
+     */
+    public boolean isDisturbedBeforeDig() {
+        return !priorCells.isEmpty();
+    }
+
+    /**
+     * Spends a cell that the world had already taken before the claim. No-op if already counted.
+     *
+     * @param cell find cell missing at claim time
+     * @return whether conservation changed
+     */
+    public boolean woundBeforeDig(BlockCell cell) {
+        return applyWound(cell, priorCells);
     }
 
     /**
@@ -220,14 +249,14 @@ public class BuriedFind {
 
     /**
      * Recomputes {@code 0–100} from the buried condition minus cell wounds:
-     * graze {@code 100/n}, direct {@code 200/n}, clamped.
+     * graze or a cell lost before the dig {@code 100/n}, direct hit {@code 200/n}, clamped.
      */
     public void refreshConservation() {
         int n = Math.max(1, cells.size());
         double share = 100.0 / n;
         double remaining = buriedConservation;
         for (BlockCell cell : cells) {
-            if (grazedCells.contains(cell)) {
+            if (grazedCells.contains(cell) || priorCells.contains(cell)) {
                 remaining -= share;
             }
             if (directHitCells.contains(cell)) {

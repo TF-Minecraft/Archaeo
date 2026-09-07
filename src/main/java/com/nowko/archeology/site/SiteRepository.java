@@ -343,6 +343,9 @@ public class SiteRepository {
             node.put("direct-hit-cells", find.getDirectHitCells().stream()
                     .map(cell -> cell.x() + "," + cell.y() + "," + cell.z())
                     .toList());
+            node.put("prior-cells", find.getPriorCells().stream()
+                    .map(cell -> cell.x() + "," + cell.y() + "," + cell.z())
+                    .toList());
             List<String> brush = new ArrayList<>();
             for (Map.Entry<BlockCell, Integer> entry : find.getBrushRemaining().entrySet()) {
                 BlockCell cell = entry.getKey();
@@ -464,10 +467,13 @@ public class SiteRepository {
             addCells(map.get("cleaned-cells"), find.getCleanedCells());
             addCells(map.get("grazed-cells"), find.getGrazedCells());
             addCells(map.get("direct-hit-cells"), find.getDirectHitCells());
+            addCells(map.get("prior-cells"), find.getPriorCells());
             addRemaining(map.get("brush-remaining"), find.getBrushRemaining());
             if (map.get("buried-conservation") != null) {
                 find.setBuriedConservation(parseConservation(map.get("buried-conservation")));
-            } else if (find.getGrazedCells().isEmpty() && find.getDirectHitCells().isEmpty()) {
+            } else if (find.getGrazedCells().isEmpty()
+                    && find.getDirectHitCells().isEmpty()
+                    && find.getPriorCells().isEmpty()) {
                 // Pre-conservation-roll file: whatever it stored was the untouched value.
                 find.setBuriedConservation(parseConservation(map.get("conservation")));
             } else {

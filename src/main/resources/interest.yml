@@ -54,3 +54,7 @@ interest-levels:
 generation:
   max-shape-attempts: 24
   use-world-seed: true
+  # Fill blocks that must sit on top of every cell of a find. Stratum bands are measured from the
+  # chunk's median ground level, so on a slope or a shore the band itself reaches open air: this is
+  # what keeps a piece from being generated in plain sight. Raise it to bury finds deeper.
+  find-min-cover: 2

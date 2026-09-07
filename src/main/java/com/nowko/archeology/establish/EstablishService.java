@@ -657,10 +657,17 @@ public class EstablishService {
             return;
         }
         ruinWorld.getChunkAt(site.getChunkX(), site.getChunkZ()).load();
-        int wounded = PrismWound.markMissingTerrain(ruinWorld, site);
-        if (wounded > 0) {
-            player.sendMessage("Some remains were already disturbed.");
+        PrismWound.Prior prior = PrismWound.markMissingTerrain(ruinWorld, site);
+        if (prior.disturbed() <= 0) {
+            return;
         }
+        String message = prior.disturbed() == 1
+                ? "One find was already disturbed before this dig opened"
+                : prior.disturbed() + " finds were already disturbed before this dig opened";
+        if (prior.lost() > 0) {
+            message += ", " + prior.lost() + " beyond recovery";
+        }
+        player.sendMessage(message + ".");
     }
 
     /**

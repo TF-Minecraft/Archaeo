@@ -533,6 +533,10 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     + " · finds " + site.getFinds().size()
                     + " · hints " + site.getHintIds().size());
             sender.sendMessage("Terrain was not changed; remains are stored as hidden data.");
+            if (site.getFinds().isEmpty()) {
+                sender.sendMessage("No find fitted: this chunk has no buried ground in its strata."
+                        + " Try a chunk with more soil over the layers.");
+            }
         } catch (IllegalStateException | IllegalArgumentException exception) {
             sender.sendMessage(exception.getMessage());
         }
@@ -667,6 +671,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     + " · " + find.getCells().size() + " cells"
                     + " · " + find.getConservation() + "% of " + find.getBuriedConservation() + "% buried"
                     + (find.getCleanedCells().isEmpty() ? "" : " · cleaned " + find.getCleanedCells().size())
+                    + (find.isDisturbedBeforeDig()
+                            ? " · disturbed before the dig (" + find.getPriorCells().size() + " cells)" : "")
                     + (find.isFieldDamaged() ? " · hurt while digging" : ""));
         }
     }

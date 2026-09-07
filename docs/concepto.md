@@ -989,7 +989,35 @@ se parte y el chat avisa *Buried archaeological remains were destroyed.*
 | Por debajo de la última banda | Permitida | Fuera del yacimiento |
 
 Al **confirmar** el kit, las celdas de hallazgo que ya no son terreno se
-marcan dañadas. El claim no se rechaza.
+cobran ahí mismo. El claim no se rechaza.
+
+**Lo que ya se perdió, se pierde al reclamar (acordado).** Una ruina puede pasar
+semanas sin dueño mientras alguien la atraviesa con un túnel, así que la
+excavación abre con el dossier honesto: cada celda ausente cuesta lo mismo que un
+roce (`100/n`), y un hallazgo sin nada en pie ya entra **perdido** antes de la
+primera jornada. El director lo ve al plantar («N hallazgos ya estaban
+alterados, M sin recuperación posible»). Ese daño se anota **aparte** del daño de
+excavación: la pieza recuperada dice *Disturbed before the dig*, que no es lo
+mismo que *Hurt while digging*. Una cosa es que te saquearan el yacimiento y otra
+que excaves mal.
+
+**Nuestro es el momento, de vanilla la rotura (acordado).** El minado del cliente
+se congela y el plugin decide **cuándo** sale el cubo, pero **cómo** sale lo hace
+vanilla: `Block#breakNaturally(tool)` con la herramienta en mano. Antes se
+sustituía el bloque por aire con la física apagada, y eso dejaba la hierba, la
+flor o la antorcha de encima flotando sobre el corte, además de no soltar el
+escombro. Con la rotura natural:
+
+- **suelta lo que tocaría** para esa herramienta: roca picada con pala no deja
+  nada, igual que fuera de la excavación;
+- **corren las actualizaciones de vecinos**, así que lo que no se sostenía cae
+  solo y la arena y la grava de encima se comportan como arena y grava;
+- el **efecto** de rotura (sonido y partículas) lo pone vanilla; Archaeo solo
+  añade su nube de polvo del corte.
+
+Dentro de un prisma protegido (`establish.protect-dig-site`), la caída de arena
+o grava del propio corte la sigue cancelando la protección, así que el derrumbe
+solo ocurre con lo que había **por encima** del yacimiento.
 
 El Hand Pick actúa sobre relleno del prisma. No pisa agua ni construcciones.
 
@@ -1070,6 +1098,16 @@ Un hallazgo es un conjunto de **celdas conectadas en la misma altura** (un
 plano XZ) dentro de una banda de estrato. Varios hallazgos por yacimiento, sin
 solaparse. Distintos hallazgos pueden estar en Y distintos; uno solo no se
 apila.
+
+**Siempre bajo tierra (acordado).** La banda de estrato **no** basta como
+criterio: su rango de Y se mide desde la cota **mediana** del chunk, así que en
+una ladera, una orilla o un valle la misma banda pasa por aire abierto en un
+extremo y por roca honda en el otro. Al generar, cada celda candidata tiene que
+ser relleno de excavación y llevar `generation.find-min-cover` bloques de relleno
+justo encima; las formas crecen solo dentro de ese bolsillo. Sin esa regla puede
+aparecer una pieza tumbada a la vista, recuperable sin excavar nada. Si el
+terreno de una banda no deja hueco, esa banda no recibe hallazgos, y si ninguna
+lo deja el staff recibe el aviso al crear la ruina.
 
 ```
 ⬜ ⬜ ⬜
