@@ -1,8 +1,19 @@
 # Classification station. Each type is one question about this find, not about the site.
-# Order is the station order: Function → Formation → Epoch.
+# profiles.<id>.types is the station order for that find path.
+# Object: Function → Formation → Epoch. Individual / animal: Species → Deposit → Epoch.
+# Epoch is declared once and shared. Strata are depth only; they do not state a date.
 # suggested-by tags raise a phrase's chance. suggested-for artifact ids guarantee
 # at least one matching phrase among the three offers. Neither hides the rest.
-# Epoch is opinion. Strata are depth only; they do not state a date.
+# Phrase-level profiles: [individual] / [animal] split species and deposit pools.
+# Omit profiles on a phrase to offer it on every path (epoch).
+profiles:
+  object:
+    types: [function, formation, epoch]
+  individual:
+    types: [species, deposit, epoch]
+  animal:
+    types: [species, deposit, epoch]
+
 types:
   function:
     display-name: Function
@@ -27,7 +38,7 @@ types:
       grave_good:
         display-name: "object made to accompany a body"
         suggested-by: [burial, bone]
-        suggested-for: [burial]
+        suggested-for: [ornament, vessel]
       unknown_function:
         display-name: "function unknown"
         suggested-by: [unknown]
@@ -47,7 +58,7 @@ types:
       with_a_body:
         display-name: "laid with a body"
         suggested-by: [burial, bone]
-        suggested-for: [burial]
+        suggested-for: [ornament]
       trade_in:
         display-name: "brought in by trade"
         suggested-by: [trade]
@@ -81,4 +92,116 @@ types:
         suggested-by: []
       unknown_epoch:
         display-name: "epoch unknown"
+        suggested-by: [unknown]
+  species:
+    display-name: Species
+    question: "What species is it?"
+    options:
+      homo_sapiens:
+        display-name: "Homo sapiens"
+        profiles: [individual]
+        suggested-by: [burial, bone]
+        suggested-for: [burial]
+      neanderthal:
+        display-name: "Neanderthal"
+        profiles: [individual]
+        suggested-by: [burial, bone]
+      denisovan:
+        display-name: "Denisovan"
+        profiles: [individual]
+        suggested-by: [burial]
+      archaic_human:
+        display-name: "archaic human"
+        profiles: [individual]
+        suggested-by: [burial, bone]
+      unidentified_individual:
+        display-name: "unidentified individual"
+        profiles: [individual]
+        suggested-by: [unknown, bone]
+      dog:
+        display-name: "dog"
+        profiles: [animal]
+        suggested-by: [animal, bone]
+      cattle:
+        display-name: "cattle"
+        profiles: [animal]
+        suggested-by: [food, animal]
+        suggested-for: [faunal_dump]
+      sheep_or_goat:
+        display-name: "sheep or goat"
+        profiles: [animal]
+        suggested-by: [food, animal]
+      deer:
+        display-name: "deer"
+        profiles: [animal]
+        suggested-by: [food, bone]
+      horse:
+        display-name: "horse"
+        profiles: [animal]
+        suggested-by: [animal]
+      pig:
+        display-name: "pig"
+        profiles: [animal]
+        suggested-by: [food, animal]
+      unknown_species:
+        display-name: "species unknown"
+        profiles: [individual, animal]
+        suggested-by: [unknown]
+  deposit:
+    display-name: Deposit
+    question: "How was it left here?"
+    options:
+      formal_inhumation:
+        display-name: "formal inhumation"
+        profiles: [individual]
+        suggested-by: [burial, clustered, ceremonial]
+        suggested-for: [burial]
+      cremation:
+        display-name: "cremation"
+        profiles: [individual]
+        suggested-by: [burial, fire]
+      secondary_deposit:
+        display-name: "secondary deposit"
+        profiles: [individual]
+        suggested-by: [burial, bone]
+      body_dump:
+        display-name: "body dump"
+        profiles: [individual]
+        suggested-by: [burial, scattered]
+      hasty_burial:
+        display-name: "hasty burial"
+        profiles: [individual]
+        suggested-by: [burial]
+      foundation_deposit:
+        display-name: "foundation deposit"
+        profiles: [individual]
+        suggested-by: [deposit, ceremonial]
+      food_refuse:
+        display-name: "food refuse"
+        profiles: [animal]
+        suggested-by: [food, domestic]
+        suggested-for: [faunal_dump]
+      with_an_individual:
+        display-name: "laid with an individual"
+        profiles: [animal]
+        suggested-by: [burial, ceremonial]
+      ritual_sacrifice:
+        display-name: "ritual deposit or sacrifice"
+        profiles: [animal]
+        suggested-by: [ceremonial]
+      companion_burial:
+        display-name: "companion burial"
+        profiles: [animal]
+        suggested-by: [burial, animal]
+      kill_site:
+        display-name: "kill-site discard"
+        profiles: [animal]
+        suggested-by: [scattered, bone]
+      natural_death:
+        display-name: "natural death in place"
+        profiles: [animal]
+        suggested-by: [unknown]
+      unknown_deposit:
+        display-name: "how it was left is unknown"
+        profiles: [individual, animal]
         suggested-by: [unknown]

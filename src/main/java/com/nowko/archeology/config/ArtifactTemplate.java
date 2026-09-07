@@ -15,6 +15,7 @@ import java.util.Set;
  * @param weight generation weight
  * @param strata stratum ids this template may spawn in
  * @param tags matching tags for hints
+ * @param profile which station questions this template uses
  * @param item Bukkit material name for the recovered item
  * @param studyNotes English note revealed when the piece is studied at camp; may be blank
  */
@@ -29,9 +30,17 @@ public record ArtifactTemplate(
         int weight,
         Set<String> strata,
         Set<String> tags,
+        FindProfile profile,
         String item,
         String studyNotes
 ) {
+    /**
+     * Missing profile is treated as an object so older YAML still loads.
+     */
+    public ArtifactTemplate {
+        profile = profile == null ? FindProfile.OBJECT : profile;
+    }
+
     /**
      * Clamps a requested cell count into this template's size range.
      *

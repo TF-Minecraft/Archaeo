@@ -33,6 +33,7 @@ public class CatalogRegistry {
     private final Map<String, HintTemplate> hints = new LinkedHashMap<>();
     private final Map<String, InterpretationTemplate> interpretations = new LinkedHashMap<>();
     private final Map<String, InterpretationType> interpretationTypes = new LinkedHashMap<>();
+    private final Map<FindProfile, List<String>> profileTypeIds = new EnumMap<>(FindProfile.class);
     private final Map<String, FindMaterial> materials = new LinkedHashMap<>();
     private int maxShapeAttempts = 24;
     private boolean useWorldSeed = true;
@@ -197,6 +198,40 @@ public class CatalogRegistry {
     }
 
     /**
+     * Station questions for one classification path, in the order {@code profiles.<id>.types} lists them.
+     * A missing list (legacy {@code interpretations.yml}) falls back to every loaded type.
+     *
+     * @param profile find path
+     * @return types that path may sign
+     */
+    public List<InterpretationType> interpretationTypes(FindProfile profile) {
+        FindProfile key = profile == null ? FindProfile.OBJECT : profile;
+        List<String> ids = profileTypeIds.get(key);
+        if (ids == null || ids.isEmpty()) {
+            return interpretationTypes();
+        }
+        List<InterpretationType> list = new ArrayList<>();
+        for (String id : ids) {
+            InterpretationType type = interpretationTypes.get(id);
+            if (type != null) {
+                list.add(type);
+            }
+        }
+        return list.isEmpty() ? interpretationTypes() : List.copyOf(list);
+    }
+
+    /**
+     * Which classification path a catalog row uses.
+     *
+     * @param artifactId template key, or {@code null}
+     * @return {@link FindProfile#OBJECT} when the row is missing
+     */
+    public FindProfile profileOf(String artifactId) {
+        ArtifactTemplate template = artifact(artifactId);
+        return template == null ? FindProfile.OBJECT : template.profile();
+    }
+
+    /**
      * @param id type key
      * @return type, or {@code null}
      */
@@ -208,16 +243,16 @@ public class CatalogRegistry {
     }
 
     /**
-     * First station question this find has not signed yet.
+     * First station question this find has not signed yet, for its template profile.
      *
      * @param find archive row
-     * @return type still open, or {@code null} when every type has an answer
+     * @return type still open, or {@code null} when every type on that path has an answer
      */
     public InterpretationType nextOpenType(BuriedFind find) {
         if (find == null) {
             return null;
         }
-        for (InterpretationType type : interpretationTypes.values()) {
+        for (InterpretationType type : interpretationTypes(profileOf(find.getArtifactId()))) {
             if (!find.hasType(type.id())) {
                 return type;
             }
@@ -245,7 +280,13 @@ public class CatalogRegistry {
         if (type == null || type.options() == null || type.options().isEmpty()) {
             return List.of();
         }
-        List<InterpretationTemplate> pool = new ArrayList<>(type.options());
+        FindProfile profile = profileOf(artifactId);
+        List<InterpretationTemplate> pool = new ArrayList<>();
+        for (InterpretationTemplate option : type.options()) {
+            if (option.appliesTo(profile)) {
+                pool.add(option);
+            }
+        }
         int want = Math.min(3, pool.size());
         if (want == pool.size()) {
             return List.copyOf(pool);
@@ -1134,6 +1175,7 @@ public class CatalogRegistry {
                     Math.max(1, section.getInt("weight", 1)),
                     new LinkedHashSet<>(section.getStringList("strata")),
                     new LinkedHashSet<>(section.getStringList("tags")),
+                    FindProfile.fromConfig(section.getString("profile")),
                     section.getString("item", "STONE"),
                     section.getString("study-notes", "")
             ));
@@ -1141,14 +1183,16 @@ public class CatalogRegistry {
     }
 
     /**
-     * Reads station questions from {@code interpretations.yml}. A legacy flat {@code interpretations:}
-     * map is loaded as a single {@code function} type so old data folders still start.
+     * Reads station questions from {@code interpretations.yml}. {@code profiles} lists which
+     * types each find path asks. A legacy flat {@code interpretations:} map is loaded as a
+     * single {@code function} type so old data folders still start.
      *
      * @param yaml parsed interpretations file
      */
     private void loadInterpretations(YamlConfiguration yaml) {
         interpretations.clear();
         interpretationTypes.clear();
+        profileTypeIds.clear();
         ConfigurationSection typesRoot = yaml.getConfigurationSection("types");
         if (typesRoot != null) {
             for (String typeId : typesRoot.getKeys(false)) {
@@ -1169,7 +1213,8 @@ public class CatalogRegistry {
                                 typeId,
                                 optionSection.getString("display-name", optionId),
                                 new LinkedHashSet<>(optionSection.getStringList("suggested-by")),
-                                new LinkedHashSet<>(optionSection.getStringList("suggested-for"))
+                                new LinkedHashSet<>(optionSection.getStringList("suggested-for")),
+                                readOptionProfiles(optionSection)
                         );
                         options.add(option);
                         interpretations.put(optionId, option);
@@ -1185,6 +1230,7 @@ public class CatalogRegistry {
                         List.copyOf(options)
                 ));
             }
+            loadInterpretationProfiles(yaml);
             return;
         }
         ConfigurationSection root = yaml.getConfigurationSection("interpretations");
@@ -1202,7 +1248,8 @@ public class CatalogRegistry {
                     "function",
                     section.getString("display-name", id),
                     new LinkedHashSet<>(section.getStringList("suggested-by")),
-                    new LinkedHashSet<>(section.getStringList("suggested-for"))
+                    new LinkedHashSet<>(section.getStringList("suggested-for")),
+                    Set.of()
             );
             options.add(option);
             interpretations.put(id, option);
@@ -1215,6 +1262,41 @@ public class CatalogRegistry {
                     List.copyOf(options)
             ));
         }
+    }
+
+    /**
+     * Reads which station questions each find path asks. Missing lists keep the legacy
+     * “every loaded type” behaviour so old data folders still start.
+     *
+     * @param yaml parsed interpretations file
+     */
+    private void loadInterpretationProfiles(YamlConfiguration yaml) {
+        ConfigurationSection root = yaml.getConfigurationSection("profiles");
+        if (root == null) {
+            return;
+        }
+        for (FindProfile profile : FindProfile.values()) {
+            ConfigurationSection section = root.getConfigurationSection(profile.id());
+            if (section == null) {
+                continue;
+            }
+            List<String> ids = section.getStringList("types");
+            if (!ids.isEmpty()) {
+                profileTypeIds.put(profile, List.copyOf(ids));
+            }
+        }
+    }
+
+    /**
+     * @param optionSection one phrase
+     * @return paths that may draw it; empty means every path
+     */
+    private static Set<FindProfile> readOptionProfiles(ConfigurationSection optionSection) {
+        Set<FindProfile> profiles = new LinkedHashSet<>();
+        for (String token : optionSection.getStringList("profiles")) {
+            FindProfile.parseListed(token).ifPresent(profiles::add);
+        }
+        return profiles;
     }
 
     /**

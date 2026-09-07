@@ -1,4 +1,6 @@
 # Find templates. size-* = connected cells. relic = counts toward the relic quota.
+# profile = object | individual | animal (omit for object). That path picks the
+# station questions; species is signed there, not named here.
 # study-notes are revealed at camp after the piece is studied; they do not show on lift.
 artifacts:
   coin:
@@ -63,6 +65,7 @@ artifacts:
     study-notes: "A closed form. Surviving rim and decoration suggest it was set down, not discarded in pieces."
   burial:
     display-name: Burial
+    profile: individual
     size-min: 8
     size-max: 15
     material: bone
@@ -73,6 +76,19 @@ artifacts:
     tags: [burial, bone]
     item: BONE
     study-notes: "Articulated bone, not kitchen scatter. The layout still argues for a grave."
+  faunal_dump:
+    display-name: Animal remains
+    profile: animal
+    size-min: 3
+    size-max: 8
+    material: bone
+    rarity: uncommon
+    relic: false
+    weight: 10
+    strata: [I, II, III]
+    tags: [bone, food, animal]
+    item: BONE
+    study-notes: "Disarticulated bone with kitchen scatter. This looks like refuse, not a grave."
   structure:
     display-name: Buried structure
     size-min: 20

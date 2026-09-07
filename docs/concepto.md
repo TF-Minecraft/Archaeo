@@ -1394,8 +1394,18 @@ cuesta el clic. Cerrar sin clic no escribe nada.
 
 ### Qué pregunta la mesa
 
-Tres tipos. Más es un formulario. Cada uno es una pregunta distinta; no son
-sinónimos ni se eligen dos del mismo pozo.
+Hay **tres perfiles**. La estación es la misma (tres ofertas, una firma);
+cambian las preguntas y el pozo. El artefacto declara `profile: object`,
+`individual` o `animal` (si falta, es objeto).
+
+No se llama “humano”: **individuo** es quien el lore trate como persona
+(razas de fantasía incluidas). **Animal** es fauna. Eso se parte en el
+**catálogo** al generar el hallazgo, no se firma en la mesa. Un fémur de
+individuo no ve “filo de combate”; una espada no ve “qué especie”.
+
+Tres tipos por perfil. Más es un formulario.
+
+#### Perfil objeto — Función → Formación → Época
 
 | Tipo | Pregunta | Habla de | No habla de |
 | --- | --- | --- | --- |
@@ -1403,14 +1413,58 @@ sinónimos ni se eligen dos del mismo pozo.
 | **Formación** | ¿Cómo llega a esta capa? | El depósito: tirado, escondido, tumba, comercio, arrastre. | El uso original, si ya se firmó en Función. |
 | **Época** | ¿A qué tiempo pertenece? | Una era del servidor o “no se sabe”. Puede no coincidir con la profundidad. | Años en la capa: el estrato no trae fecha. |
 
-“Asentamiento”, “abandono” y “comercio a escala de valle” son indicios de
-**sitio** (INFORMACIÓN). No salen como oferta sobre un fragmento.
+#### Perfiles individuo y animal — Especie → Depósito → Época
 
-Cada tipo tiene un pozo YAML de **5–8** frases. Si el pozo tiene tres, las
-tres ofertas son el catálogo entero y no hay elección. “No se sabe” es una
-frase del pozo, no un botón aparte.
+Misma estación, **pozos distintos** en especie y en depósito. Época es el
+**mismo** pozo que en objetos (las eras del mapa). Recencia (cuerpo de ahora
+vs arqueológico) no es una de estas tres.
 
-Ejemplo de paleta (editable, `interpretations.yml` agrupado por tipo):
+La primera pregunta no es “humano o animal”: eso ya lo dijo la plantilla.
+Es **qué especie** (lista YAML por perfil). El staff pone *Homo sapiens*,
+neandertal, elfo, orco… en individuo; perro, vaca, ciervo… en animal.
+
+La segunda no es trauma (golpe, enfermedad). Es **cómo quedó el cuerpo en
+el yacimiento**: rito, vertedero, ofrenda. Eso es lo que el corte suele
+dejar ver (cenizas, ajuar, desorden, marcas de cocina).
+
+| Tipo | Pregunta | Individuo | Animal |
+| --- | --- | --- | --- |
+| **Especie** | ¿Qué es? | Razas / homininos del lore. | Taxones del lore. |
+| **Depósito** | ¿Cómo quedó aquí? | Trato del cuerpo (abajo). | Trato de la fauna (abajo). |
+| **Época** | ¿A qué tiempo pertenece? | El mismo pozo que los objetos. | El mismo pozo que los objetos. |
+
+**Depósito — individuo** (paleta de partida):
+
+| Frase | Qué se ve en el corte |
+| --- | --- |
+| Inhumación formal | Cuerpo en fosa, a veces ajuar, orientación. |
+| Cremación | Cenizas, urna, hueso quemado. |
+| Depósito secundario | Huesos reunidos después (osario, recolocado). |
+| Vertedero de cuerpos | Varios juntos, sin cuidado, fosa común o batalla. |
+| Entierro apresurado | Una fosa pobre, sin rito claro. |
+| Depósito de fundación | Bajo un muro o umbral, votivo. |
+| No se sabe | — |
+
+**Depósito — animal** (paleta de partida):
+
+| Frase | Qué se ve en el corte |
+| --- | --- |
+| Desecho de comida | Cocina, cortes, basurero. |
+| Acompañando a un individuo | Junto a un entierro: caza, ofrenda o ajuar. |
+| Depósito ritual / sacrificio | Colocado a propósito, a veces entero. |
+| Compañero enterrado | Perro u otro junto a alguien, no como comida. |
+| Lugar de caza | Abandonado donde se mató. |
+| Muerte natural en sitio | Sin cortes ni fosa. |
+| No se sabe | — |
+
+Fuera de la mesa: edad, sexo, talla, recuento de individuos, causa traumática
+fina, tafonomía aparte. Especie “desconocida” es una frase más de cada pozo.
+
+Los tres perfiles viven en el mismo `interpretations.yml`
+(`profiles.object` / `individual` / `animal`). Época se declara **una vez**
+y la referencian los tres.
+
+Ejemplo de paleta objeto:
 
 | Tipo | Frases de ejemplo |
 | --- | --- |
@@ -1419,17 +1473,18 @@ Ejemplo de paleta (editable, `interpretations.yml` agrupado por tipo):
 | Época | ocupación reciente; Era de la Ceniza; Tercer Éxodo; más viejo que esta capa; un tiempo mucho más hondo; época desconocida |
 
 Cada frase puede listar tags (`suggested-by`) que **pesan** el sorteo, y
-`suggested-for: [sword, tool, …]` para que **al menos una** de las tres
-ofertas tenga sentido para ese tipo de objeto. Ni lo uno ni lo otro cierra
-el pozo ni se muestra al jugador. Época casi no usa `suggested-for`: la
-fecha no es una propiedad de “espada”.
+`suggested-for: [sword, burial, …]` para que **al menos una** de las tres
+ofertas tenga sentido para esa plantilla. Ni lo uno ni lo otro cierra el
+pozo ni se muestra al jugador. Época casi no usa `suggested-for`. En especie,
+`suggested-for` puede sesgar razas o taxones hacia una plantilla concreta.
 
 ### Cómo se juega
 
 1. Quien puede catalogar lleva la pieza **recuperada** a la mesa del
    campamento y la coloca (el objeto entra en la estación, como en encantar).
-2. La mesa toma el primer tipo **aún vacío**, en orden Función → Formación →
-   Época, y enseña **tres** ofertas de ese pozo.
+2. La mesa toma el primer tipo **aún vacío** del **perfil de esa plantilla**
+   (objeto: Función → Formación → Época; individuo y animal: Especie →
+   Depósito → Época) y enseña **tres** ofertas de ese pozo.
 3. Clic en una = se firma (autor, fecha, tipo, frase). La pieza vuelve a la
    mano. Si quedan tipos vacíos, al volver a colocarla pregunta el siguiente.
    Se puede dejar tipos sin firmar para siempre.
