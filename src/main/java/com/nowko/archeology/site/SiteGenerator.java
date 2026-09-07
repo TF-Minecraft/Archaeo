@@ -23,6 +23,7 @@ import org.bukkit.block.Block;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,6 +37,7 @@ import java.util.stream.Collectors;
  * Builds administered ruins as data-only dossiers (hidden find shapes, no block edits).
  */
 public class SiteGenerator {
+    /** North, south, east, west on the same Y. A corner-adjacent cell is not a neighbour. */
     private static final int[][] HORIZONTAL = {{1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}};
 
     private final CatalogRegistry catalog;
@@ -123,7 +125,7 @@ public class SiteGenerator {
             throw new IllegalArgumentException("Unknown artifact template");
         }
         if (!PrismFill.isTerrainFill(origin.getType())) {
-            throw new IllegalArgumentException("Stand on excavation fill (dirt, stone, sand…)");
+            throw new IllegalArgumentException("Stand on a solid excavation block");
         }
 
         Chunk chunk = origin.getChunk();
@@ -461,7 +463,7 @@ public class SiteGenerator {
     }
 
     /**
-     * Grows a face-connected blob inside a stratum's buried pocket.
+     * Grows a compact face-connected blob (same Y, no diagonal corners) inside a stratum's buried pocket.
      *
      * @param pocket cells this stratum may use, or {@code null}
      * @param occupied cells claimed by other finds
@@ -493,8 +495,9 @@ public class SiteGenerator {
     }
 
     /**
-     * Expands from {@code start} on the same Y, picking random north/south/east/west neighbours
-     * that are still inside the allowed pocket.
+     * Expands from {@code start} on the same Y through face-adjacent cells only (north/south/east/west).
+     * Corner neighbours never join. Among those faces, cells that already touch more of the shape
+     * are preferred so the blob stays compact instead of walking a diagonal stair.
      *
      * @param start first cell of the shape (locks the height)
      * @param allowed cells the shape may occupy
@@ -516,22 +519,33 @@ public class SiteGenerator {
         used.add(start);
 
         while (cells.size() < targetSize) {
-            List<BlockCell> candidates = new ArrayList<>();
+            Map<BlockCell, Integer> adjacency = new HashMap<>();
             for (BlockCell cell : cells) {
                 for (int[] dir : HORIZONTAL) {
-                    BlockCell candidate = new BlockCell(
-                            cell.x() + dir[0], cell.y() + dir[1], cell.z() + dir[2]);
+                    BlockCell candidate = new BlockCell(cell.x() + dir[0], cell.y(), cell.z() + dir[2]);
                     if (allowed.contains(candidate)
                             && !used.contains(candidate)
                             && !occupied.contains(candidate)) {
-                        candidates.add(candidate);
+                        adjacency.merge(candidate, 1, Integer::sum);
                     }
                 }
             }
-            if (candidates.isEmpty()) {
+            if (adjacency.isEmpty()) {
                 break;
             }
-            BlockCell next = candidates.get(random.nextInt(candidates.size()));
+            int best = 0;
+            for (int count : adjacency.values()) {
+                if (count > best) {
+                    best = count;
+                }
+            }
+            List<BlockCell> sticky = new ArrayList<>();
+            for (Map.Entry<BlockCell, Integer> entry : adjacency.entrySet()) {
+                if (entry.getValue() == best) {
+                    sticky.add(entry.getKey());
+                }
+            }
+            BlockCell next = sticky.get(random.nextInt(sticky.size()));
             cells.add(next);
             used.add(next);
         }

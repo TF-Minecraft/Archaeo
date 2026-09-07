@@ -9,7 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Distinguishes archaeological fill (must not break vanilla) from lights, scaffolding, and plants.
+ * Distinguishes archaeological fill from air, fluids, and placeable decorations.
+ * Any other world block in the prism is fill: cobble, bricks, planks, glass, machines, and so on.
  */
 public final class PrismFill {
     /**
@@ -23,33 +24,17 @@ public final class PrismFill {
     }
 
     /**
-     * Natural ground the Hand Pick should work. Planks, cobble walls, and machines are not fill.
+     * World block the Hand Pick should work. Air, fluids, and placeable decorations are not fill.
      *
      * @param material block type
      * @return whether this is excavation substrate
      */
     public static boolean isTerrainFill(Material material) {
-        if (exempt(material) || !material.isSolid()) {
-            return false;
-        }
-        if (Tag.DIRT.isTagged(material)
-                || Tag.BASE_STONE_OVERWORLD.isTagged(material)
-                || Tag.BASE_STONE_NETHER.isTagged(material)
-                || Tag.SAND.isTagged(material)
-                || Tag.TERRACOTTA.isTagged(material)) {
-            return true;
-        }
-        String name = material.name();
-        if (name.contains("ORE") || name.contains("SANDSTONE") || name.contains("SCULK")) {
-            return true;
-        }
-        return switch (material) {
-            case GRAVEL, CLAY, MOSS_BLOCK, MUD, PACKED_MUD, SNOW_BLOCK,
-                 ICE, PACKED_ICE, BLUE_ICE, CALCITE, TUFF, DRIPSTONE_BLOCK,
-                 SMOOTH_BASALT, SOUL_SAND, SOUL_SOIL, MAGMA_BLOCK,
-                 OBSIDIAN, CRYING_OBSIDIAN, AMETHYST_BLOCK -> true;
-            default -> false;
-        };
+        return material != null
+                && material.isBlock()
+                && !material.isAir()
+                && !isFluid(material)
+                && !exempt(material);
     }
 
     /**
@@ -99,7 +84,19 @@ public final class PrismFill {
     }
 
     /**
-     * Torches, signs, scaffolding, and other non-terrain the player may still place and remove.
+     * Water, lava, and bubble columns stay vanilla; they are not excavation substrate.
+     *
+     * @param material block type
+     * @return whether this is a fluid
+     */
+    static boolean isFluid(Material material) {
+        return material == Material.WATER
+                || material == Material.LAVA
+                || material == Material.BUBBLE_COLUMN;
+    }
+
+    /**
+     * Torches, signs, scaffolding, plants, and similar the player may still place and remove.
      *
      * @param material block type
      * @return whether this is not excavation fill
@@ -128,7 +125,8 @@ public final class PrismFill {
                  LANTERN, SOUL_LANTERN, CAMPFIRE, SOUL_CAMPFIRE,
                  SCAFFOLDING, REDSTONE_WIRE, REPEATER, COMPARATOR,
                  LEVER, TRIPWIRE, TRIPWIRE_HOOK, LIGHTNING_ROD, END_ROD,
-                 GLOW_LICHEN -> true;
+                 GLOW_LICHEN, FIRE, SOUL_FIRE, NETHER_PORTAL, END_PORTAL,
+                 END_GATEWAY, LIGHT -> true;
             default -> false;
         };
     }

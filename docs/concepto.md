@@ -73,7 +73,7 @@ Lo que vanilla **no** da, y Archaeo sí debe dar:
 6. **La fragilidad importa.** El terreno y los restos deben poder alterarse o perderse; Archaeo no debe convertir una excavación en un generador de objetos sin riesgo.
 7. **Una excavación es un proyecto, no un loot ni un plot.** Se descubre, se confirma y se **establece en el mundo** (campamento en un chunk vecino). Queda **fija**. El campamento no se planta sobre el volumen excavable.
 8. **La excavación es el mundo.** Hand Pick en el **prisma de estratos**; HUD mínimo (estrato, jornada, conservación si el hallazgo ya se detectó). No hay barra de fuerza, ni fracciones de bloque (`3/6`), ni minijuego en una interfaz. La gestión vive en el **panel del campamento**, no en comandos de jugador.
-9. **Archaeo no es un `/claim` de jugador.** El chunk de **establecimiento** (campamento) se bloquea mientras la excavación esté activa. El chunk arqueológico **puede** protegerse entero (`establish.protect-dig-site`): todo el prisma, todas las bandas presentes, sin calcular si un bloque está al descubierto. Si está desactivado, el minado vanilla en el prisma hiere el sustrato. Los hallazgos son datos, no bloques en el mundo. El Hand Pick trabaja el relleno del prisma. Aire, agua y construcciones no se sustituyen por relleno. Eso no sustituye un claim de terreno.
+9. **Archaeo no es un `/claim` de jugador.** El chunk de **establecimiento** (campamento) se bloquea mientras la excavación esté activa. El chunk arqueológico **puede** protegerse entero (`establish.protect-dig-site`): todo el prisma, todas las bandas presentes, sin calcular si un bloque está al descubierto. Si está desactivado, el minado vanilla en el prisma hiere el sustrato. Los hallazgos son datos, no bloques en el mundo. El Hand Pick trabaja el relleno del prisma (cualquier bloque que no sea aire, fluido o un adorno colocable). Aire, agua y adornos no se sustituyen por relleno. Eso no sustituye un claim de terreno.
 
 ---
 
@@ -708,8 +708,9 @@ Claims y facciones siguen decidiendo el terreno alrededor.
 
 ### Cómo se procesan los puntos de excavación (código)
 
-Los hallazgos se sortean al **establecer** (plantilla + forma conexa **en un
-solo Y** dentro de una banda). El terreno no cambia hasta la jornada. **§2**.
+Los hallazgos se sortean al **establecer** (plantilla + forma conexa **cara a cara
+en un solo Y** dentro de una banda; las esquinas no unen celdas). El terreno no
+cambia hasta la jornada. **§2**.
 
 Minecraft **no** tiene estratos arqueológicos. Césped sobre tierra sobre piedra es geología tosca. La arcilla, la grava y el barro salen en **manchas**, no en capas continuas. **No** vamos a rellenar el chunk como un sándwich de arcilla ni a preguntar “¿el último bloque era grava?”.
 
@@ -1002,8 +1003,9 @@ Los hallazgos son datos (formas de celdas), no bloques sospechosos.
 
 Si `establish.protect-dig-site` está **activo**, se protege el **prisma entero**
 (todas las bandas presentes del chunk arqueológico). No se calcula si un
-bloque tiene cara al aire. Tablones, cobble de obra, máquinas, aire y agua
-no son sustrato y no entran en esa protección.
+bloque tiene cara al aire. Aire, agua y adornos colocables (antorchas, carteles,
+andamiaje, plantas) no son sustrato y no entran en esa protección. El resto de
+bloques del prisma sí: cobble, ladrillo, tablones, cristal, máquinas, etc.
 
 Ahí se cancela la rotura vanilla (fuego / explosiones / pistones igual).
 Pico vanilla: *Usa una herramienta de excavación.* El Hand Pick sigue
@@ -1020,7 +1022,7 @@ se parte y el chat avisa *Buried archaeological remains were destroyed.*
 | --- | --- | --- |
 | Por encima de `datumY` | Permitida | Sin hallazgos |
 | Prisma (cualquier banda, cubierto o al descubierto) | Solo Hand Pick | El corte |
-| Aire, agua, construcciones | Permitida | No se convierten en relleno |
+| Aire, agua, adornos colocables | Permitida | No se convierten en relleno |
 | Por debajo de la última banda | Permitida | Fuera del yacimiento |
 
 Al **confirmar** el kit, las celdas de hallazgo que ya no son terreno se
@@ -1063,7 +1065,8 @@ absorba puntos como en cualquier excavación normal. Un `0` mantiene esa
 herramienta intacta para siempre; el perfil de mano desnuda no se ve afectado
 porque el aire no tiene durabilidad.
 
-El Hand Pick actúa sobre relleno del prisma. No pisa agua ni construcciones.
+El Hand Pick actúa sobre relleno del prisma (cualquier bloque que no sea aire,
+fluido o un adorno colocable). No pisa agua ni antorchas / carteles / andamiaje.
 
 ### HUD mínimo
 
@@ -1138,10 +1141,11 @@ No se usan grietas ni `2/6`.
 
 ### Hallazgos: forma, no un bloque-premio
 
-Un hallazgo es un conjunto de **celdas conectadas en la misma altura** (un
-plano XZ) dentro de una banda de estrato. Varios hallazgos por yacimiento, sin
-solaparse. Distintos hallazgos pueden estar en Y distintos; uno solo no se
-apila.
+Un hallazgo es un conjunto de **celdas conectadas cara a cara en la misma
+altura** (un plano XZ: norte/sur/este/oeste, nunca esquina). Varios hallazgos
+por yacimiento, sin solaparse. Distintos hallazgos pueden estar en Y distintos;
+uno solo no se apila. La forma crece compacta (prefiere celdas que ya tocan
+más de una cara) para no quedar en escalera diagonal.
 
 **Siempre bajo tierra (acordado).** La banda de estrato **no** basta como
 criterio: su rango de Y se mide desde la cota **mediana** del chunk, así que en

@@ -462,7 +462,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         }
         Block origin = staffFindOrigin(player);
         if (origin == null) {
-            sender.sendMessage("Stand on dirt, stone, sand, or other excavation fill.");
+            sender.sendMessage("Stand on a solid excavation block.");
             return true;
         }
         try {
