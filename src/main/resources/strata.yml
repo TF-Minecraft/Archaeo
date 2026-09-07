@@ -1,4 +1,5 @@
-# Order: 1 = most recent (top). depth-* is blocks below the chunk's median ground Y (datum).
+# Order: 1 = top of the cut. depth-* is blocks below the chunk's median ground Y (datum).
+# antiquity is leftover config; the HUD and boards do not show it. Epoch is a station reading.
 strata:
   I:
     order: 1

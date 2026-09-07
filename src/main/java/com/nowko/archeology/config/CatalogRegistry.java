@@ -226,15 +226,21 @@ public class CatalogRegistry {
     }
 
     /**
-     * Three (or fewer) phrases for one station question. The draw is stable for this find and type;
-     * tags only change the weights, not which seed is used.
+     * Three (or fewer) phrases for one station question. The draw is stable for this find and type.
+     * If any phrase lists this artifact in {@code suggested-for}, one of those is always among the three.
      *
      * @param typeId question key
      * @param findId archive row id
+     * @param artifactId catalog artifact key, or {@code null}
      * @param tags artifact and hint tags
      * @return offers in draw order, never more than three
      */
-    public List<InterpretationTemplate> stationOffers(String typeId, UUID findId, Set<String> tags) {
+    public List<InterpretationTemplate> stationOffers(
+            String typeId,
+            UUID findId,
+            String artifactId,
+            Set<String> tags
+    ) {
         InterpretationType type = interpretationType(typeId);
         if (type == null || type.options() == null || type.options().isEmpty()) {
             return List.of();
@@ -250,27 +256,57 @@ public class CatalogRegistry {
         }
         seed ^= (long) typeId.hashCode() * 0x9E3779B97F4A7C15L;
         Random rng = new Random(seed);
-        List<InterpretationTemplate> offers = new ArrayList<>(want);
         Set<String> weightTags = tags == null ? Set.of() : tags;
+        List<InterpretationTemplate> fitting = new ArrayList<>();
+        for (InterpretationTemplate option : pool) {
+            if (option.suggestedFor(artifactId)) {
+                fitting.add(option);
+            }
+        }
+        List<InterpretationTemplate> offers = new ArrayList<>(want);
+        if (!fitting.isEmpty()) {
+            InterpretationTemplate floor = takeWeighted(fitting, rng, weightTags);
+            pool.remove(floor);
+            offers.add(floor);
+        }
         while (offers.size() < want && !pool.isEmpty()) {
-            int total = 0;
-            int[] weights = new int[pool.size()];
-            for (int i = 0; i < pool.size(); i++) {
-                weights[i] = pool.get(i).suggestedBy(weightTags) ? 3 : 1;
-                total += weights[i];
-            }
-            int roll = rng.nextInt(Math.max(1, total));
-            int index = 0;
-            for (int i = 0; i < pool.size(); i++) {
-                roll -= weights[i];
-                if (roll < 0) {
-                    index = i;
-                    break;
-                }
-            }
-            offers.add(pool.remove(index));
+            offers.add(takeWeighted(pool, rng, weightTags));
+        }
+        if (offers.size() > 1) {
+            int slot = rng.nextInt(offers.size());
+            InterpretationTemplate first = offers.remove(0);
+            offers.add(slot, first);
         }
         return List.copyOf(offers);
+    }
+
+    /**
+     * @param pool remaining phrases; the chosen row is removed
+     * @param rng seeded draw
+     * @param tags tag weights
+     * @return one phrase
+     */
+    private static InterpretationTemplate takeWeighted(
+            List<InterpretationTemplate> pool,
+            Random rng,
+            Set<String> tags
+    ) {
+        int total = 0;
+        int[] weights = new int[pool.size()];
+        for (int i = 0; i < pool.size(); i++) {
+            weights[i] = pool.get(i).suggestedBy(tags) ? 3 : 1;
+            total += weights[i];
+        }
+        int roll = rng.nextInt(Math.max(1, total));
+        int index = 0;
+        for (int i = 0; i < pool.size(); i++) {
+            roll -= weights[i];
+            if (roll < 0) {
+                index = i;
+                break;
+            }
+        }
+        return pool.remove(index);
     }
 
     /**
@@ -1132,7 +1168,8 @@ public class CatalogRegistry {
                                 optionId,
                                 typeId,
                                 optionSection.getString("display-name", optionId),
-                                new LinkedHashSet<>(optionSection.getStringList("suggested-by"))
+                                new LinkedHashSet<>(optionSection.getStringList("suggested-by")),
+                                new LinkedHashSet<>(optionSection.getStringList("suggested-for"))
                         );
                         options.add(option);
                         interpretations.put(optionId, option);
@@ -1164,7 +1201,8 @@ public class CatalogRegistry {
                     id,
                     "function",
                     section.getString("display-name", id),
-                    new LinkedHashSet<>(section.getStringList("suggested-by"))
+                    new LinkedHashSet<>(section.getStringList("suggested-by")),
+                    new LinkedHashSet<>(section.getStringList("suggested-for"))
             );
             options.add(option);
             interpretations.put(id, option);

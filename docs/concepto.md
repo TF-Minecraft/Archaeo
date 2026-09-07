@@ -618,7 +618,7 @@ Clic en mesa, tablón o campamento:
 ```
 RUINAS DEL VALLE
 Director: Alex
-Estrato actual: III · 700–900 años
+Estrato actual: III
 Progreso: ██████░░░░
 Hallazgos: 7 · Evidencias: 12
 [HALLAZGOS]  [PERSONAL]  [INFORMACIÓN]  [Mostrar límites]
@@ -825,7 +825,7 @@ con la etiqueta. Eso no es un archivo `finds/` global.
 | Dato |
 | --- |
 | `siteId`, nombre del yacimiento, número de inventario |
-| capa / antigüedad |
+| capa (id de estrato, sin fecha) |
 | quien lo levantó, fecha |
 | conservación al recuperar (calidad %; visible en la pieza) |
 | estado del registro: *Field catalog* / *Catalogued* |
@@ -1095,7 +1095,7 @@ Con el Hand Pick en el prisma: estrato de la Y actual y acciones de **hoy**.
 **No** barra de fuerza. **No** `2/6` ni “strikes” del relleno.
 
 ```
-ESTRATO III · 700–900 años
+ESTRATO III
 ⛏️ 5
 ```
 
@@ -1369,7 +1369,7 @@ El descubridor puede nombrarla:
 
 ```
 "La Espada de las Cenizas"
-Antigüedad: 700–850 años
+Estrato: III
 Yacimiento: Las Ruinas del Este
 Estrato: III
 Descubierta por: Alex
@@ -1399,9 +1399,9 @@ sinónimos ni se eligen dos del mismo pozo.
 
 | Tipo | Pregunta | Habla de | No habla de |
 | --- | --- | --- | --- |
-| **Función** | ¿Para qué se hizo o se usó? | El objeto: filo, recipiente, adorno, ajuar, desconocido. | Si el valle era un poblado. |
-| **Agencia** | ¿Quién lo usó o lo dejó? | Gente (o nadie): doméstico, oficiante, combate, perdido. | La facción que excava hoy. |
-| **Formación** | ¿Cómo llega a esta capa? | El depósito: tirado, escondido, tumba, arrastre, desconocido. | El uso original, si ya se firmó en Función. |
+| **Función** | ¿Para qué se hizo o se usó? | El objeto: filo, recipiente, adorno, ajuar, ritual, desconocido. | Si el valle era un poblado. |
+| **Formación** | ¿Cómo llega a esta capa? | El depósito: tirado, escondido, tumba, comercio, arrastre. | El uso original, si ya se firmó en Función. |
+| **Época** | ¿A qué tiempo pertenece? | Una era del servidor o “no se sabe”. Puede no coincidir con la profundidad. | Años en la capa: el estrato no trae fecha. |
 
 “Asentamiento”, “abandono” y “comercio a escala de valle” son indicios de
 **sitio** (INFORMACIÓN). No salen como oferta sobre un fragmento.
@@ -1415,18 +1415,21 @@ Ejemplo de paleta (editable, `interpretations.yml` agrupado por tipo):
 | Tipo | Frases de ejemplo |
 | --- | --- |
 | Función | filo de combate; herramienta de trabajo; recipiente; adorno; ajuar; función desconocida |
-| Agencia | uso doméstico; oficiante o rito; gente de armas; nadie / objeto perdido; procedencia lejana |
-| Formación | desechado; escondido / depósito; acompañando un cuerpo; arrastrado por agua o ladera; origen desconocido |
+| Formación | desechado; escondido / depósito; acompañando un cuerpo; comercio; arrastrado; origen desconocido |
+| Época | ocupación reciente; Era de la Ceniza; Tercer Éxodo; más viejo que esta capa; un tiempo mucho más hondo; época desconocida |
 
-Cada frase puede listar tags (`suggested-by`) que **pesan** el sorteo. No se
-muestran al jugador.
+Cada frase puede listar tags (`suggested-by`) que **pesan** el sorteo, y
+`suggested-for: [sword, tool, …]` para que **al menos una** de las tres
+ofertas tenga sentido para ese tipo de objeto. Ni lo uno ni lo otro cierra
+el pozo ni se muestra al jugador. Época casi no usa `suggested-for`: la
+fecha no es una propiedad de “espada”.
 
 ### Cómo se juega
 
 1. Quien puede catalogar lleva la pieza **recuperada** a la mesa del
    campamento y la coloca (el objeto entra en la estación, como en encantar).
-2. La mesa toma el primer tipo **aún vacío**, en orden Función → Agencia →
-   Formación, y enseña **tres** ofertas de ese pozo.
+2. La mesa toma el primer tipo **aún vacío**, en orden Función → Formación →
+   Época, y enseña **tres** ofertas de ese pozo.
 3. Clic en una = se firma (autor, fecha, tipo, frase). La pieza vuelve a la
    mano. Si quedan tipos vacíos, al volver a colocarla pregunta el siguiente.
    Se puede dejar tipos sin firmar para siempre.

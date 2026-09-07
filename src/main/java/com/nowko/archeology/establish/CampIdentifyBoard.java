@@ -103,7 +103,11 @@ public final class CampIdentifyBoard implements InventoryHolder {
         }
         ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
         Set<String> tags = weightTags(site, template);
-        List<InterpretationTemplate> offers = catalogs.stationOffers(type.id(), find.getId(), tags);
+        List<InterpretationTemplate> offers = catalogs.stationOffers(
+                type.id(),
+                find.getId(),
+                find.getArtifactId(),
+                tags);
         offerIds.clear();
         String title = ChatColor.DARK_GREEN + type.question();
         if (title.length() > 32) {

@@ -1,5 +1,8 @@
 # Classification station. Each type is one question about this find, not about the site.
-# The station shows three stable offers per type; the player files at most one.
+# Order is the station order: Function → Formation → Epoch.
+# suggested-by tags raise a phrase's chance. suggested-for artifact ids guarantee
+# at least one matching phrase among the three offers. Neither hides the rest.
+# Epoch is opinion. Strata are depth only; they do not state a date.
 types:
   function:
     display-name: Function
@@ -8,40 +11,27 @@ types:
       combat_edge:
         display-name: "combat edge"
         suggested-by: [blade, conflict]
+        suggested-for: [sword]
       working_tool:
         display-name: "working tool"
         suggested-by: [settlement, domestic]
+        suggested-for: [tool]
       vessel:
         display-name: "vessel or container"
         suggested-by: [ceramic, deposit]
+        suggested-for: [vessel, pottery_sherd]
       ornament:
         display-name: "ornament"
         suggested-by: [ceremonial, ornament, trade]
+        suggested-for: [ornament, coin]
       grave_good:
         display-name: "object made to accompany a body"
         suggested-by: [burial, bone]
+        suggested-for: [burial]
       unknown_function:
         display-name: "function unknown"
         suggested-by: [unknown]
-  agency:
-    display-name: Agency
-    question: "Who used or left it?"
-    options:
-      household:
-        display-name: "household use"
-        suggested-by: [settlement, domestic]
-      ritual:
-        display-name: "ritual or officiant"
-        suggested-by: [ceremonial, ornament, deposit]
-      armed_people:
-        display-name: "people of arms"
-        suggested-by: [blade, conflict]
-      nobody_lost:
-        display-name: "nobody; it was lost"
-        suggested-by: [abandonment, scattered]
-      distant_origin:
-        display-name: "brought from elsewhere"
-        suggested-by: [trade]
+        suggested-for: [structure, charcoal]
   formation:
     display-name: Formation
     question: "How did it reach this layer?"
@@ -49,15 +39,46 @@ types:
       discarded:
         display-name: "thrown away"
         suggested-by: [abandonment, scattered, domestic]
+        suggested-for: [pottery_sherd, tool, charcoal]
       cached:
         display-name: "hidden or cached"
         suggested-by: [deposit, clustered]
+        suggested-for: [coin, ornament, vessel, sword]
       with_a_body:
         display-name: "laid with a body"
         suggested-by: [burial, bone]
+        suggested-for: [burial]
+      trade_in:
+        display-name: "brought in by trade"
+        suggested-by: [trade]
+        suggested-for: [coin]
       washed_in:
         display-name: "washed or slumped in"
         suggested-by: [unknown]
+        suggested-for: [structure]
       unknown_path:
         display-name: "how it arrived is unknown"
+        suggested-by: [unknown]
+  epoch:
+    display-name: Epoch
+    question: "Which time does it belong to?"
+    options:
+      recent_occupation:
+        display-name: "recent occupation"
+        suggested-by: []
+      era_of_ash:
+        display-name: "Era of Ash"
+        suggested-by: []
+      third_exodus:
+        display-name: "Third Exodus"
+        suggested-by: []
+      older_heirloom:
+        display-name: "older than this burial; left later"
+        suggested-by: [burial, deposit]
+        suggested-for: [burial]
+      deep_time:
+        display-name: "a much older time"
+        suggested-by: []
+      unknown_epoch:
+        display-name: "epoch unknown"
         suggested-by: [unknown]

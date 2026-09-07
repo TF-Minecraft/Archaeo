@@ -3,7 +3,6 @@ package com.nowko.archeology.excavation;
 import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.config.ExcavationTool;
 import com.nowko.archeology.config.PickSettings;
-import com.nowko.archeology.config.StratumDefinition;
 import com.nowko.archeology.item.ToolWear;
 import com.nowko.archeology.model.BlockCell;
 import com.nowko.archeology.model.BuriedFind;
@@ -727,9 +726,7 @@ public class HandPickService {
         ensureJornada(site, player.getWorld());
         StratumBand band = site.stratumAt(target.getY());
         String layer = band == null ? "—" : band.getId();
-        StratumDefinition definition = band == null ? null : catalogs.stratum(band.getId());
-        String antiquity = definition == null ? "" : " · " + definition.antiquity();
-        String text = "STRATUM " + layer + antiquity + "  ⛏ " + site.getJornadaPickLeft();
+        String text = "STRATUM " + layer + "  ⛏ " + site.getJornadaPickLeft();
         BuriedFind aimed = site.findAt(new BlockCell(target.getX(), target.getY(), target.getZ())).orElse(null);
         if (aimed != null && aimed.getState() != FindState.HIDDEN && aimed.getState() != FindState.RECOVERED) {
             text += "  " + aimed.getConservation() + "%";
