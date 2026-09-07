@@ -36,6 +36,7 @@ public class CatalogRegistry {
     private EstablishSettings establish = EstablishSettings.defaults();
     private PickSettings pick = PickSettings.defaults();
     private RecoverySettings recovery = RecoverySettings.defaults();
+    private ToolWearSettings toolWear = ToolWearSettings.defaults();
     private ItemMaterials items = ItemMaterials.defaults();
     private String staffPermission = "archaeo.admin";
 
@@ -67,6 +68,7 @@ public class CatalogRegistry {
         loadProspect(config);
         loadEstablish(config);
         loadPick(config);
+        loadToolWear(config);
         loadRecovery(config);
         loadStaffPermission(config);
         loadStrata(yaml("strata.yml"));
@@ -213,6 +215,13 @@ public class CatalogRegistry {
      */
     public RecoverySettings recovery() {
         return recovery;
+    }
+
+    /**
+     * @return durability the pick and the brush spend while working the cut
+     */
+    public ToolWearSettings toolWear() {
+        return toolWear;
     }
 
     /**
@@ -503,6 +512,29 @@ public class CatalogRegistry {
                 loadLimits(excavation, fallback.limits()),
                 firstBool(excavation, pickSection, fallback.neighborTraces(), "neighbor-traces"),
                 loadProfiles(excavation, pickSection, fallback)
+        );
+    }
+
+    /**
+     * Reads {@code excavation.tool-wear}: what a cut and a brushed cube cost the tool in hand.
+     * Kept out of {@link PickSettings} because the brush answers to it too.
+     *
+     * @param config root plugin config
+     */
+    private void loadToolWear(FileConfiguration config) {
+        ToolWearSettings fallback = ToolWearSettings.defaults();
+        ConfigurationSection excavation = config.getConfigurationSection("excavation");
+        ConfigurationSection root = excavation == null
+                ? null
+                : excavation.getConfigurationSection("tool-wear");
+        if (root == null) {
+            toolWear = fallback;
+            return;
+        }
+        toolWear = new ToolWearSettings(
+                Math.max(0, root.getInt("pick", fallback.pick())),
+                Math.max(0, root.getInt("brush", fallback.brush())),
+                root.getBoolean("unbreaking", fallback.unbreaking())
         );
     }
 

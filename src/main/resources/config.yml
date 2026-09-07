@@ -100,6 +100,15 @@ excavation:
     thickness: 0.08
     # Blocks from which the client still renders the bars.
     view-distance: 96
+  # Vanilla mining is frozen (the plugin decides when a cube leaves), so tools would never wear
+  # unless it is spelled out here. Set a count to 0 to keep that tool pristine for good.
+  tool-wear:
+    # Durability per cube the pick removes, so a late 3x3x2 lift costs six points, like vanilla.
+    pick: 1
+    # Durability per cube the brush clears.
+    brush: 1
+    # Let Unbreaking absorb points, as it would on a normal dig.
+    unbreaking: true
   find-particles: true
   find-particles-interval-ticks: 6
   # After a cut, chat + HUD on the empty cube: adjacent find cubes grouped by material (minesweeper).

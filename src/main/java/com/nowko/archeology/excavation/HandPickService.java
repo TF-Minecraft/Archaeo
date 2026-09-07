@@ -4,6 +4,7 @@ import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.config.ExcavationTool;
 import com.nowko.archeology.config.PickSettings;
 import com.nowko.archeology.config.StratumDefinition;
+import com.nowko.archeology.item.ToolWear;
 import com.nowko.archeology.model.BlockCell;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindState;
@@ -523,6 +524,11 @@ public class HandPickService {
                     aimed);
             liftFill(cell, tool);
         }
+        ToolWear.spend(
+                player,
+                tool,
+                catalogs.toolWear().pick() * lifted.size(),
+                catalogs.toolWear().unbreaking());
         if (smashedFind) {
             FindBreakCue.play(player, block);
         } else {

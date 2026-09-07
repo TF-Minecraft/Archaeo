@@ -1019,6 +1019,15 @@ Dentro de un prisma protegido (`establish.protect-dig-site`), la caída de arena
 o grava del propio corte la sigue cancelando la protección, así que el derrumbe
 solo ocurre con lo que había **por encima** del yacimiento.
 
+**Desgaste de la herramienta (`excavation.tool-wear`).** Como el minado vanilla
+está congelado, una pala podría trabajar una campaña entera sin gastarse: la
+excavación no debe ser un atajo. `pick` es la durabilidad **por cubo retirado**
+(un lift tardío de 3×3×2 cuesta seis puntos, lo mismo que romper seis bloques),
+`brush` la de cada cubo limpiado, y `unbreaking: true` deja que el encantamiento
+absorba puntos como en cualquier excavación normal. Un `0` mantiene esa
+herramienta intacta para siempre; el perfil de mano desnuda no se ve afectado
+porque el aire no tiene durabilidad.
+
 El Hand Pick actúa sobre relleno del prisma. No pisa agua ni construcciones.
 
 ### HUD mínimo

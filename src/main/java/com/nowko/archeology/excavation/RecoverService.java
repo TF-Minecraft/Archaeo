@@ -5,6 +5,7 @@ import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.config.RecoverySettings;
 import com.nowko.archeology.item.BrushItem;
 import com.nowko.archeology.item.RecoveredFindItem;
+import com.nowko.archeology.item.ToolWear;
 import com.nowko.archeology.model.BlockCell;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindState;
@@ -280,6 +281,11 @@ public class RecoverService {
             return;
         }
         find.markCleaned(cell);
+        ToolWear.spend(
+                player,
+                player.getInventory().getItemInMainHand(),
+                catalogs.toolWear().brush(),
+                catalogs.toolWear().unbreaking());
         playCleaned(block);
         if (readyToLift(block.getWorld(), find)) {
             liftFind(player, site, find, block);
