@@ -4,7 +4,6 @@ import com.nowko.archeology.config.ArtifactTemplate;
 import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.config.HintTemplate;
 import com.nowko.archeology.config.InterestSettings;
-import com.nowko.archeology.config.InterpretationTemplate;
 import com.nowko.archeology.item.RecoveredFindItem;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindInterpretation;
@@ -150,16 +149,11 @@ public final class FindReportBook {
             page.append("Not studied.\n");
         }
         if (find.getInterpretations().isEmpty()) {
-            if (find.isStudied()) {
-                page.append("No readings filed.");
-            }
+            page.append("No readings filed.");
         } else {
             for (FindInterpretation reading : find.getInterpretations()) {
-                InterpretationTemplate interpretation = catalogs.interpretation(reading.interpretationId());
-                String label = interpretation == null ? reading.interpretationId() : interpretation.displayName();
                 page.append("According to ").append(CampNames.of(director, reading.author()))
-                        .append(": ").append(label)
-                        .append(" (").append(reading.confidence().displayName()).append(")\n");
+                        .append(": ").append(RecoveredFindItem.readingPhrase(reading, catalogs)).append('\n');
             }
         }
         return page.toString().trim();

@@ -238,7 +238,7 @@ public class BuriedFind {
     }
 
     /**
-     * A find may carry at most two readings. A second click on the same catalog key removes it.
+     * A find may carry at most one reading per station question.
      *
      * @param reading new reading
      * @return {@code true} if the list changed
@@ -247,7 +247,10 @@ public class BuriedFind {
         if (reading == null || reading.interpretationId() == null || reading.interpretationId().isBlank()) {
             return false;
         }
-        if (interpretations.size() >= 2) {
+        if (reading.typeId() != null && !reading.typeId().isBlank() && hasType(reading.typeId())) {
+            return false;
+        }
+        if (interpretations.size() >= 3) {
             return false;
         }
         for (FindInterpretation existing : interpretations) {
@@ -257,6 +260,22 @@ public class BuriedFind {
         }
         interpretations.add(reading);
         return true;
+    }
+
+    /**
+     * @param typeId station question key
+     * @return whether that question already has a signed answer
+     */
+    public boolean hasType(String typeId) {
+        if (typeId == null || typeId.isBlank()) {
+            return false;
+        }
+        for (FindInterpretation reading : interpretations) {
+            if (typeId.equals(reading.typeId())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

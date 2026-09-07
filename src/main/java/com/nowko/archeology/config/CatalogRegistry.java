@@ -1,6 +1,7 @@
 package com.nowko.archeology.config;
 
 import com.nowko.archeology.item.ItemRef;
+import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.InterestLevel;
 import org.bukkit.configuration.Configuration;
 import org.bukkit.configuration.ConfigurationSection;
@@ -17,7 +18,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Loads catalog YAML from the plugin jar (first run) and then from the data folder.
@@ -29,6 +32,7 @@ public class CatalogRegistry {
     private final Map<String, ArtifactTemplate> artifacts = new LinkedHashMap<>();
     private final Map<String, HintTemplate> hints = new LinkedHashMap<>();
     private final Map<String, InterpretationTemplate> interpretations = new LinkedHashMap<>();
+    private final Map<String, InterpretationType> interpretationTypes = new LinkedHashMap<>();
     private final Map<String, FindMaterial> materials = new LinkedHashMap<>();
     private int maxShapeAttempts = 24;
     private boolean useWorldSeed = true;
@@ -186,23 +190,87 @@ public class CatalogRegistry {
     }
 
     /**
-     * Suggested readings first, then the rest, so the board reads as "look here" without hiding options.
-     *
-     * @param tags artifact tags revealed by study
-     * @return catalog in suggestion order
+     * @return interpretation types in file order (the station asks these one by one)
      */
-    public List<InterpretationTemplate> interpretationsFor(Set<String> tags) {
-        List<InterpretationTemplate> suggested = new ArrayList<>();
-        List<InterpretationTemplate> rest = new ArrayList<>();
-        for (InterpretationTemplate template : interpretations.values()) {
-            if (template.suggestedBy(tags)) {
-                suggested.add(template);
-            } else {
-                rest.add(template);
+    public List<InterpretationType> interpretationTypes() {
+        return List.copyOf(interpretationTypes.values());
+    }
+
+    /**
+     * @param id type key
+     * @return type, or {@code null}
+     */
+    public InterpretationType interpretationType(String id) {
+        if (id == null || id.isBlank()) {
+            return null;
+        }
+        return interpretationTypes.get(id);
+    }
+
+    /**
+     * First station question this find has not signed yet.
+     *
+     * @param find archive row
+     * @return type still open, or {@code null} when every type has an answer
+     */
+    public InterpretationType nextOpenType(BuriedFind find) {
+        if (find == null) {
+            return null;
+        }
+        for (InterpretationType type : interpretationTypes.values()) {
+            if (!find.hasType(type.id())) {
+                return type;
             }
         }
-        suggested.addAll(rest);
-        return suggested;
+        return null;
+    }
+
+    /**
+     * Three (or fewer) phrases for one station question. The draw is stable for this find and type;
+     * tags only change the weights, not which seed is used.
+     *
+     * @param typeId question key
+     * @param findId archive row id
+     * @param tags artifact and hint tags
+     * @return offers in draw order, never more than three
+     */
+    public List<InterpretationTemplate> stationOffers(String typeId, UUID findId, Set<String> tags) {
+        InterpretationType type = interpretationType(typeId);
+        if (type == null || type.options() == null || type.options().isEmpty()) {
+            return List.of();
+        }
+        List<InterpretationTemplate> pool = new ArrayList<>(type.options());
+        int want = Math.min(3, pool.size());
+        if (want == pool.size()) {
+            return List.copyOf(pool);
+        }
+        long seed = 0L;
+        if (findId != null) {
+            seed = findId.getMostSignificantBits() ^ findId.getLeastSignificantBits();
+        }
+        seed ^= (long) typeId.hashCode() * 0x9E3779B97F4A7C15L;
+        Random rng = new Random(seed);
+        List<InterpretationTemplate> offers = new ArrayList<>(want);
+        Set<String> weightTags = tags == null ? Set.of() : tags;
+        while (offers.size() < want && !pool.isEmpty()) {
+            int total = 0;
+            int[] weights = new int[pool.size()];
+            for (int i = 0; i < pool.size(); i++) {
+                weights[i] = pool.get(i).suggestedBy(weightTags) ? 3 : 1;
+                total += weights[i];
+            }
+            int roll = rng.nextInt(Math.max(1, total));
+            int index = 0;
+            for (int i = 0; i < pool.size(); i++) {
+                roll -= weights[i];
+                if (roll < 0) {
+                    index = i;
+                    break;
+                }
+            }
+            offers.add(pool.remove(index));
+        }
+        return List.copyOf(offers);
     }
 
     /**
@@ -1037,25 +1105,76 @@ public class CatalogRegistry {
     }
 
     /**
-     * Reads player readings from {@code interpretations.yml}.
+     * Reads station questions from {@code interpretations.yml}. A legacy flat {@code interpretations:}
+     * map is loaded as a single {@code function} type so old data folders still start.
      *
      * @param yaml parsed interpretations file
      */
     private void loadInterpretations(YamlConfiguration yaml) {
         interpretations.clear();
+        interpretationTypes.clear();
+        ConfigurationSection typesRoot = yaml.getConfigurationSection("types");
+        if (typesRoot != null) {
+            for (String typeId : typesRoot.getKeys(false)) {
+                ConfigurationSection typeSection = typesRoot.getConfigurationSection(typeId);
+                if (typeSection == null) {
+                    continue;
+                }
+                List<InterpretationTemplate> options = new ArrayList<>();
+                ConfigurationSection optionsRoot = typeSection.getConfigurationSection("options");
+                if (optionsRoot != null) {
+                    for (String optionId : optionsRoot.getKeys(false)) {
+                        ConfigurationSection optionSection = optionsRoot.getConfigurationSection(optionId);
+                        if (optionSection == null) {
+                            continue;
+                        }
+                        InterpretationTemplate option = new InterpretationTemplate(
+                                optionId,
+                                typeId,
+                                optionSection.getString("display-name", optionId),
+                                new LinkedHashSet<>(optionSection.getStringList("suggested-by"))
+                        );
+                        options.add(option);
+                        interpretations.put(optionId, option);
+                    }
+                }
+                if (options.isEmpty()) {
+                    continue;
+                }
+                interpretationTypes.put(typeId, new InterpretationType(
+                        typeId,
+                        typeSection.getString("display-name", typeId),
+                        typeSection.getString("question", typeId),
+                        List.copyOf(options)
+                ));
+            }
+            return;
+        }
         ConfigurationSection root = yaml.getConfigurationSection("interpretations");
         if (root == null) {
             return;
         }
+        List<InterpretationTemplate> options = new ArrayList<>();
         for (String id : root.getKeys(false)) {
             ConfigurationSection section = root.getConfigurationSection(id);
             if (section == null) {
                 continue;
             }
-            interpretations.put(id, new InterpretationTemplate(
+            InterpretationTemplate option = new InterpretationTemplate(
                     id,
+                    "function",
                     section.getString("display-name", id),
                     new LinkedHashSet<>(section.getStringList("suggested-by"))
+            );
+            options.add(option);
+            interpretations.put(id, option);
+        }
+        if (!options.isEmpty()) {
+            interpretationTypes.put("function", new InterpretationType(
+                    "function",
+                    "Function",
+                    "What was it for?",
+                    List.copyOf(options)
             ));
         }
     }

@@ -3,6 +3,7 @@ package com.nowko.archeology.item;
 import com.nowko.archeology.config.ArtifactTemplate;
 import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.config.InterpretationTemplate;
+import com.nowko.archeology.config.InterpretationType;
 import com.nowko.archeology.establish.CampNames;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindInterpretation;
@@ -299,14 +300,44 @@ public class RecoveredFindItem {
         }
         if (catalogs != null) {
             for (FindInterpretation reading : find.getInterpretations()) {
-                InterpretationTemplate interpretation = catalogs.interpretation(reading.interpretationId());
-                String label = interpretation == null ? reading.interpretationId() : interpretation.displayName();
                 String author = CampNames.of(null, reading.author());
-                lore.add(ChatColor.DARK_GRAY + "According to " + author + ": " + ChatColor.WHITE + label
-                        + ChatColor.DARK_GRAY + " (" + reading.confidence().displayName() + ")");
+                lore.add(ChatColor.DARK_GRAY + "According to " + author + ": "
+                        + ChatColor.WHITE + readingPhrase(reading, catalogs));
             }
         }
         return lore;
+    }
+
+    /**
+     * @param reading archive row
+     * @param catalogs type and phrase labels
+     * @return {@code Function: combat edge}, or the raw ids
+     */
+    public static String readingPhrase(FindInterpretation reading, CatalogRegistry catalogs) {
+        if (reading == null) {
+            return "";
+        }
+        String phrase = reading.interpretationId();
+        String typeLabel = reading.typeId();
+        if (catalogs != null) {
+            InterpretationTemplate option = catalogs.interpretation(reading.interpretationId());
+            if (option != null) {
+                phrase = option.displayName();
+                if (typeLabel == null || typeLabel.isBlank()) {
+                    typeLabel = option.typeId();
+                }
+            }
+            if (typeLabel != null) {
+                InterpretationType type = catalogs.interpretationType(typeLabel);
+                if (type != null) {
+                    typeLabel = type.displayName();
+                }
+            }
+        }
+        if (typeLabel == null || typeLabel.isBlank()) {
+            return phrase == null ? "" : phrase;
+        }
+        return typeLabel + ": " + phrase;
     }
 
     /**

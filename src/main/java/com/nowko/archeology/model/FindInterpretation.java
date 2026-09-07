@@ -4,41 +4,48 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * One reading a player attached to a find. It lives on the excavation archive, not on the object.
+ * One signed answer to a station question. It lives on the excavation archive, not on the object.
  */
 public final class FindInterpretation {
+    private final String typeId;
     private final String interpretationId;
     private final UUID author;
     private final Instant recordedAt;
-    private final InterpretationConfidence confidence;
 
     /**
-     * @param interpretationId key from {@code interpretations.yml}
-     * @param author who wrote the reading
+     * @param typeId question key from {@code interpretations.yml}
+     * @param interpretationId phrase key from that type's pool
+     * @param author who signed the reading
      * @param recordedAt when it was filed
-     * @param confidence how sure they said they were
      */
     public FindInterpretation(
+            String typeId,
             String interpretationId,
             UUID author,
-            Instant recordedAt,
-            InterpretationConfidence confidence
+            Instant recordedAt
     ) {
+        this.typeId = typeId;
         this.interpretationId = interpretationId;
         this.author = author;
         this.recordedAt = recordedAt;
-        this.confidence = confidence == null ? InterpretationConfidence.MEDIUM : confidence;
     }
 
     /**
-     * @return key from {@code interpretations.yml}
+     * @return question key, or {@code null} on a legacy row
+     */
+    public String typeId() {
+        return typeId;
+    }
+
+    /**
+     * @return phrase key from {@code interpretations.yml}
      */
     public String interpretationId() {
         return interpretationId;
     }
 
     /**
-     * @return who wrote the reading
+     * @return who signed the reading
      */
     public UUID author() {
         return author;
@@ -49,12 +56,5 @@ public final class FindInterpretation {
      */
     public Instant recordedAt() {
         return recordedAt;
-    }
-
-    /**
-     * @return how sure they said they were
-     */
-    public InterpretationConfidence confidence() {
-        return confidence;
     }
 }

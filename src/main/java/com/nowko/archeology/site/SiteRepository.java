@@ -5,7 +5,6 @@ import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindInterpretation;
 import com.nowko.archeology.model.FindState;
 import com.nowko.archeology.model.InterestLevel;
-import com.nowko.archeology.model.InterpretationConfidence;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.SiteRole;
 import com.nowko.archeology.model.SiteStatus;
@@ -374,6 +373,9 @@ public class SiteRepository {
                 List<Map<String, Object>> readings = new ArrayList<>();
                 for (FindInterpretation reading : find.getInterpretations()) {
                     Map<String, Object> row = new java.util.LinkedHashMap<>();
+                    if (reading.typeId() != null && !reading.typeId().isBlank()) {
+                        row.put("type", reading.typeId());
+                    }
                     row.put("id", reading.interpretationId());
                     if (reading.author() != null) {
                         row.put("author", reading.author().toString());
@@ -381,7 +383,6 @@ public class SiteRepository {
                     if (reading.recordedAt() != null) {
                         row.put("at", reading.recordedAt().toString());
                     }
-                    row.put("confidence", reading.confidence().yamlKey());
                     readings.add(row);
                 }
                 node.put("interpretations", readings);
@@ -743,11 +744,12 @@ public class SiteRepository {
                     // skip a corrupt timestamp
                 }
             }
+            Object type = map.get("type");
             find.getInterpretations().add(new FindInterpretation(
+                    type == null ? null : String.valueOf(type),
                     String.valueOf(id),
                     author,
-                    at,
-                    InterpretationConfidence.fromYaml(stringOr(map.get("confidence"), "medium"))));
+                    at));
         }
     }
 

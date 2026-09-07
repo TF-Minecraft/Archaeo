@@ -22,11 +22,11 @@ Arqueología vanilla vs Archaeo:
 
 Experiencia vanilla (expedición):
 
-> 📡 Rastreador → 🔎 cata (kit de prospección) → ⛺ kit de establecimiento (campamento) → 📖 panel → ⛏️ jornadas → 🏺 estudio / museo.
+> 📡 Rastreador → 🔎 cata (kit de prospección) → ⛺ kit de establecimiento (campamento) → 📖 panel → ⛏️ jornadas → 🏺 clasificación / museo.
 
 Experiencia Archaeo (campaña):
 
-> 📡 Rastreador → 🔎 cata → ⛺ kit de establecimiento (chunk + orientación) → 📖 panel y personal → ⛏️ excavación por golpes → registro preliminar → estudio de la pieza → documentación / interpretación → informe al cerrar. Conservación, más adelante.
+> 📡 Rastreador → 🔎 cata → ⛺ kit de establecimiento (chunk + orientación) → 📖 panel y personal → ⛏️ excavación por golpes → registro preliminar → clasificación en la mesa → informe al cerrar. Procesado por material y conservación, más adelante.
 
 ---
 
@@ -277,8 +277,15 @@ El hito en el mundo es el **campamento** que sale al confirmar el kit de
 establecimiento: mesa de arqueología, tablón, cajas, quizá una carpa (§1d). El
 jugador puede construir más alrededor. El plugin no exige un atril.
 
-Clic en la **mesa o el tablón** = panel de la excavación. Ese chunk es el área
-de establecimiento, **no** el solar excavable.
+El cartel y la mesa no hacen lo mismo:
+
+- **Tablón** — ficha del proyecto (panel): registro, personal, indicios, lista
+  de hallazgos. Se **consulta** el expediente. No se clasifica desde aquí.
+- **Mesa** — estación de clasificación. Se **escribe** poniendo la pieza
+  (§1c, §5). Clic en la mesa vacía puede seguir abriendo el panel, para no
+  dejar el cartel como único pomo.
+
+Ese chunk es el área de establecimiento, **no** el solar excavable.
 
 ### Cómo lo investiga el usuario
 
@@ -628,7 +635,10 @@ Reparto de textos en el tablón, para que ninguna casilla se vuelva un muro:
   **indicios** de `hints.yml`, que si no viven aquí solo se leen una vez, en el
   mensaje de la prospección.
 - **PERSONAL**: quién puede trabajar (§1d).
-- **HALLAZGOS**: el registro de la excavación. Cada pieza extraída o perdida en el corte tiene ficha; el estudio y la interpretación viven aquí. Al agotar el yacimiento, el director puede sacar copias firmadas del informe.
+- **HALLAZGOS**: el registro de la excavación. Cada pieza extraída o perdida
+  en el corte tiene ficha de **consulta** (número, procedencia, conservación,
+  lecturas ya firmadas). Clasificar es en la mesa, no en esta lista. Al agotar
+  el yacimiento, el director puede sacar copias firmadas del informe.
 - **Mostrar límites**: la vista temporal del prisma.
 
 ### Personal
@@ -737,12 +747,12 @@ No depende del último bloque ni de “modo estrato II”. Puedes abrir un pozo 
 
 ---
 
-### Cadena de un hallazgo (documentar antes de conservar)
+### Cadena de un hallazgo — propuesta
 
 En laboratorio real, por cada día de campo suele haber **varios** de mesa. El
 producto científico no es el objeto: es el **registro**. La conservación
 (estabilizar hierro, consolidar, reconstruir) es otra vía, y llega **después**
-de documentar el estado actual. Archaeo todavía no juega esa vía.
+de documentar el estado actual.
 
 Qué hacen de verdad (resumido):
 
@@ -750,34 +760,44 @@ Qué hacen de verdad (resumido):
 | --- | --- |
 | Registrar en el corte | Foto, bolsa etiquetada, mismo lote = mismo sitio/capa. *Whatever you do, don’t lose provenience.* |
 | Catálogo de campo | Número de inventario, clase de material, quién lo levantó, fecha, estado al salir. Pertenece al **archivo del yacimiento**, no al fragmento. |
-| Estudiar para ver más | Limpiar, clasificar, fotografiar, dibujar: sirven para **aprender** (fábrica, decoración, identificación). Lavar cerámica es estudio. Estabilizar hierro es conservación. |
-| Ficha completa | Descripción de catálogo e hipótesis. Se escribe en el registro. El objeto puede ir a un cajón, a una vitrina o perderse. |
+| Ver más (laboratorio) | Limpiar, lavar, estabilizar, fotografiar: hechos de fábrica, no hipótesis. Lavar cerámica es ver. Estabilizar hierro es conservación. |
+| Clasificar | Hipótesis sobre **esta** pieza (para qué, quién, cómo llega). Se escribe en el registro. El objeto puede ir a un cajón, a una vitrina o perderse. |
 | Conservar | Más adelante. No reescribe el archivo. |
 | Exponer | Museo / marco; necesita la ficha, no al revés. |
 
-Traducción a Minecraft: **pieza** y **documento** son dos cosas. Tres etapas,
-un informe al cerrar.
+Traducción a Minecraft: **pieza** y **documento** son dos cosas. El tablón
+consulta; la mesa escribe. En **esta versión** no hay un paso de “estudio”
+que revele rareza o notas del YAML: del corte se pasa a **clasificar**. El
+procesado por material y la conservación quedan planteados, no jugados.
 
-| Etapa | Qué ve el jugador | Dónde vive |
-| --- | --- | --- |
-| **Registro preliminar** | Al levantar (o al perderse en el corte): número `#027-14`, procedencia, conservación al salir, nombre de catálogo. Estado *Field catalog*. | Fila en `sites/<id>.yml`. El ítem solo lleva la etiqueta (`site_id`, `find_id`, número). |
-| **Estudio** | Con la pieza en el inventario y el pincel en mano, en la ficha del campamento. Revela rareza, etiquetas y `study-notes` de `artifacts.yml`. Sin eso no se interpreta. | La fila y el lore de la pieza, si sigue existiendo. |
-| **Documentación** | 1–2 lecturas de `interpretations.yml` + confianza. Las sugeridas por tags salen primero; no se bloquea el resto. Estado *Catalogued*. | La fila. Si la pieza está a mano, se copia al lore. |
-| **Informe** | Al agotar el yacimiento, el director saca un libro firmado (tantas copias como quiera). Las reimpresiones leen el registro **vivo**. | `WRITTEN_BOOK` de viaje. El canónico sigue siendo el YAML. |
+| Etapa | Esta versión | Qué ve el jugador | Dónde vive |
+| --- | --- | --- | --- |
+| **Registro preliminar** | sí | Al levantar (o al perderse en el corte): número `#027-14`, procedencia, material, conservación al salir, nombre de catálogo. Estado *Field catalog*. | Fila en `sites/<id>.yml`. El ítem solo lleva la etiqueta (`site_id`, `find_id`, número). |
+| **Procesado** | más adelante | Un gesto ligado al material (`materials.yml`): lavar cerámica, no mojar hierro. Desbloquea **hechos** que sesgan la mesa. No es rareza-premio ni la respuesta correcta. | La fila (`observables`). El lore, si la pieza sigue. |
+| **Clasificación** | sí | En la **mesa** del campamento: se pone la pieza; por cada pregunta, tres ofertas; se firma como máximo una. Estado *Catalogued* al firmar al menos un tipo. Detalle **§5**. | La fila (una lectura por tipo, autor, fecha). Si la pieza está a mano, se copia al lore. |
+| **Informe** | sí | Al agotar el yacimiento, el director saca un libro firmado (tantas copias como quiera). Las reimpresiones leen el registro **vivo**. | `WRITTEN_BOOK` de viaje. El canónico sigue siendo el YAML. |
+| **Conservar / exponer** | más adelante | Estabilizar, museo. No reescriben el archivo. | — |
 
-Si la pieza se pierde **antes** de estudiarla, la fila se queda en catálogo de
-campo para siempre: el número y la procedencia sobreviven, la decoración no.
-Si se pierde después, el campamento (y el informe) siguen teniendo la ficha.
-Un hallazgo destruido en el corte también entra en el registro: el archivo es
-honesto.
+Tres clases de información, para no mezclarlas:
 
-El estudio **no** es conservación. Lavar, secar, estabilizar, fotografiar y
-dibujar como estaciones del mundo quedan para más adelante. `materials.yml`
-sigue guardando `survival` (y las secuencias, ignoradas hasta que exista el
-laboratorio).
+| Clase | Pregunta | Quién la dice | Cuándo |
+| --- | --- | --- | --- |
+| **Identidad** | ¿Qué es? | El catálogo (`artifacts.yml`): nombre, material. La rareza es peso de generación, no un desbloqueo. | Al levantar. El procesado, más adelante, podrá **afinar** identidad si el corte entrega algo grosero (“metal” → “espada”). |
+| **Estado** | ¿Cómo está? | Conservación %, heridas de campo, disturbado antes del dig. | Al levantar. |
+| **Significado** | ¿Qué significa? | El jugador, en la mesa. Opinión. El plugin no dice cuál es correcta. | Clasificación. El procesado no firma esto; solo cambia las ofertas de los tipos **aún vacíos**. |
 
-Cualquiera lee el registro en el tablón. Estudiar e interpretar usan la misma
-mano que el cepillo: director y arqueólogo sí, excavador no.
+Si la pieza se pierde **antes** de clasificarla, la fila se queda en catálogo de
+campo: número y procedencia sobreviven; la mesa exige el objeto, así que un
+hallazgo destruido en el corte no se clasifica. Si se pierde **después**, el
+campamento (y el informe) siguen teniendo las lecturas firmadas. Un hallazgo
+destruido también entra en el registro: el archivo es honesto.
+
+Cualquiera lee el registro en el tablón. Clasificar usa la misma mano que el
+cepillo: director y arqueólogo sí, excavador no.
+
+El “estudio” de una versión anterior (clic en la ficha, pincel, revelar
+`study-notes` y rareza) **no** forma parte de esta cadena. Era un grifo de
+datos del YAML, no un gesto de campo.
 
 ---
 
@@ -786,7 +806,7 @@ mano que el cepillo: director y arqueólogo sí, excavador no.
 Acuerdo de persistencia:
 
 - **`sites/`** — sí. Solar, campamento, dossier, **registro de hallazgos**
-  (las filas siguen tras levantar: número, estado, estudio, interpretaciones),
+  (las filas siguen tras levantar: número, estado, lecturas por tipo),
   jornada, personal, visibilidad, contadores del panel.
 - **Ítem (PDC)** — sí. Etiqueta (`site_id`, `find_id`, número) más una copia de
   lo ya revelado, para que el lore funcione lejos del campamento. Perder el
@@ -808,9 +828,9 @@ con la etiqueta. Eso no es un archivo `finds/` global.
 | capa / antigüedad |
 | quien lo levantó, fecha |
 | conservación al recuperar (calidad %; visible en la pieza) |
-| estado del registro: *Field catalog* / *Studied* / *Catalogued* |
-| rareza y notas de estudio, cuando ya se estudió |
-| interpretación(es), cuando ya se documentó |
+| estado del registro: *Field catalog* / *Catalogued* |
+| lecturas firmadas (como máximo una por tipo), cuando ya se clasificó |
+| hechos de procesado, cuando exista esa estación |
 
 #### Qué va en `sites/<id>.yml` o `.json`
 
@@ -821,7 +841,7 @@ con la etiqueta. Eso no es un archivo `finds/` global.
 | visibilidad, jugadores y facciones con permiso de excavar |
 | por trabajador: rol, alta, última actividad y recuento (relleno retirado, cubos cepillados, piezas recuperadas / dañadas / destruidas) |
 | riqueza, indicios, radio de detección |
-| hallazgos (formas, exposición, conservación, heridas por celda) **y** su ficha de archivo: número, recuperador, estudio, interpretaciones |
+| hallazgos (formas, exposición, conservación, heridas por celda) **y** su ficha de archivo: número, recuperador, lecturas por tipo, observables de procesado cuando existan |
 | daño de relleno solo donde hace falta varios pases (sobre todo celdas de hallazgo); la tierra vacía de un ciclo no se persiste |
 | por capa: ¿existe?, banda de Y, revuelto/ausente |
 | jornada actual: Hand Pick restantes, id de día de mundo |
@@ -847,19 +867,29 @@ para más sesiones o se queda corto.
 
 Expedición vanilla: no se garantiza reliquia de plugin; el botín es el de Mojang. Catalogar un fragmento vanilla **puede** convertirlo en reliquia si el jugador lo restaura y nombra (acto deliberado), con límites para no relicar cada palo.
 
-### Indicios → interpretación (config YAML)
+### Indicios → clasificación (config YAML)
 
 Sí: **todo el catálogo sale de YAML** (`hints.yml` + `interpretations.yml`, o secciones en `config.yml`). El plugin no lleva textos de historia hardcodeados. El staff puede añadir, quitar, traducir, o ligarlos a lore del servidor.
 
-Hay dos listas distintas:
+Hay dos listas que no se mezclan:
 
-1. **Indicios del yacimiento** — al establecer (2–4). Van al panel. El estudio de una pieza no los copia: viven en el dossier.
-2. **Interpretaciones** — las elige el jugador sobre esa pieza **después de estudiarla**. También al archivo (y al lore si la pieza sigue). El plugin no dice cuál es correcta.
-3. **Artefactos o reliquias** - artefactos.yml para configurar objetos predefinidos? podrían venir con interpretaciones prestablecidas o dejarse en blanco y que las seleccione el jugador de forma estándar a partir de la config de interpretaciones. En la config de interpretaciones también se podría vincular la interpretación a objectos de artifacts, así al descubrir ese objeto solo se sugerirían esas interpretaciones. Al artefacto también se le podría configurar ya el sustrato al que pertenece, podría ser uno o varios.
-4. **Sustratos o capas** - se podrían configurar también, con su nombre, su época, y orden de profundidad para saber cuáles van por encima de cuáles. A un sustrato se podrían asignar los artefacts que es posible encontrar en ese sustrato. Faltaría definir qué hacer con las reliquias de minecraft vanilla, tendría sentido que sigan apareciendo y que si se quiere personalizar su información que se incluyan los id de los objetos que pueden encontrarse como reliquia en la config. Hay evento para saber cuándo un jugador descubre reliquia en minecraft vanilla? No parece, habría que ver cómo podemos saber cuándo el usuario obtiene un artefacto de forma vanilla.
-5. **Datos ocultos**: El jugador que identifique el artefacto podría escoger si quiere que el descubridor del artefacto sea o no anónimo, o si quiere que se revele o no el yacimiento donde se obtuvo.
+1. **Indicios del yacimiento** — al establecer (2–4). Van al panel INFORMACIÓN.
+   Hablan del **sitio** (“los restos están agrupados”, “hay más hueso que
+   utensilio”). Una pieza no copia estos textos a su ficha.
+2. **Lecturas de la pieza** — las elige el jugador en la **mesa**, por tipos
+   (§5). Hablan de **este objeto** (para qué, quién, cómo llega a la capa).
+   Van al archivo y al lore si la pieza sigue. El plugin no dice cuál es
+   correcta.
 
-Los artefactos también podrían tener rareza. Se podría configurar desde la config de artefactos. Según la rareza es más o menos difícil que aparezcan y además sería parte de la información a displayear del objeto.
+Los tags internos de artefactos e indicios **sesgan** qué tres ofertas salen
+en cada tipo. No ordenan un menú, no brillan, no bloquean el resto del pozo.
+`suggested-by` es peso de sorteo, no una clave.
+
+Otras ideas (borrador, no esta versión): artefactos con lecturas prestablecidas;
+vincular interpretaciones a ids de `artifacts.yml`; rareza como dato de
+catálogo al afinar identidad; anonimato del descubridor; reliquias vanilla
+como entradas de config. El sustrato de cada plantilla **ya** se configura
+(`artifacts.yml` → `strata`).
 
 #### De qué dependen los indicios al generar el sitio
 
@@ -874,7 +904,7 @@ Se filtra el pool del YAML con etiquetas del dossier:
 | Riqueza | pobre = menos indicios o más “función desconocida” |
 | Azar + peso | para que dos valles no sean clones |
 
-Un indicio es una frase **genérica** + tags internos (el jugador no ve los tags). Esos tags **sugieren** interpretaciones en la mesa (aparecen primero o marcadas), pero **no bloquean** el resto.
+Un indicio es una frase **genérica** + tags internos (el jugador no ve los tags).
 
 #### Catálogo por defecto (indicios)
 
@@ -896,17 +926,8 @@ Textos de ejemplo (editables):
 | `recent_interrupt` | La capa de arriba corta a las de abajo. | abandono, disturbado | I presente y III+ también |
 | `unknown` | El conjunto no sugiere un uso claro. | desconocido | relleno / sitios pobres |
 
-#### Catálogo por defecto (interpretaciones del jugador)
-
-Las mismas de siempre, también YAML: conflicto armado, actividad comercial, uso ceremonial, asentamiento, abandono, enterramiento, depósito deliberado, función desconocida. Cada una puede listar `suggested_by: [blade, trade, …]`.
-
-En la ficha del campamento, tras estudiar la pieza:
-
-1. Se muestran los **indicios del site** (solo lectura, en INFORMACIÓN).
-2. El jugador marca 1–2 interpretaciones + confianza sobre **esa** pieza.
-3. Eso se escribe en el archivo del yacimiento. Si la pieza sigue en el
-   inventario, el lore se actualiza. El museo (más adelante) podrá leer la
-   misma ficha.
+El catálogo de lecturas de pieza (por tipo) está en **§5**. “Asentamiento” y
+“abandono” son lecturas de **sitio**; no salen como oferta sobre un fragmento.
 
 ---
 
@@ -1362,31 +1383,123 @@ La reliquia:
 
 ---
 
-## 5. Interpretación — propuesta
+## 5. Clasificación — propuesta
 
-Flujo concreto (estudio de la pieza → lecturas en la ficha del campamento): **§1c**.
+Flujo concreto (registro preliminar → mesa del campamento): **§1c**.
 
-Catálogo inicial (configurable, `interpretations.yml`):
+No es un menú de 27 casillas en HALLAZGOS ni la GUI vanilla de encantar
+(esas tres ofertas solo enseñan encantamientos de verdad). Es el **gesto** de
+esa mesa: pones **un** objeto, ves **tres** hipótesis de **un** tipo, firmar
+cuesta el clic. Cerrar sin clic no escribe nada.
 
-- posible conflicto armado
-- posible actividad comercial
-- posible uso ceremonial
-- posible asentamiento
-- posible abandono
-- posible enterramiento
-- posible depósito deliberado
-- función desconocida
+### Qué pregunta la mesa
 
-Cada lectura sobre un hallazgo tiene:
+Tres tipos. Más es un formulario. Cada uno es una pregunta distinta; no son
+sinónimos ni se eligen dos del mismo pozo.
 
-- autor
-- confianza (baja / media / alta) — subjetiva del jugador, no un “score de verdad”
-- fecha
+| Tipo | Pregunta | Habla de | No habla de |
+| --- | --- | --- | --- |
+| **Función** | ¿Para qué se hizo o se usó? | El objeto: filo, recipiente, adorno, ajuar, desconocido. | Si el valle era un poblado. |
+| **Agencia** | ¿Quién lo usó o lo dejó? | Gente (o nadie): doméstico, oficiante, combate, perdido. | La facción que excava hoy. |
+| **Formación** | ¿Cómo llega a esta capa? | El depósito: tirado, escondido, tumba, arrastre, desconocido. | El uso original, si ya se firmó en Función. |
 
-Hasta dos lecturas por pieza. Las sugeridas por los tags del artefacto salen
-primero; el resto sigue disponible. Varios jugadores pueden leer el mismo
-objeto de formas distintas. Las hipótesis conviven. Ninguna pisa a las demás
-ni al lore admin.
+“Asentamiento”, “abandono” y “comercio a escala de valle” son indicios de
+**sitio** (INFORMACIÓN). No salen como oferta sobre un fragmento.
+
+Cada tipo tiene un pozo YAML de **5–8** frases. Si el pozo tiene tres, las
+tres ofertas son el catálogo entero y no hay elección. “No se sabe” es una
+frase del pozo, no un botón aparte.
+
+Ejemplo de paleta (editable, `interpretations.yml` agrupado por tipo):
+
+| Tipo | Frases de ejemplo |
+| --- | --- |
+| Función | filo de combate; herramienta de trabajo; recipiente; adorno; ajuar; función desconocida |
+| Agencia | uso doméstico; oficiante o rito; gente de armas; nadie / objeto perdido; procedencia lejana |
+| Formación | desechado; escondido / depósito; acompañando un cuerpo; arrastrado por agua o ladera; origen desconocido |
+
+Cada frase puede listar tags (`suggested-by`) que **pesan** el sorteo. No se
+muestran al jugador.
+
+### Cómo se juega
+
+1. Quien puede catalogar lleva la pieza **recuperada** a la mesa del
+   campamento y la coloca (el objeto entra en la estación, como en encantar).
+2. La mesa toma el primer tipo **aún vacío**, en orden Función → Agencia →
+   Formación, y enseña **tres** ofertas de ese pozo.
+3. Clic en una = se firma (autor, fecha, tipo, frase). La pieza vuelve a la
+   mano. Si quedan tipos vacíos, al volver a colocarla pregunta el siguiente.
+   Se puede dejar tipos sin firmar para siempre.
+4. Cerrar la estación o sacar la pieza sin clic = no hay lectura nueva.
+5. Un tipo ya firmado no se vuelve a ofrecer. Esta versión **no** tiene
+   reescribir ni segunda opinión sobre la misma pregunta. Otro catalogador
+   puede rellenar tipos vacíos; no pisa los llenos.
+
+Hasta **una lectura por tipo** (cero a tres líneas en la ficha). No hay
+confianza baja/media/alta: elegir una de tres **es** el compromiso. No hay
+texto libre en esta versión (un libro y pluma en el hueco del lapislázuli
+puede llegar después, por tipo, sin reabrir el pozo).
+
+Las tres ofertas de un tipo son **estables para ese hallazgo**: semilla =
+`find_id` + tipo (+ hechos de procesado cuando existan). Sacar y meter la
+pieza no rerolea. Si reroleara, se sentiría a mesa de encantar y no a
+evidencia.
+
+El sorteo sesga, no dicta:
+
+- tags del artefacto
+- tags de los indicios del yacimiento
+- estrato de la pieza
+- más adelante, hechos del procesado
+
+Una espada puede ofrecer “filo de combate” con más peso y aun así sacar
+“adorno” o “función desconocida” entre las tres. El jugador firma; el plugin
+no puntúa.
+
+### Qué no es esta GUI
+
+- No es el tablón. HALLAZGOS enseña número, procedencia, estado y las líneas
+  ya firmadas. Sin botones Study / Interpret.
+- No se hijackea `InventoryType.ENCHANTING`: el cliente solo pinta nombres de
+  encantamiento. Inventario nuestro con la misma silueta:
+
+  ```
+          [ pieza ]
+     [ A ]   [ B ]   [ C ]
+  ```
+
+- Estantes alrededor de la mesa (potencia, frases menos oscuras) son sabor
+  para más adelante, no un requisito.
+
+### Procesado por material — más adelante
+
+No es el estudio-grifo (clic → rareza + notas). Es un **gesto de laboratorio
+corto**, distinto según `materials.yml` (la cerámica se lava, el metal se
+estabiliza y no se empapa, el orgánico se seca). Un paso, no la cadena
+entera `clean → wash → dry → photograph`.
+
+Desbloquea **hechos de fábrica** (observables): desgaste de un filo, residuo
+en un borde, reparación, hueso articulado frente a cocina. Eso no es una
+hipótesis y no es rareza.
+
+Esos hechos **rehacen las tres ofertas de los tipos aún vacíos**. Una
+cerámica lavada con resto de comida ya no ofrece “ofrenda intacta” con la
+misma facilidad; un filo con golpe de uso sí ofrece combate. No pisan las
+lecturas ya firmadas.
+
+La **rareza** no es la recompensa de este paso. Ya es peso de spawn. Si el
+procesado afina identidad (el corte dio “metal” y el lavado permite decir
+“espada”), esa identidad es catálogo, no premio ni significado.
+
+Hasta que exista esta estación, la mesa clasifica con lo que hay al levantar:
+nombre de plantilla, material, estrato, tags, indicios del sitio.
+
+### Relación con el lore
+
+Las lecturas son capa **interpretada** (§8): opinión con autor. No se
+promocionan solas a canon. Varios tipos en la misma pieza conviven (función
+*y* formación). Dos funciones no. El informe del director copia lo firmado;
+no inventa el tipo vacío.
 
 ---
 
@@ -1394,17 +1507,17 @@ ni al lore admin.
 
 No hay diario de jugador en disco. El archivo es el **registro de la
 excavación** (`sites/<id>.yml`): cada hallazgo levantado o perdido tiene ficha,
-aunque el objeto ya no exista. El tablón enseña esas fichas. El ítem solo
-lleva la etiqueta. Al cerrar el corte, el director puede imprimir un informe
-firmado (libro escrito) tantas veces como quiera.
+aunque el objeto ya no exista. El tablón enseña esas fichas. La mesa escribe
+las lecturas. El ítem solo lleva la etiqueta. Al cerrar el corte, el director
+puede imprimir un informe firmado (libro escrito) tantas veces como quiera.
 
 ---
 
 ## 7. Museos — propuesta
 
 Un museo es roleplay: un edificio y marcos. Clic en una pieza **catalogada**
-podrá leer la ficha (más adelante). El archivo del yacimiento es lo que lo
-hace barato; esta versión no abre GUI en el marco.
+(al menos un tipo firmado) podrá leer la ficha (más adelante). El archivo del
+yacimiento es lo que lo hace barato; esta versión no abre GUI en el marco.
 
 ---
 
@@ -1441,4 +1554,5 @@ Inventario completo de campos y sitio de guardado: **§1c Metadatos**.
 Resumen: disco = **excavaciones** (`sites/`). PDC = pieza. Campamento (mesa) =
 `siteId`. Sin cuaderno global.
 
-Flujo jugador: rastreador → cata → kit de establecimiento → panel / jornadas (§2).
+Flujo jugador: rastreador → cata → kit de establecimiento → panel / jornadas
+(§2) → mesa de clasificación (§5).

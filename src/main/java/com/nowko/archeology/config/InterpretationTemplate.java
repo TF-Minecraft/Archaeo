@@ -3,16 +3,19 @@ package com.nowko.archeology.config;
 import java.util.Set;
 
 /**
- * One entry from {@code interpretations.yml}: a reading a player may attach after studying a find.
+ * One phrase from {@code interpretations.yml}: a possible answer to one station question.
  *
- * @param id catalog key such as {@code conflict}
- * @param displayName English phrase shown on boards and books
- * @param suggestedBy artifact tags that should list this reading first; they never hide the rest
+ * @param id catalog key such as {@code combat_edge}
+ * @param typeId question this phrase answers ({@code function}, {@code agency}, {@code formation})
+ * @param displayName English phrase shown on the station and archive
+ * @param suggestedBy tags that raise this phrase's chance of appearing among the three offers
  */
-public record InterpretationTemplate(String id, String displayName, Set<String> suggestedBy) {
+public record InterpretationTemplate(String id, String typeId, String displayName, Set<String> suggestedBy) {
     /**
-     * @param tags artifact tags revealed by study
-     * @return whether this reading should be offered before the unsorted remainder
+     * Weighting only: never hides the phrase and never paints it as correct.
+     *
+     * @param tags artifact and site-hint tags
+     * @return whether this reading should be more likely in the station draw
      */
     public boolean suggestedBy(Set<String> tags) {
         if (tags == null || tags.isEmpty() || suggestedBy == null || suggestedBy.isEmpty()) {

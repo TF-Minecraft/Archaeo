@@ -10,7 +10,6 @@ import com.nowko.archeology.excavation.PrismOutlineService;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindInterpretation;
 import com.nowko.archeology.model.FindState;
-import com.nowko.archeology.model.InterpretationConfidence;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.SiteRole;
 import com.nowko.archeology.model.SiteStatus;
@@ -476,7 +475,7 @@ public class CampListener implements Listener {
     }
 
     /**
-     * Study and interpret actions on one find's fiche.
+     * Identify action on one find's fiche: opens the classification station.
      *
      * @param event inventory click
      */
@@ -502,27 +501,19 @@ public class CampListener implements Listener {
             openFinds(player, site);
             return;
         }
-        if (slot == CampFindBoard.SLOT_STUDY_ACTION) {
-            studyFind(player, site, file.findId());
-            return;
-        }
-        if (slot == CampFindBoard.SLOT_INTERPRET_ACTION) {
-            if (!site.mayCatalog(player.getUniqueId())) {
-                player.sendMessage("You are not authorised to write this record.");
-                return;
-            }
-            new CampInterpretBoard(site.getId(), file.findId(), catalogs).open(player, site);
+        if (slot == CampFindBoard.SLOT_IDENTIFY_ACTION) {
+            openIdentify(player, site, file.findId());
         }
     }
 
     /**
-     * Files or removes a reading, or changes the confidence used for the next add.
+     * Signs one of the three station offers, then asks the next empty question.
      *
      * @param event inventory click
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onInterpretClick(InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder() instanceof CampInterpretBoard board)) {
+    public void onIdentifyClick(InventoryClickEvent event) {
+        if (!(event.getInventory().getHolder() instanceof CampIdentifyBoard board)) {
             return;
         }
         event.setCancelled(true);
@@ -538,19 +529,13 @@ public class CampListener implements Listener {
             return;
         }
         int slot = event.getRawSlot();
-        if (slot == CampInterpretBoard.SLOT_BACK) {
+        if (slot == CampIdentifyBoard.SLOT_BACK) {
             new CampFindBoard(site.getId(), board.findId(), catalogs).open(player, site);
             return;
         }
-        InterpretationConfidence band = CampInterpretBoard.confidenceAt(slot);
-        if (band != null) {
-            board.setConfidence(band);
-            board.open(player, site);
-            return;
-        }
-        String optionId = board.optionAt(slot);
+        String optionId = board.offerAt(slot);
         if (optionId != null) {
-            fileReading(player, site, board, optionId);
+            fileStationReading(player, site, board, optionId);
         }
     }
 
@@ -566,75 +551,59 @@ public class CampListener implements Listener {
     }
 
     /**
-     * Copies catalog notes onto the archive row. The piece must be in inventory and a field brush in hand.
+     * Opens the classification station. The piece must be in inventory.
      *
      * @param player cataloguer
      * @param site excavation
      * @param findId archive row
      */
-    private void studyFind(Player player, Site site, UUID findId) {
+    private void openIdentify(Player player, Site site, UUID findId) {
         if (!site.mayCatalog(player.getUniqueId())) {
             player.sendMessage("You are not authorised to write this record.");
             return;
         }
         BuriedFind find = site.findById(findId).orElse(null);
         if (find == null || find.getState() != FindState.RECOVERED) {
-            player.sendMessage("That find cannot be studied.");
-            return;
-        }
-        if (find.isStudied()) {
-            new CampFindBoard(site.getId(), findId, catalogs).open(player, site);
-            return;
-        }
-        if (!brush.isBrush(player.getInventory().getItemInMainHand())) {
-            player.sendMessage("Study the piece with a field brush in hand.");
+            player.sendMessage("That find cannot be identified.");
             return;
         }
         if (!recoveredItem.isCarrying(player, findId)) {
-            player.sendMessage("Bring the piece to camp. The record cannot be studied from memory.");
+            player.sendMessage("Bring the piece to the station.");
             return;
         }
-        ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
-        find.setStudied(true);
-        if (template != null && template.studyNotes() != null && !template.studyNotes().isBlank()) {
-            find.setStudyNotes(template.studyNotes());
-        }
-        String grade = catalogs.pick().conservation().gradeLabel(find.getConservation());
-        if (template != null) {
-            recoveredItem.refreshCarried(player, site, find, template, grade, catalogs);
-        }
-        sites.save(site);
-        player.sendMessage("Studied " + (find.publicNumber(site.getSerial()) == null
-                ? "the find"
-                : find.publicNumber(site.getSerial())) + ".");
-        new CampFindBoard(site.getId(), findId, catalogs).open(player, site);
+        new CampIdentifyBoard(site.getId(), findId, catalogs).open(player, site);
     }
 
     /**
      * @param player cataloguer
      * @param site excavation
-     * @param board interpret board (keeps the chosen confidence)
-     * @param optionId interpretation catalog key
+     * @param board station showing one question
+     * @param optionId phrase chosen among the three
      */
-    private void fileReading(Player player, Site site, CampInterpretBoard board, String optionId) {
+    private void fileStationReading(Player player, Site site, CampIdentifyBoard board, String optionId) {
         if (!site.mayCatalog(player.getUniqueId())) {
             player.sendMessage("You are not authorised to write this record.");
             return;
         }
-        BuriedFind find = site.findById(board.findId()).orElse(null);
-        if (find == null || !find.isStudied() || find.getState() != FindState.RECOVERED) {
-            player.sendMessage("Study the piece before filing a reading.");
+        if (board.type() == null) {
             return;
         }
-        if (find.hasInterpretation(optionId)) {
-            find.removeInterpretation(optionId);
-        } else if (!find.addInterpretation(new FindInterpretation(
+        BuriedFind find = site.findById(board.findId()).orElse(null);
+        if (find == null || find.getState() != FindState.RECOVERED) {
+            player.sendMessage("That find cannot be identified.");
+            return;
+        }
+        if (!recoveredItem.isCarrying(player, find.getId())) {
+            player.sendMessage("Bring the piece to the station.");
+            return;
+        }
+        if (!find.addInterpretation(new FindInterpretation(
+                board.type().id(),
                 optionId,
                 player.getUniqueId(),
-                Instant.now(),
-                board.confidence()))) {
-            player.sendMessage("A find may carry two readings. Remove one first.");
-            board.open(player, site);
+                Instant.now()))) {
+            player.sendMessage("That question already has an answer.");
+            new CampFindBoard(site.getId(), find.getId(), catalogs).open(player, site);
             return;
         }
         ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
@@ -643,7 +612,14 @@ public class CampListener implements Listener {
             recoveredItem.refreshCarried(player, site, find, template, grade, catalogs);
         }
         sites.save(site);
-        board.open(player, site);
+        if (catalogs.nextOpenType(find) == null) {
+            player.sendMessage("Filed the last reading on "
+                    + (find.publicNumber(site.getSerial()) == null ? "the find" : find.publicNumber(site.getSerial()))
+                    + ".");
+            new CampFindBoard(site.getId(), find.getId(), catalogs).open(player, site);
+            return;
+        }
+        new CampIdentifyBoard(site.getId(), find.getId(), catalogs).open(player, site);
     }
 
     /**
@@ -762,7 +738,7 @@ public class CampListener implements Listener {
                 || event.getInventory().getHolder() instanceof CampWorkerBoard
                 || event.getInventory().getHolder() instanceof CampFindsBoard
                 || event.getInventory().getHolder() instanceof CampFindBoard
-                || event.getInventory().getHolder() instanceof CampInterpretBoard) {
+                || event.getInventory().getHolder() instanceof CampIdentifyBoard) {
             event.setCancelled(true);
         }
     }

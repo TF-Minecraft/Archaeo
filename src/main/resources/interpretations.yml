@@ -1,26 +1,63 @@
-# Readings a player may attach after studying a find. suggested-by tags are listed first; nothing is hidden.
-interpretations:
-  conflict:
-    display-name: "possible armed conflict"
-    suggested-by: [blade, conflict]
-  trade:
-    display-name: "possible commercial activity"
-    suggested-by: [trade]
-  ceremonial:
-    display-name: "possible ceremonial use"
-    suggested-by: [ceremonial, ornament, deposit]
-  settlement:
-    display-name: "possible settlement"
-    suggested-by: [settlement, domestic]
-  abandonment:
-    display-name: "possible abandonment"
-    suggested-by: [abandonment, scattered]
-  burial:
-    display-name: "possible burial"
-    suggested-by: [burial, bone]
-  deposit:
-    display-name: "possible deliberate deposit"
-    suggested-by: [deposit, clustered]
-  unknown:
-    display-name: "unknown function"
-    suggested-by: [unknown]
+# Classification station. Each type is one question about this find, not about the site.
+# The station shows three stable offers per type; the player files at most one.
+types:
+  function:
+    display-name: Function
+    question: "What was it for?"
+    options:
+      combat_edge:
+        display-name: "combat edge"
+        suggested-by: [blade, conflict]
+      working_tool:
+        display-name: "working tool"
+        suggested-by: [settlement, domestic]
+      vessel:
+        display-name: "vessel or container"
+        suggested-by: [ceramic, deposit]
+      ornament:
+        display-name: "ornament"
+        suggested-by: [ceremonial, ornament, trade]
+      grave_good:
+        display-name: "object made to accompany a body"
+        suggested-by: [burial, bone]
+      unknown_function:
+        display-name: "function unknown"
+        suggested-by: [unknown]
+  agency:
+    display-name: Agency
+    question: "Who used or left it?"
+    options:
+      household:
+        display-name: "household use"
+        suggested-by: [settlement, domestic]
+      ritual:
+        display-name: "ritual or officiant"
+        suggested-by: [ceremonial, ornament, deposit]
+      armed_people:
+        display-name: "people of arms"
+        suggested-by: [blade, conflict]
+      nobody_lost:
+        display-name: "nobody; it was lost"
+        suggested-by: [abandonment, scattered]
+      distant_origin:
+        display-name: "brought from elsewhere"
+        suggested-by: [trade]
+  formation:
+    display-name: Formation
+    question: "How did it reach this layer?"
+    options:
+      discarded:
+        display-name: "thrown away"
+        suggested-by: [abandonment, scattered, domestic]
+      cached:
+        display-name: "hidden or cached"
+        suggested-by: [deposit, clustered]
+      with_a_body:
+        display-name: "laid with a body"
+        suggested-by: [burial, bone]
+      washed_in:
+        display-name: "washed or slumped in"
+        suggested-by: [unknown]
+      unknown_path:
+        display-name: "how it arrived is unknown"
+        suggested-by: [unknown]

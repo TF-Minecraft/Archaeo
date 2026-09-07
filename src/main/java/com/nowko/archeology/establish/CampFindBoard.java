@@ -2,7 +2,6 @@ package com.nowko.archeology.establish;
 
 import com.nowko.archeology.config.ArtifactTemplate;
 import com.nowko.archeology.config.CatalogRegistry;
-import com.nowko.archeology.config.InterpretationTemplate;
 import com.nowko.archeology.item.RecoveredFindItem;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindInterpretation;
@@ -22,7 +21,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * One find's page in the excavation archive: provenience, condition, study, and readings.
+ * One find's page in the excavation archive: provenience, condition, and signed readings.
  */
 public final class CampFindBoard implements InventoryHolder {
     static final int SLOT_IDENTITY = 4;
@@ -31,8 +30,7 @@ public final class CampFindBoard implements InventoryHolder {
     static final int SLOT_CONDITION = 12;
     static final int SLOT_STUDY = 14;
     static final int SLOT_READINGS = 16;
-    static final int SLOT_STUDY_ACTION = 22;
-    static final int SLOT_INTERPRET_ACTION = 24;
+    static final int SLOT_IDENTIFY_ACTION = 22;
     private static final int LINE_WIDTH = 34;
 
     private final UUID siteId;
@@ -104,19 +102,12 @@ public final class CampFindBoard implements InventoryHolder {
                 Material.BARRIER,
                 ChatColor.WHITE + "Back",
                 ChatColor.GRAY + "Return to the finds register."));
-        if (cataloguer && find.getState() == FindState.RECOVERED && !find.isStudied()) {
-            inventory.setItem(SLOT_STUDY_ACTION, named(
-                    Material.BRUSH,
-                    ChatColor.WHITE + "Study",
-                    ChatColor.GRAY + "Hold the piece and a field brush.",
-                    ChatColor.DARK_GRAY + "Reveals rarity and notes. Not conservation."));
-        }
-        if (cataloguer && find.isStudied() && find.getState() == FindState.RECOVERED) {
-            inventory.setItem(SLOT_INTERPRET_ACTION, named(
-                    Material.WRITABLE_BOOK,
-                    ChatColor.WHITE + "Interpret",
-                    ChatColor.GRAY + "File up to two readings.",
-                    ChatColor.DARK_GRAY + "The piece need not be in hand."));
+        if (cataloguer && find.getState() == FindState.RECOVERED && catalogs.nextOpenType(find) != null) {
+            inventory.setItem(SLOT_IDENTIFY_ACTION, named(
+                    Material.ENCHANTING_TABLE,
+                    ChatColor.WHITE + "Identify",
+                    ChatColor.GRAY + "Opens the station. Bring the piece.",
+                    ChatColor.DARK_GRAY + "Three readings; pick one per question."));
         }
         player.openInventory(inventory);
     }
@@ -214,16 +205,13 @@ public final class CampFindBoard implements InventoryHolder {
         List<String> lore = new ArrayList<>();
         if (find.getInterpretations().isEmpty()) {
             lore.add(ChatColor.DARK_GRAY + "No readings yet.");
-            if (!find.isStudied()) {
-                lore.add(ChatColor.DARK_GRAY + "Study the piece before interpreting.");
+            if (find.getState() == FindState.RECOVERED) {
+                lore.add(ChatColor.DARK_GRAY + "Identify at the station with the piece in hand.");
             }
             return named(Material.WRITABLE_BOOK, ChatColor.WHITE + "Readings", lore.toArray(String[]::new));
         }
         for (FindInterpretation reading : find.getInterpretations()) {
-            InterpretationTemplate interpretation = catalogs.interpretation(reading.interpretationId());
-            String label = interpretation == null ? reading.interpretationId() : interpretation.displayName();
-            lore.add(ChatColor.WHITE + label + ChatColor.DARK_GRAY + " ("
-                    + reading.confidence().displayName() + ")");
+            lore.add(ChatColor.WHITE + RecoveredFindItem.readingPhrase(reading, catalogs));
             lore.add(ChatColor.GRAY + "  " + CampNames.of(null, reading.author()));
         }
         return named(Material.WRITABLE_BOOK, ChatColor.GOLD + "Readings", lore.toArray(String[]::new));
