@@ -1,6 +1,7 @@
 package com.nowko.archeology.establish;
 
 import com.nowko.archeology.model.Site;
+import com.nowko.archeology.model.SiteRole;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -17,7 +18,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Roster of who may excavate. The director adds by chat name and removes with a click.
+ * Roster of who may excavate. The director adds by chat name; every head opens that person's file,
+ * where their contribution, their role, and their dismissal live.
  */
 public final class CampStaffBoard implements InventoryHolder {
     static final int SLOT_ADD = 18;
@@ -111,13 +113,12 @@ public final class CampStaffBoard implements InventoryHolder {
         }
         OfflinePlayer owner = Bukkit.getOfflinePlayer(member);
         meta.setOwningPlayer(owner);
-        boolean lead = site.isDirector(member);
+        SiteRole role = site.roleOf(member);
         meta.setDisplayName(ChatColor.WHITE + CampNames.of(viewer, member));
         List<String> lore = new ArrayList<>();
-        lore.add(lead ? ChatColor.GOLD + "Director" : ChatColor.GRAY + "May excavate");
-        if (director && !lead) {
-            lore.add(ChatColor.DARK_GRAY + "Click to remove.");
-        }
+        lore.add((role == SiteRole.DIRECTOR ? ChatColor.GOLD : ChatColor.GRAY) + role.displayName());
+        lore.add(ChatColor.DARK_GRAY + role.duty());
+        lore.add(ChatColor.DARK_GRAY + (director ? "Click to open their file." : "Click to read their file."));
         meta.setLore(lore);
         stack.setItemMeta(meta);
         return stack;

@@ -5,9 +5,11 @@ import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindState;
 import com.nowko.archeology.model.InterestLevel;
 import com.nowko.archeology.model.Site;
+import com.nowko.archeology.model.SiteRole;
 import com.nowko.archeology.model.SiteStatus;
 import com.nowko.archeology.model.SiteType;
 import com.nowko.archeology.model.StratumBand;
+import com.nowko.archeology.model.WorkerRecord;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -278,6 +280,7 @@ public class SiteRepository {
         yaml.set("recovered-count", site.getRecoveredCount());
         yaml.set("hint-ids", site.getHintIds());
         yaml.set("excavators", site.getExcavators().stream().map(UUID::toString).toList());
+        writeWorkers(yaml, site);
         yaml.set("factions", site.getFactions());
         if (site.hasEstablishment()) {
             yaml.set("establishment.chunk-x", site.getEstablishmentChunkX());
@@ -367,6 +370,79 @@ public class SiteRepository {
     }
 
     /**
+     * Writes the staff pages: role plus the tally each person has run up on this project.
+     *
+     * @param yaml dossier being written
+     * @param site in-memory dossier
+     */
+    private static void writeWorkers(YamlConfiguration yaml, Site site) {
+        for (Map.Entry<UUID, WorkerRecord> entry : site.getWorkers().entrySet()) {
+            WorkerRecord record = entry.getValue();
+            String path = "workers." + entry.getKey();
+            yaml.set(path + ".role", record.getRole().yamlKey());
+            yaml.set(path + ".blocks-removed", record.getBlocksRemoved());
+            yaml.set(path + ".cells-brushed", record.getCellsBrushed());
+            yaml.set(path + ".finds-recovered", record.getFindsRecovered());
+            yaml.set(path + ".finds-damaged", record.getFindsDamaged());
+            yaml.set(path + ".finds-lost", record.getFindsLost());
+            yaml.set(path + ".joined-at", record.getJoinedAt() == null ? null : record.getJoinedAt().toString());
+            yaml.set(
+                    path + ".last-active-at",
+                    record.getLastActiveAt() == null ? null : record.getLastActiveAt().toString());
+        }
+    }
+
+    /**
+     * Reads the staff pages. A dossier written before roles existed has no block here, so everyone
+     * on it keeps the default role and an empty tally.
+     *
+     * @param yaml file contents
+     * @param site site being rebuilt
+     */
+    private static void readWorkers(YamlConfiguration yaml, Site site) {
+        ConfigurationSection workers = yaml.getConfigurationSection("workers");
+        if (workers == null) {
+            return;
+        }
+        for (String key : workers.getKeys(false)) {
+            ConfigurationSection section = workers.getConfigurationSection(key);
+            if (section == null) {
+                continue;
+            }
+            UUID playerId;
+            try {
+                playerId = UUID.fromString(key);
+            } catch (IllegalArgumentException ignored) {
+                continue;
+            }
+            WorkerRecord record = site.worker(playerId);
+            record.setRole(SiteRole.fromYaml(section.getString("role")));
+            record.setBlocksRemoved(section.getInt("blocks-removed"));
+            record.setCellsBrushed(section.getInt("cells-brushed"));
+            record.setFindsRecovered(section.getInt("finds-recovered"));
+            record.setFindsDamaged(section.getInt("finds-damaged"));
+            record.setFindsLost(section.getInt("finds-lost"));
+            record.setJoinedAt(parseInstant(section.getString("joined-at")));
+            record.setLastActiveAt(parseInstant(section.getString("last-active-at")));
+        }
+    }
+
+    /**
+     * @param raw ISO-8601 text, or {@code null}
+     * @return parsed moment, or {@code null} when the line is missing or corrupt
+     */
+    private static Instant parseInstant(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return Instant.parse(raw);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    /**
      * @param yaml file contents
      * @return reconstructed site
      */
@@ -398,6 +474,7 @@ public class SiteRepository {
         for (String raw : yaml.getStringList("excavators")) {
             site.getExcavators().add(UUID.fromString(raw));
         }
+        readWorkers(yaml, site);
         site.getFactions().addAll(yaml.getStringList("factions"));
         if (yaml.contains("establishment.chunk-x")) {
             site.setEstablishmentChunkX(yaml.getInt("establishment.chunk-x"));

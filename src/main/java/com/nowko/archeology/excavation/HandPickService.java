@@ -10,6 +10,7 @@ import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindState;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.StratumBand;
+import com.nowko.archeology.model.WorkerRecord;
 import com.nowko.archeology.site.SiteClosure;
 import com.nowko.archeology.site.SiteRepository;
 import net.md_5.bungee.api.ChatMessageType;
@@ -511,18 +512,28 @@ public class HandPickService {
         site.setJornadaPickLeft(site.getJornadaPickLeft() - cost);
         List<Block> lifted = LiftPlan.cells(site, block, cycle.tool, late);
         ItemStack tool = player.getInventory().getItemInMainHand();
+        WorkerRecord log = site.staffLog(player.getUniqueId());
+        FindWoundLedger ledger = new FindWoundLedger();
         boolean smashedFind = false;
         for (Block cell : lifted) {
             boolean aimed = cell.getX() == block.getX()
                     && cell.getY() == block.getY()
                     && cell.getZ() == block.getZ();
-            smashedFind |= PrismWound.smashFindAt(
+            BuriedFind struck = site.findAt(new BlockCell(cell.getX(), cell.getY(), cell.getZ())).orElse(null);
+            boolean wounded = PrismWound.smashFindAt(
                     site,
                     cell.getX(),
                     cell.getY(),
                     cell.getZ(),
                     aimed);
+            if (wounded) {
+                ledger.charge(log, struck);
+            }
+            smashedFind |= wounded;
             liftFill(cell, tool);
+        }
+        if (log != null) {
+            log.addBlocksRemoved(lifted.size());
         }
         ToolWear.spend(
                 player,

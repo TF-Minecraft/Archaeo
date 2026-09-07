@@ -7,6 +7,7 @@ import com.nowko.archeology.config.StratumDefinition;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindState;
 import com.nowko.archeology.model.Site;
+import com.nowko.archeology.model.SiteRole;
 import com.nowko.archeology.model.SiteStatus;
 import com.nowko.archeology.model.StratumBand;
 import org.bukkit.Bukkit;
@@ -143,9 +144,11 @@ public final class CampBoard implements InventoryHolder {
         if (director) {
             lore.add("");
             lore.add(ChatColor.DARK_GRAY + "You are the director.");
-        } else if (site.mayWork(player.getUniqueId())) {
+        } else if (site.getExcavators().contains(player.getUniqueId())) {
+            SiteRole role = site.roleOf(player.getUniqueId());
             lore.add("");
-            lore.add(ChatColor.DARK_GRAY + "You may excavate.");
+            lore.add(ChatColor.DARK_GRAY + "You are " + role.displayName() + " here.");
+            lore.add(ChatColor.DARK_GRAY + role.duty());
         }
         return named(Material.WRITABLE_BOOK, ChatColor.GOLD + "Record", lore.toArray(String[]::new));
     }
@@ -160,9 +163,9 @@ public final class CampBoard implements InventoryHolder {
         lore.add(ChatColor.GRAY + "Who may work on the dig site.");
         lore.add(ChatColor.WHITE + String.valueOf(count) + ChatColor.GRAY + (count == 1 ? " person." : " people."));
         if (director) {
-            lore.add(ChatColor.DARK_GRAY + "Open to add or remove workers.");
+            lore.add(ChatColor.DARK_GRAY + "Open to read files, hire, and dismiss.");
         } else {
-            lore.add(ChatColor.DARK_GRAY + "Open to view the roster.");
+            lore.add(ChatColor.DARK_GRAY + "Open to read the roster and its files.");
         }
         return named(Material.PLAYER_HEAD, ChatColor.WHITE + "Staff", lore.toArray(String[]::new));
     }

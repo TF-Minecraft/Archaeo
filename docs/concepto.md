@@ -630,10 +630,49 @@ Reparto de textos en el tablón, para que ninguna casilla se vuelva un muro:
 - **PERSONAL**: quién puede trabajar (§1d).
 - **Mostrar límites**: la vista temporal del prisma.
 
-### Personal (v1: puede excavar sí/no)
+### Personal
 
-El director añade jugadores. Roles más adelante si hacen falta: Director,
-Arqueólogo, Excavador, Visitante.
+El director añade jugadores por nombre en el chat. Cada cabeza de la lista abre
+la **ficha** de esa persona, no su expulsión: quitar a alguien es la acción más
+destructiva del panel y no debe estar a un clic de distancia.
+
+#### Ficha del trabajador
+
+- **Identidad**: nombre, rol, desde cuándo está en el personal y cuándo trabajó
+  por última vez.
+- **Trabajo de campo**: relleno retirado con el pico y cubos cepillados.
+- **Hallazgos**: piezas recuperadas, dañadas y destruidas por sus manos. El daño
+  se cuenta **por pieza**, no por cubo: un mal golpe que se lleva tres celdas de
+  la misma vasija es una pieza dañada.
+- **Rol** y **sacar de la excavación**, solo para el director.
+
+El recuento vive en el dossier del yacimiento (`workers.<uuid>` en el YAML), no
+en un diario global de jugador. Sobrevive a la expulsión: lo que alguien rompió
+sigue roto aunque ya no esté en el proyecto.
+
+#### Roles
+
+| Rol | Pico | Cepillo |
+| --- | --- | --- |
+| **Director** | sí | sí |
+| **Arqueólogo** | sí | sí |
+| **Excavador** | sí | no |
+
+El rol reparte las dos manos de la excavación: quien abre el corte y quien
+registra y levanta la pieza. Todos pican; lo que se raciona es el cepillo.
+
+El rol de director sigue al campamento y no se asigna a mano. **Arqueólogo** es
+el valor por defecto, que es exactamente lo que podía hacer cualquier autorizado
+antes de que existieran los roles, así que los dossiers antiguos no cambian de
+comportamiento. La expulsión devuelve el rol al valor por defecto: un rol es un
+nombramiento sobre una excavación en marcha, no una marca permanente.
+
+**No hay rol de visitante**, y no hace falta. Cualquiera puede acercarse al
+cartel del campamento y abrir el tablón sin estar en el personal: registro,
+dossier de indicios, lista de personal con sus fichas y *Mostrar límites* están
+abiertos a todo el mundo. Mirar sin interferir es el comportamiento por defecto,
+así que un rol que solo quita cosas a quien no tenía ninguna no significaría
+nada. Lo que decide un rol es **qué parte del trabajo** se le confía a alguien.
 
 ### Facciones
 
@@ -788,6 +827,7 @@ es un archivo `finds/` global.
 | mundo, chunk arqueológico, `datumY`, chunk de establecimiento, coords del campamento (mesa/tablón) |
 | tipo, nombre, nº de excavación, director, fecha |
 | visibilidad, jugadores y facciones con permiso de excavar |
+| por trabajador: rol, alta, última actividad y recuento (relleno retirado, cubos cepillados, piezas recuperadas / dañadas / destruidas) |
 | riqueza, indicios, radio de detección |
 | hallazgos en corte (formas, exposición, conservación, heridas por celda) + contadores recuperados / evidencias |
 | daño de relleno solo donde hace falta varios pases (sobre todo celdas de hallazgo); la tierra vacía de un ciclo no se persiste |
@@ -1177,6 +1217,18 @@ en el mismo punto. Ese cubo deja de emitir partículas. Tras
 celdas restantes pasan a aire y **cae un ítem** con conservación y
 procedencia. Conservación 0: sin ítem. No gasta jornada. En cualquier
 bloque que **no** sea celda de hallazgo el pincel vanilla no se cancela.
+
+**Iluminación: fuera por ahora.** Se probó exigir luz para cepillar y se
+retiró. La regla no tenía buen sitio: el nivel de luz de vanilla en el jugador
+no distingue la noche a cielo abierto, y avisar durante el hold llenaba el chat.
+Queda pendiente decidir *si* y *cómo* se pide iluminar el corte.
+
+Es deliberadamente una condición **local y del momento**, no un requisito de
+apertura: no se comprueba nada del yacimiento, solo el cubo que se está
+limpiando. Quedarse sin luz se trata igual que mirar a otro lado —la barra se
+pausa en ese cubo y espera—, así que una antorcha traída tarde cuesta tiempo,
+nunca el hallazgo. **El pico no pregunta**: excavar a ciegas se puede, lo que no
+se puede es dar por documentada una pieza que no ves. `0` desactiva la regla.
 
 ### Conservación (acordado)
 

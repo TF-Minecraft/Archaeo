@@ -10,6 +10,7 @@ import com.nowko.archeology.model.BlockCell;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindState;
 import com.nowko.archeology.model.Site;
+import com.nowko.archeology.model.WorkerRecord;
 import com.nowko.archeology.site.SiteClosure;
 import com.nowko.archeology.site.SiteRepository;
 import org.bukkit.Bukkit;
@@ -150,8 +151,7 @@ public class RecoverService {
         if (site == null) {
             return;
         }
-        if (!site.mayWork(player.getUniqueId())) {
-            warn(player, "You are not authorised to work on this excavation.");
+        if (deniedRecovery(player, site)) {
             return;
         }
         BuriedFind find = site.findAt(new BlockCell(block.getX(), block.getY(), block.getZ())).orElse(null);
@@ -214,9 +214,9 @@ public class RecoverService {
                     target.getY(),
                     target.getZ()).orElse(null);
             if (site != null) {
-                if (!site.mayWork(player.getUniqueId())) {
+                if (!site.mayRecover(player.getUniqueId())) {
                     cancel(player);
-                    warn(player, "You are not authorised to work on this excavation.");
+                    deniedRecovery(player, site);
                     return;
                 }
                 find = site.findAt(new BlockCell(target.getX(), target.getY(), target.getZ())).orElse(null);
@@ -281,6 +281,10 @@ public class RecoverService {
             return;
         }
         find.markCleaned(cell);
+        WorkerRecord log = site.staffLog(player.getUniqueId());
+        if (log != null) {
+            log.noteCellBrushed();
+        }
         ToolWear.spend(
                 player,
                 player.getInventory().getItemInMainHand(),
@@ -345,6 +349,10 @@ public class RecoverService {
             return;
         }
         site.setRecoveredCount(site.getRecoveredCount() + 1);
+        WorkerRecord log = site.staffLog(player.getUniqueId());
+        if (log != null) {
+            log.noteFindRecovered();
+        }
         ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
         if (template == null) {
             player.sendMessage("Recovered a find, but its template is missing from the catalog.");
@@ -470,6 +478,25 @@ public class RecoverService {
         }
         lastWarn.put(player.getUniqueId(), now);
         player.sendMessage(message);
+    }
+
+    /**
+     * Lifting a piece is the archaeologist's job, so a worker who may still swing a pick can be
+     * turned away here. The two refusals read differently on purpose: one is "you do not work
+     * here", the other is "this is not your part of the work".
+     *
+     * @param player holder
+     * @param site excavation under the brush
+     * @return whether the brush must stop
+     */
+    private boolean deniedRecovery(Player player, Site site) {
+        if (site.mayRecover(player.getUniqueId())) {
+            return false;
+        }
+        warn(player, site.mayWork(player.getUniqueId())
+                ? "Your role does not lift pieces on this excavation."
+                : "You are not authorised to work on this excavation.");
+        return true;
     }
 
     /**

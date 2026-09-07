@@ -34,6 +34,7 @@ public class Site {
     private final Map<String, StratumBand> strata = new LinkedHashMap<>();
     private final List<BuriedFind> finds = new ArrayList<>();
     private final List<UUID> excavators = new ArrayList<>();
+    private final Map<UUID, WorkerRecord> workers = new LinkedHashMap<>();
     private final List<String> factions = new ArrayList<>();
     private final Map<UUID, List<BlockCell>> prospectSamples = new LinkedHashMap<>();
     private final Set<UUID> prospectConfirmed = new LinkedHashSet<>();
@@ -303,7 +304,9 @@ public class Site {
     }
 
     /**
-     * Director and granted excavators may work on the dig site. Visibility modes are unused in v1.
+     * Director and granted excavators may work on the dig site. Every role opens the cut; only the
+     * brush is rationed, so this stays the plain roster question it always was. Visibility modes are
+     * unused in v1.
      *
      * @param playerId worker
      * @return whether field work is allowed on this established excavation
@@ -319,6 +322,14 @@ public class Site {
     }
 
     /**
+     * @param playerId worker
+     * @return whether this person may brush a find clean and lift it
+     */
+    public boolean mayRecover(UUID playerId) {
+        return mayWork(playerId) && roleOf(playerId).mayRecover();
+    }
+
+    /**
      * Adds a worker. The director cannot be duplicated.
      *
      * @param playerId excavator to grant
@@ -329,11 +340,17 @@ public class Site {
             return false;
         }
         excavators.add(playerId);
+        worker(playerId);
         return true;
     }
 
     /**
      * Removes a worker. The director stays on the project.
+     *
+     * <p>Their tally survives the dismissal — the cut they opened is still opened and the finds they
+     * broke are still broken — but their role does not: a role is an appointment on a running dig,
+     * so someone hired back later starts from the default rather than from a bench they were put on
+     * months ago and nobody remembers.
      *
      * @param playerId excavator to revoke
      * @return {@code true} if the roster changed
@@ -342,7 +359,100 @@ public class Site {
         if (playerId == null || isDirector(playerId)) {
             return false;
         }
-        return excavators.remove(playerId);
+        if (!excavators.remove(playerId)) {
+            return false;
+        }
+        WorkerRecord record = workers.get(playerId);
+        if (record != null) {
+            record.setRole(SiteRole.defaultRole());
+        }
+        return true;
+    }
+
+    /**
+     * @return every standing and tally on this project, keyed by player (for persistence)
+     */
+    public Map<UUID, WorkerRecord> getWorkers() {
+        return workers;
+    }
+
+    /**
+     * Opens this person's page in the dossier, creating it on first touch.
+     *
+     * @param playerId staff member
+     * @return their record, never {@code null}
+     */
+    public WorkerRecord worker(UUID playerId) {
+        return workers.computeIfAbsent(playerId, id -> {
+            WorkerRecord record = new WorkerRecord();
+            record.setRole(isDirector(id) ? SiteRole.DIRECTOR : SiteRole.defaultRole());
+            record.setJoinedAt(Instant.now());
+            return record;
+        });
+    }
+
+    /**
+     * Read-only lookup that does not create a page, so drawing a board cannot dirty the dossier.
+     *
+     * @param playerId staff member
+     * @return their record, or {@code null} when they have none yet
+     */
+    public WorkerRecord workerRecord(UUID playerId) {
+        return workers.get(playerId);
+    }
+
+    /**
+     * Page to charge field work to. Only roster members keep a tally, so a trespasser swinging a
+     * shovel through the cut does not open a staff page in the dossier.
+     *
+     * @param playerId whoever acted
+     * @return their record, or {@code null} when they are not on the staff
+     */
+    public WorkerRecord staffLog(UUID playerId) {
+        if (playerId == null) {
+            return null;
+        }
+        if (!isDirector(playerId) && !excavators.contains(playerId)) {
+            return null;
+        }
+        return worker(playerId);
+    }
+
+    /**
+     * The director's role follows the camp rather than the record, so a camp handover cannot leave
+     * a director filed as a visitor.
+     *
+     * @param playerId staff member
+     * @return their role, defaulting to {@link SiteRole#defaultRole()} for pre-role dossiers
+     */
+    public SiteRole roleOf(UUID playerId) {
+        if (isDirector(playerId)) {
+            return SiteRole.DIRECTOR;
+        }
+        WorkerRecord record = workers.get(playerId);
+        return record == null ? SiteRole.defaultRole() : record.getRole();
+    }
+
+    /**
+     * Moves a roster member to another role. The director's own standing cannot be edited.
+     *
+     * @param playerId staff member on the roster
+     * @param role role to hand out; {@link SiteRole#DIRECTOR} is not assignable
+     * @return {@code true} when the dossier changed
+     */
+    public boolean assignRole(UUID playerId, SiteRole role) {
+        if (playerId == null || role == null || role == SiteRole.DIRECTOR || isDirector(playerId)) {
+            return false;
+        }
+        if (!excavators.contains(playerId)) {
+            return false;
+        }
+        WorkerRecord record = worker(playerId);
+        if (record.getRole() == role) {
+            return false;
+        }
+        record.setRole(role);
+        return true;
     }
 
     /** @return faction ids granted access */
@@ -693,6 +803,7 @@ public class Site {
         if (!getExcavators().contains(directorId)) {
             getExcavators().add(directorId);
         }
+        worker(directorId).setRole(SiteRole.DIRECTOR);
     }
 
     /**

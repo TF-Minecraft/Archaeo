@@ -1,5 +1,7 @@
 package com.nowko.archeology.excavation;
 
+import com.nowko.archeology.model.BlockCell;
+import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.site.SiteClosure;
 import com.nowko.archeology.site.SiteRepository;
@@ -244,6 +246,7 @@ public class PrismListener implements Listener {
      */
     private void woundCells(List<Block> blocks, Player player) {
         Set<Site> dirty = new HashSet<>();
+        FindWoundLedger ledger = new FindWoundLedger();
         boolean cued = false;
         for (Block block : blocks) {
             Site site = sites.findPrism(
@@ -254,8 +257,13 @@ public class PrismListener implements Listener {
             if (site == null) {
                 continue;
             }
+            BuriedFind struck = site.findAt(
+                    new BlockCell(block.getX(), block.getY(), block.getZ())).orElse(null);
             PrismWound.Removal removal = PrismWound.onCellRemoved(
                     site, block.getX(), block.getY(), block.getZ());
+            if (removal.findSmashed() && player != null) {
+                ledger.charge(site.staffLog(player.getUniqueId()), struck);
+            }
             if (removal.dossierChanged()) {
                 dirty.add(site);
             }

@@ -5,6 +5,7 @@ import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.excavation.HandPickService;
 import com.nowko.archeology.excavation.PrismOutlineService;
 import com.nowko.archeology.model.Site;
+import com.nowko.archeology.model.SiteRole;
 import com.nowko.archeology.site.SiteRepository;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Tag;
@@ -353,6 +354,11 @@ public class CampListener implements Listener {
             openBoard(player, site);
             return;
         }
+        UUID member = staff.playerAt(slot);
+        if (member != null) {
+            new CampWorkerBoard(site.getId(), member, director).open(player, site);
+            return;
+        }
         if (!director) {
             return;
         }
@@ -361,12 +367,59 @@ public class CampListener implements Listener {
             establish.abortRename(player);
             inviteForSite.put(player.getUniqueId(), site.getId());
             player.sendMessage("Type the player name in chat, or type cancel.");
+        }
+    }
+
+    /**
+     * Handles one staff file: role changes and the dismissal, both director-only.
+     *
+     * @param event inventory click
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onWorkerClick(InventoryClickEvent event) {
+        if (!(event.getInventory().getHolder() instanceof CampWorkerBoard file)) {
             return;
         }
-        UUID member = staff.playerAt(slot);
-        if (member == null) {
+        event.setCancelled(true);
+        if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
+        if (event.getClickedInventory() == null || event.getClickedInventory() != event.getView().getTopInventory()) {
+            return;
+        }
+        Site site = sites.findById(file.siteId()).orElse(null);
+        if (site == null || !site.isCampLocked()) {
+            player.closeInventory();
+            return;
+        }
+        int slot = event.getRawSlot();
+        if (slot == CampWorkerBoard.SLOT_BACK) {
+            new CampStaffBoard(site.getId(), site.isDirector(player.getUniqueId())).open(player, site);
+            return;
+        }
+        if (!site.isDirector(player.getUniqueId())) {
+            return;
+        }
+        UUID member = file.member();
+        if (slot == CampWorkerBoard.SLOT_REMOVE) {
+            dismissWorker(player, site, member);
+            return;
+        }
+        SiteRole role = CampWorkerBoard.roleAt(slot);
+        if (role == null) {
+            return;
+        }
+        assignRole(player, site, member, role);
+    }
+
+    /**
+     * Takes a worker off the roster from their own file.
+     *
+     * @param player director
+     * @param site excavation
+     * @param member worker being dismissed
+     */
+    private void dismissWorker(Player player, Site site, UUID member) {
         if (!site.revokeExcavator(member)) {
             player.sendMessage("The director cannot be removed.");
             return;
@@ -378,6 +431,31 @@ public class CampListener implements Listener {
             online.sendMessage("You may no longer work on " + site.displayLabel() + ".");
         }
         new CampStaffBoard(site.getId(), true).open(player, site);
+    }
+
+    /**
+     * Moves a worker to another role and tells them what changed, since a role decides which tool
+     * they may still pick up.
+     *
+     * @param player director
+     * @param site excavation
+     * @param member worker being reassigned
+     * @param role new standing
+     */
+    private void assignRole(Player player, Site site, UUID member, SiteRole role) {
+        if (!site.assignRole(member, role)) {
+            new CampWorkerBoard(site.getId(), member, true).open(player, site);
+            return;
+        }
+        sites.save(site);
+        player.sendMessage(CampNames.of(player, member) + " is now "
+                + role.displayName() + " on " + site.displayLabel() + ".");
+        Player online = player.getServer().getPlayer(member);
+        if (online != null) {
+            online.sendMessage("You are now " + role.displayName() + " on " + site.displayLabel()
+                    + ". " + role.duty());
+        }
+        new CampWorkerBoard(site.getId(), member, true).open(player, site);
     }
 
     /**
@@ -424,7 +502,8 @@ public class CampListener implements Listener {
     public void onBoardDrag(InventoryDragEvent event) {
         if (event.getInventory().getHolder() instanceof CampBoard
                 || event.getInventory().getHolder() instanceof CampWoolPicker
-                || event.getInventory().getHolder() instanceof CampStaffBoard) {
+                || event.getInventory().getHolder() instanceof CampStaffBoard
+                || event.getInventory().getHolder() instanceof CampWorkerBoard) {
             event.setCancelled(true);
         }
     }
@@ -479,8 +558,8 @@ public class CampListener implements Listener {
             inviteForSite.put(player.getUniqueId(), siteId);
             return;
         }
-        if (site.mayWork(target.getUniqueId())) {
-            player.sendMessage(CampNames.of(player, target.getUniqueId()) + " can already excavate here.");
+        if (site.isDirector(target.getUniqueId()) || site.getExcavators().contains(target.getUniqueId())) {
+            player.sendMessage(CampNames.of(player, target.getUniqueId()) + " is already on the staff.");
             new CampStaffBoard(site.getId(), true).open(player, site);
             return;
         }
