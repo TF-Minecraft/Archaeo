@@ -74,8 +74,19 @@ public class ArcheologyPlugin extends JavaPlugin {
         handPick = new HandPickService(this, sites, catalogs, digTools, catalogs.pick());
         handPick.start();
         outline = new PrismOutlineService(this, catalogs);
+        RecoveredFindItem recoveredFindItem = new RecoveredFindItem(this);
         getServer().getPluginManager().registerEvents(
-                new CampListener(this, sites, catalogs, establishItem, establish, handPick, outline), this);
+                new CampListener(
+                        this,
+                        sites,
+                        catalogs,
+                        establishItem,
+                        establish,
+                        handPick,
+                        outline,
+                        brushItem,
+                        recoveredFindItem),
+                this);
         findDust = new FindDustService(this, sites, catalogs.pick());
         establish.setFindDust(findDust);
         getServer().getPluginManager().registerEvents(findDust, this);
@@ -88,7 +99,7 @@ public class ArcheologyPlugin extends JavaPlugin {
                 sites,
                 catalogs,
                 brushItem,
-                new RecoveredFindItem(this),
+                recoveredFindItem,
                 catalogs.recovery());
         getServer().getPluginManager().registerEvents(new RecoverListener(brushItem, recover), this);
 

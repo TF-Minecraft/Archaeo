@@ -26,7 +26,7 @@ Experiencia vanilla (expedición):
 
 Experiencia Archaeo (campaña):
 
-> 📡 Rastreador → 🔎 cata → ⛺ kit de establecimiento (chunk + orientación) → 📖 panel y personal → ⛏️ excavación por golpes → hallazgos al registro de la excavación → interpretar / museo.
+> 📡 Rastreador → 🔎 cata → ⛺ kit de establecimiento (chunk + orientación) → 📖 panel y personal → ⛏️ excavación por golpes → registro preliminar → estudio de la pieza → documentación / interpretación → informe al cerrar. Conservación, más adelante.
 
 ---
 
@@ -614,11 +614,11 @@ Director: Alex
 Estrato actual: III · 700–900 años
 Progreso: ██████░░░░
 Hallazgos: 7 · Evidencias: 12
-[EXCAVAR]  [PERSONAL]  [INFORMACIÓN]  [Mostrar límites]
+[HALLAZGOS]  [PERSONAL]  [INFORMACIÓN]  [Mostrar límites]
 ```
 
 **EXCAVAR** no es un menú: el trabajo es en el prisma con HUD (§2).
-**PERSONAL** y **INFORMACIÓN** sí abren gestión.
+**HALLAZGOS**, **PERSONAL** e **INFORMACIÓN** sí abren gestión.
 
 Reparto de textos en el tablón, para que ninguna casilla se vuelva un muro:
 
@@ -628,6 +628,7 @@ Reparto de textos en el tablón, para que ninguna casilla se vuelva un muro:
   **indicios** de `hints.yml`, que si no viven aquí solo se leen una vez, en el
   mensaje de la prospección.
 - **PERSONAL**: quién puede trabajar (§1d).
+- **HALLAZGOS**: el registro de la excavación. Cada pieza extraída o perdida en el corte tiene ficha; el estudio y la interpretación viven aquí. Al agotar el yacimiento, el director puede sacar copias firmadas del informe.
 - **Mostrar límites**: la vista temporal del prisma.
 
 ### Personal
@@ -735,90 +736,80 @@ No depende del último bloque ni de “modo estrato II”. Puedes abrir un pozo 
 
 ---
 
-### Cadena de un hallazgo (qué se hace de verdad, qué hay en Minecraft)
+### Cadena de un hallazgo (documentar antes de conservar)
 
-En laboratorio real, por cada día de campo suele haber **varios** de mesa. Lo importante no es el agua: es **no perder la procedencia** (de qué cuadro y qué capa salió) y tratar cada material distinto.
+En laboratorio real, por cada día de campo suele haber **varios** de mesa. El
+producto científico no es el objeto: es el **registro**. La conservación
+(estabilizar hierro, consolidar, reconstruir) es otra vía, y llega **después**
+de documentar el estado actual. Archaeo todavía no juega esa vía.
 
 Qué hacen de verdad (resumido):
 
 | Paso real | Detalle |
 | --- | --- |
 | Registrar en el corte | Foto, bolsa etiquetada, mismo lote = mismo sitio/capa. *Whatever you do, don’t lose provenience.* |
-| Secar / no mezclar lotes | Una procedencia cada vez. |
-| Limpiar según material | **Cerámica, vidrio, mucha piedra:** agua y cepillo suave. **Metales, carbón, hueso frágil, tejidos, cerámica pintada/cruda:** **no se lavan**; se cepillan en seco o se dejan. |
-| Clasificar | Montones por material (cerámica, metal, hueso…). |
-| Inventariar | Número de catálogo, descripción, base de datos. |
-| Conservar | Estabilizar (sobre todo hierro), a veces consolidar o reconstruir una vasija. Mínima intervención. |
-| Interpretar / exponer | Informe y, si toca, vitrina. |
+| Catálogo de campo | Número de inventario, clase de material, quién lo levantó, fecha, estado al salir. Pertenece al **archivo del yacimiento**, no al fragmento. |
+| Estudiar para ver más | Limpiar, clasificar, fotografiar, dibujar: sirven para **aprender** (fábrica, decoración, identificación). Lavar cerámica es estudio. Estabilizar hierro es conservación. |
+| Ficha completa | Descripción de catálogo e hipótesis. Se escribe en el registro. El objeto puede ir a un cajón, a una vitrina o perderse. |
+| Conservar | Más adelante. No reescribe el archivo. |
+| Exponer | Museo / marco; necesita la ficha, no al revés. |
 
-El caldero con agua **sí existe** en arqueología, pero **solo para algunos materiales**. Trasladarlo a “todo se lava en el caldero” sería falso y, de paso, aburrido (un único clic).
+Traducción a Minecraft: **pieza** y **documento** son dos cosas. Tres etapas,
+un informe al cerrar.
 
-Traducción a Minecraft: cada artefacto pertenece a un **material** y cada
-material define una cadena de tratamientos obligatorios antes de interpretar o
-exponer la pieza. El artefacto no guarda una cadena propia: guarda su material,
-su tratamiento actual y los pasos ya completados.
-
-| Material | Tratamiento de ejemplo | Secuencia |
+| Etapa | Qué ve el jugador | Dónde vive |
 | --- | --- | --- |
-| Cerámica | limpieza, lavado, secado, fotografiado, dibujo | limpiar → lavar → secar → fotografiar → dibujar → interpretar → exponer |
-| Metal | limpieza en seco, estabilización, fotografiado | limpiar → estabilizar → fotografiar → interpretar → exponer |
-| Hueso | limpieza suave, secado, fotografiado | limpiar → secar → fotografiar → interpretar → exponer |
-| Papel o tela | secado, conservación, fotografiado | secar → conservar → fotografiar → interpretar → exponer |
+| **Registro preliminar** | Al levantar (o al perderse en el corte): número `#027-14`, procedencia, conservación al salir, nombre de catálogo. Estado *Field catalog*. | Fila en `sites/<id>.yml`. El ítem solo lleva la etiqueta (`site_id`, `find_id`, número). |
+| **Estudio** | Con la pieza en el inventario y el pincel en mano, en la ficha del campamento. Revela rareza, etiquetas y `study-notes` de `artifacts.yml`. Sin eso no se interpreta. | La fila y el lore de la pieza, si sigue existiendo. |
+| **Documentación** | 1–2 lecturas de `interpretations.yml` + confianza. Las sugeridas por tags salen primero; no se bloquea el resto. Estado *Catalogued*. | La fila. Si la pieza está a mano, se copia al lore. |
+| **Informe** | Al agotar el yacimiento, el director saca un libro firmado (tantas copias como quiera). Las reimpresiones leen el registro **vivo**. | `WRITTEN_BOOK` de viaje. El canónico sigue siendo el YAML. |
 
-Los materiales y sus secuencias son configurables en `materials.yml`. Cada
-procedimiento corresponde a una mecánica del plugin: usar pincel o mesa para
-limpiar, caldero para lavar, soporte para secar, cámara para fotografiar y mesa
-de dibujo para dibujar. La primera versión puede implementar pocas mecánicas y
-dejar las demás como pasos bloqueados o futuros, sin cambiar el modelo.
+Si la pieza se pierde **antes** de estudiarla, la fila se queda en catálogo de
+campo para siempre: el número y la procedencia sobreviven, la decoración no.
+Si se pierde después, el campamento (y el informe) siguen teniendo la ficha.
+Un hallazgo destruido en el corte también entra en el registro: el archivo es
+honesto.
 
-El objeto siempre muestra estado visible para el jugador, por ejemplo:
+El estudio **no** es conservación. Lavar, secar, estabilizar, fotografiar y
+dibujar como estaciones del mundo quedan para más adelante. `materials.yml`
+sigue guardando `survival` (y las secuencias, ignoradas hasta que exista el
+laboratorio).
 
-```text
-Material: cerámica
-Estado: lavado
-Siguiente paso: secar
-Progreso: 2/5 procedimientos
-```
-
-El plugin rechaza procedimientos fuera de orden o incompatibles con el material.
-Cuando se completan todos los pasos previos, se habilitan interpretación,
-catalogación y exposición. La procedencia se conserva en el PDC durante toda la
-cadena.
-
-Los gestos dependen del material: el jugador siempre recibe una indicación clara
-del siguiente procedimiento y no tiene que memorizar la cadena.
-
-Sin catalogar: puedes guardarlo en un cofre (la bolsa de campo). El museo no enseña ficha completa.
+Cualquiera lee el registro en el tablón. Estudiar e interpretar usan la misma
+mano que el cepillo: director y arqueólogo sí, excavador no.
 
 ---
 
-### Metadatos: disco = yacimientos; pieza = ficha
+### Metadatos: disco = archivo del yacimiento; pieza = etiqueta
 
 Acuerdo de persistencia:
 
-- **`sites/`** — sí. Solar, campamento, dossier, hallazgos (formas + estado), jornada, personal, visibilidad, contadores del panel.
-- **Ítem (PDC)** — sí. Ficha de la pieza recuperada. Si se pierde, se perdió (el panel puede seguir el recuento).
-- **`knowledge/`, `finds/`, `players/`, `museums/`** — no.
+- **`sites/`** — sí. Solar, campamento, dossier, **registro de hallazgos**
+  (las filas siguen tras levantar: número, estado, estudio, interpretaciones),
+  jornada, personal, visibilidad, contadores del panel.
+- **Ítem (PDC)** — sí. Etiqueta (`site_id`, `find_id`, número) más una copia de
+  lo ya revelado, para que el lore funcione lejos del campamento. Perder el
+  objeto **no** borra la fila.
+- **Libro escrito** — copia opcional del informe, firmada por el director.
+  PDC `site_id`. No es el almacén canónico.
+- **`knowledge/`, `finds/`, `players/`, `museums/`** — no. El archivo pertenece
+  a la excavación, no a un diario global.
 
-El JSON del site guarda cada hallazgo **aún en el corte** (plantilla, celdas,
-estado). Al recuperar: ítem con PDC, el hallazgo sale del corte, sube el
-contador del panel (y un nombre corto en el registro de la excavación). Eso no
-es un archivo `finds/` global.
+El YAML del site guarda cada hallazgo (plantilla, celdas, estado). Al
+recuperar o al perderse en el corte recibe número de inventario. El ítem cae
+con la etiqueta. Eso no es un archivo `finds/` global.
 
 #### Qué va en el ítem (PDC + lore)
 
 | Dato |
 | --- |
-| `siteId`, nombre del yacimiento |
+| `siteId`, nombre del yacimiento, número de inventario |
 | capa / antigüedad |
-| descubridor, fecha |
-| estado de laboratorio |
-| conservación al recuperar (calidad %; visible en la pieza; dos copias del mismo template pueden valer distinto) |
-| indicios copiados al catalogar |
-| interpretación(es) |
-| nombre de reliquia, si la hay |
-| material, procedimiento actual y completados |
-| tamaño/plantilla del hallazgo (opcional, lore) |
+| quien lo levantó, fecha |
+| conservación al recuperar (calidad %; visible en la pieza) |
+| estado del registro: *Field catalog* / *Studied* / *Catalogued* |
+| rareza y notas de estudio, cuando ya se estudió |
+| interpretación(es), cuando ya se documentó |
 
 #### Qué va en `sites/<id>.yml` o `.json`
 
@@ -829,7 +820,7 @@ es un archivo `finds/` global.
 | visibilidad, jugadores y facciones con permiso de excavar |
 | por trabajador: rol, alta, última actividad y recuento (relleno retirado, cubos cepillados, piezas recuperadas / dañadas / destruidas) |
 | riqueza, indicios, radio de detección |
-| hallazgos en corte (formas, exposición, conservación, heridas por celda) + contadores recuperados / evidencias |
+| hallazgos (formas, exposición, conservación, heridas por celda) **y** su ficha de archivo: número, recuperador, estudio, interpretaciones |
 | daño de relleno solo donde hace falta varios pases (sobre todo celdas de hallazgo); la tierra vacía de un ciclo no se persiste |
 | por capa: ¿existe?, banda de Y, revuelto/ausente |
 | jornada actual: Hand Pick restantes, id de día de mundo |
@@ -861,8 +852,8 @@ Sí: **todo el catálogo sale de YAML** (`hints.yml` + `interpretations.yml`, o 
 
 Hay dos listas distintas:
 
-1. **Indicios del yacimiento** — al establecer (2–4). Van al panel. Al identificar en la **mesa del campamento** se copian al PDC.
-2. **Interpretaciones** — las elige el jugador sobre esa pieza. También al PDC. El plugin no dice cuál es correcta.
+1. **Indicios del yacimiento** — al establecer (2–4). Van al panel. El estudio de una pieza no los copia: viven en el dossier.
+2. **Interpretaciones** — las elige el jugador sobre esa pieza **después de estudiarla**. También al archivo (y al lore si la pieza sigue). El plugin no dice cuál es correcta.
 3. **Artefactos o reliquias** - artefactos.yml para configurar objetos predefinidos? podrían venir con interpretaciones prestablecidas o dejarse en blanco y que las seleccione el jugador de forma estándar a partir de la config de interpretaciones. En la config de interpretaciones también se podría vincular la interpretación a objectos de artifacts, así al descubrir ese objeto solo se sugerirían esas interpretaciones. Al artefacto también se le podría configurar ya el sustrato al que pertenece, podría ser uno o varios.
 4. **Sustratos o capas** - se podrían configurar también, con su nombre, su época, y orden de profundidad para saber cuáles van por encima de cuáles. A un sustrato se podrían asignar los artefacts que es posible encontrar en ese sustrato. Faltaría definir qué hacer con las reliquias de minecraft vanilla, tendría sentido que sigan apareciendo y que si se quiere personalizar su información que se incluyan los id de los objetos que pueden encontrarse como reliquia en la config. Hay evento para saber cuándo un jugador descubre reliquia en minecraft vanilla? No parece, habría que ver cómo podemos saber cuándo el usuario obtiene un artefacto de forma vanilla.
 5. **Datos ocultos**: El jugador que identifique el artefacto podría escoger si quiere que el descubridor del artefacto sea o no anónimo, o si quiere que se revele o no el yacimiento donde se obtuvo.
@@ -908,17 +899,21 @@ Textos de ejemplo (editables):
 
 Las mismas de siempre, también YAML: conflicto armado, actividad comercial, uso ceremonial, asentamiento, abandono, enterramiento, depósito deliberado, función desconocida. Cada una puede listar `suggested_by: [blade, trade, …]`.
 
-En la mesa:
+En la ficha del campamento, tras estudiar la pieza:
 
-1. Se muestran los **indicios del site** (solo lectura).
-2. El jugador marca 1–2 interpretaciones + confianza.
-3. Eso se escribe en el ítem. La ficha del museo (clic en el marco) enseña: indicios + “según Alex: posible conflicto, confianza media”.
+1. Se muestran los **indicios del site** (solo lectura, en INFORMACIÓN).
+2. El jugador marca 1–2 interpretaciones + confianza sobre **esa** pieza.
+3. Eso se escribe en el archivo del yacimiento. Si la pieza sigue en el
+   inventario, el lore se actualiza. El museo (más adelante) podrá leer la
+   misma ficha.
 
 ---
 
 ### Museos
 
-No hay ficha de museo en disco. El jugador construye un edificio y cuelga marcos. Clic en una pieza **catalogada** = menú con el PDC. Si no es de Archaeo, el marco es vanilla.
+No hay ficha de museo en disco. El jugador construye un edificio y cuelga
+marcos. La ficha canónica es el registro del yacimiento. Clic en el marco
+queda para más adelante.
 
 ---
 
@@ -1333,7 +1328,7 @@ Cada hallazgo guarda:
 
 No todos los hallazgos son reliquias. Un palo o un ladrillo pueden ser **resto de contexto** (registrado de forma ligera o ni siquiera archivado).
 
-Detalle de cadena (bruto → limpio → catalogado), PDC y reliquias mínimas: **§1c**.
+Detalle de registro (preliminar → estudiado → documentado), pieza frente a archivo, e informe al cerrar: **§1c**. Conservación de laboratorio, más adelante.
 
 ---
 
@@ -1365,9 +1360,9 @@ La reliquia:
 
 ## 5. Interpretación — propuesta
 
-Flujo concreto (indicios del panel → etiquetas en la mesa): **§1c**.
+Flujo concreto (estudio de la pieza → lecturas en la ficha del campamento): **§1c**.
 
-Catálogo inicial (configurable):
+Catálogo inicial (configurable, `interpretations.yml`):
 
 - posible conflicto armado
 - posible actividad comercial
@@ -1378,28 +1373,34 @@ Catálogo inicial (configurable):
 - posible depósito deliberado
 - función desconocida
 
-Cada interpretación tiene:
+Cada lectura sobre un hallazgo tiene:
 
 - autor
-- alcance (hallazgo concreto, estrato o yacimiento entero)
 - confianza (baja / media / alta) — subjetiva del jugador, no un “score de verdad”
 - fecha
 
-Varios jugadores pueden interpretar el mismo objeto de formas distintas. Las hipótesis conviven. Ninguna pisa a las demás ni al lore admin.
+Hasta dos lecturas por pieza. Las sugeridas por los tags del artefacto salen
+primero; el resto sigue disponible. Varios jugadores pueden leer el mismo
+objeto de formas distintas. Las hipótesis conviven. Ninguna pisa a las demás
+ni al lore admin.
 
 ---
 
 ## 6. Registro arqueológico — propuesta
 
-No hay diario de jugador en disco. Lo visible es el **panel de la excavación**
-(progreso, recuentos) y las **piezas que aún existen** (PDC). Perder un objeto
-pierde esa ficha detallada; el recuento del site puede quedar.
+No hay diario de jugador en disco. El archivo es el **registro de la
+excavación** (`sites/<id>.yml`): cada hallazgo levantado o perdido tiene ficha,
+aunque el objeto ya no exista. El tablón enseña esas fichas. El ítem solo
+lleva la etiqueta. Al cerrar el corte, el director puede imprimir un informe
+firmado (libro escrito) tantas veces como quiera.
 
 ---
 
 ## 7. Museos — propuesta
 
-Un museo es roleplay: un edificio y marcos. Sin registro. Clic en reliquia catalogada = ficha del ítem. Detalle: **§1c**.
+Un museo es roleplay: un edificio y marcos. Clic en una pieza **catalogada**
+podrá leer la ficha (más adelante). El archivo del yacimiento es lo que lo
+hace barato; esta versión no abre GUI en el marco.
 
 ---
 

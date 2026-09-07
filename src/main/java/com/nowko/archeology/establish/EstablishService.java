@@ -658,6 +658,7 @@ public class EstablishService {
         }
         ruinWorld.getChunkAt(site.getChunkX(), site.getChunkZ()).load();
         PrismWound.Prior prior = PrismWound.markMissingTerrain(ruinWorld, site);
+        site.catalogSettledFinds(null);
         if (prior.disturbed() <= 0) {
             return;
         }

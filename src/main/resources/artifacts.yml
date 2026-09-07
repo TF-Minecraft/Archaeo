@@ -1,4 +1,5 @@
 # Find templates. size-* = connected cells. relic = counts toward the relic quota.
+# study-notes are revealed at camp after the piece is studied; they do not show on lift.
 artifacts:
   coin:
     display-name: Coin
@@ -11,6 +12,7 @@ artifacts:
     strata: [I, II, III]
     tags: [trade, metal]
     item: GOLD_NUGGET
+    study-notes: "A small struck disc. The face is worn; a mint or a portrait may still be read."
   pottery_sherd:
     display-name: Pottery sherd
     size-min: 1
@@ -22,6 +24,7 @@ artifacts:
     strata: [I, II, III, IV]
     tags: [ceramic, settlement]
     item: BRICK
+    study-notes: "A body sherd. The fabric and any surviving slip say more than the shape."
   tool:
     display-name: Tool
     size-min: 2
@@ -33,6 +36,7 @@ artifacts:
     strata: [II, III]
     tags: [settlement, metal]
     item: IRON_HOE
+    study-notes: "A working edge, not an ornament. Wear on the bit points to repeated use."
   sword:
     display-name: Ancient sword
     size-min: 3
@@ -44,6 +48,7 @@ artifacts:
     strata: [II, III, IV]
     tags: [conflict, metal, blade]
     item: IRON_SWORD
+    study-notes: "A blade with little domestic assemblage around it. The fuller and tang still read as a weapon."
   vessel:
     display-name: Vessel
     size-min: 3
@@ -55,6 +60,7 @@ artifacts:
     strata: [I, II, III]
     tags: [ceramic, ceremonial, deposit]
     item: DECORATED_POT
+    study-notes: "A closed form. Surviving rim and decoration suggest it was set down, not discarded in pieces."
   burial:
     display-name: Burial
     size-min: 8
@@ -66,6 +72,7 @@ artifacts:
     strata: [III, IV]
     tags: [burial, bone]
     item: BONE
+    study-notes: "Articulated bone, not kitchen scatter. The layout still argues for a grave."
   structure:
     display-name: Buried structure
     size-min: 20
@@ -77,6 +84,7 @@ artifacts:
     strata: [III, IV]
     tags: [settlement, deposit]
     item: BRICKS
+    study-notes: "Dressed stone in a line, not a tumble. This was built, then buried."
   charcoal:
     display-name: Fire remains
     size-min: 1
@@ -88,6 +96,7 @@ artifacts:
     strata: [I, II, III]
     tags: [fire, domestic]
     item: CHARCOAL
+    study-notes: "Charred wood and ash. Repeated burning at this depth looks domestic, not a single pyre."
   ornament:
     display-name: Ornament
     size-min: 1
@@ -99,3 +108,4 @@ artifacts:
     strata: [II, III]
     tags: [ceremonial, trade, ornament]
     item: GOLD_INGOT
+    study-notes: "A small decorative piece. The metal does not match the cheapest local work."

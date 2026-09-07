@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Loads catalog YAML from the plugin jar (first run) and then from the data folder.
@@ -27,6 +28,7 @@ public class CatalogRegistry {
     private final Map<String, StratumDefinition> strata = new LinkedHashMap<>();
     private final Map<String, ArtifactTemplate> artifacts = new LinkedHashMap<>();
     private final Map<String, HintTemplate> hints = new LinkedHashMap<>();
+    private final Map<String, InterpretationTemplate> interpretations = new LinkedHashMap<>();
     private final Map<String, FindMaterial> materials = new LinkedHashMap<>();
     private int maxShapeAttempts = 24;
     private boolean useWorldSeed = true;
@@ -74,6 +76,7 @@ public class CatalogRegistry {
         loadStrata(yaml("strata.yml"));
         loadArtifacts(yaml("artifacts.yml"));
         loadHints(yaml("hints.yml"));
+        loadInterpretations(yaml("interpretations.yml"));
         loadMaterials(yaml("materials.yml"));
     }
 
@@ -162,6 +165,44 @@ public class CatalogRegistry {
             return null;
         }
         return hints.get(id);
+    }
+
+    /**
+     * @return interpretation templates in file order
+     */
+    public List<InterpretationTemplate> interpretations() {
+        return List.copyOf(interpretations.values());
+    }
+
+    /**
+     * @param id interpretation catalog key
+     * @return template or {@code null}
+     */
+    public InterpretationTemplate interpretation(String id) {
+        if (id == null || id.isBlank()) {
+            return null;
+        }
+        return interpretations.get(id);
+    }
+
+    /**
+     * Suggested readings first, then the rest, so the board reads as "look here" without hiding options.
+     *
+     * @param tags artifact tags revealed by study
+     * @return catalog in suggestion order
+     */
+    public List<InterpretationTemplate> interpretationsFor(Set<String> tags) {
+        List<InterpretationTemplate> suggested = new ArrayList<>();
+        List<InterpretationTemplate> rest = new ArrayList<>();
+        for (InterpretationTemplate template : interpretations.values()) {
+            if (template.suggestedBy(tags)) {
+                suggested.add(template);
+            } else {
+                rest.add(template);
+            }
+        }
+        suggested.addAll(rest);
+        return suggested;
     }
 
     /**
@@ -989,7 +1030,32 @@ public class CatalogRegistry {
                     Math.max(1, section.getInt("weight", 1)),
                     new LinkedHashSet<>(section.getStringList("strata")),
                     new LinkedHashSet<>(section.getStringList("tags")),
-                    section.getString("item", "STONE")
+                    section.getString("item", "STONE"),
+                    section.getString("study-notes", "")
+            ));
+        }
+    }
+
+    /**
+     * Reads player readings from {@code interpretations.yml}.
+     *
+     * @param yaml parsed interpretations file
+     */
+    private void loadInterpretations(YamlConfiguration yaml) {
+        interpretations.clear();
+        ConfigurationSection root = yaml.getConfigurationSection("interpretations");
+        if (root == null) {
+            return;
+        }
+        for (String id : root.getKeys(false)) {
+            ConfigurationSection section = root.getConfigurationSection(id);
+            if (section == null) {
+                continue;
+            }
+            interpretations.put(id, new InterpretationTemplate(
+                    id,
+                    section.getString("display-name", id),
+                    new LinkedHashSet<>(section.getStringList("suggested-by"))
             ));
         }
     }

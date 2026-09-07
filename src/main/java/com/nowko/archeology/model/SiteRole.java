@@ -65,6 +65,15 @@ public enum SiteRole {
     }
 
     /**
+     * The same hand writes the record: excavators open the cut, archaeologists study and interpret.
+     *
+     * @return whether this role may study a recovered piece and file readings
+     */
+    public boolean mayCatalog() {
+        return mayRecover;
+    }
+
+    /**
      * @return one-line description for board lore
      */
     public String duty() {

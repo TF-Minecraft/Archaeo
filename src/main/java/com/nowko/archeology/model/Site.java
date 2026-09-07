@@ -330,6 +330,117 @@ public class Site {
     }
 
     /**
+     * Study and interpretation continue after the cut closes: the camp is the archive, not the prism.
+     * The director and anyone with {@link SiteRole#mayCatalog()} on the roster may write.
+     *
+     * @param playerId cataloguer
+     * @return whether this person may study a recovered piece and file readings
+     */
+    public boolean mayCatalog(UUID playerId) {
+        if (playerId == null || !isCampLocked()) {
+            return false;
+        }
+        if (status != SiteStatus.ESTABLISHED && status != SiteStatus.EXHAUSTED) {
+            return false;
+        }
+        if (isDirector(playerId)) {
+            return true;
+        }
+        return excavators.contains(playerId) && roleOf(playerId).mayCatalog();
+    }
+
+    /**
+     * Finds that have left the cut, numbered for the register. Hidden shapes are omitted.
+     *
+     * @return recovered and lost finds, lowest inventory number first
+     */
+    public List<BuriedFind> cataloguedFinds() {
+        List<BuriedFind> list = new ArrayList<>();
+        for (BuriedFind find : finds) {
+            if (find.getFindNumber() > 0 || find.hasLeftTheCut()) {
+                list.add(find);
+            }
+        }
+        list.sort((a, b) -> Integer.compare(a.getFindNumber(), b.getFindNumber()));
+        return list;
+    }
+
+    /**
+     * @param findId buried-find id
+     * @return that row, or empty
+     */
+    public Optional<BuriedFind> findById(UUID findId) {
+        if (findId == null) {
+            return Optional.empty();
+        }
+        for (BuriedFind find : finds) {
+            if (findId.equals(find.getId())) {
+                return Optional.of(find);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Gives an inventory number to every piece that has left the cut and does not have one yet.
+     * Lost-in-cut rows join the register so the archive is honest.
+     *
+     * @param actor recoverer or the player who destroyed the piece; {@code null} when unknown
+     * @return whether any row changed
+     */
+    public boolean catalogSettledFinds(UUID actor) {
+        boolean changed = false;
+        Instant now = Instant.now();
+        for (BuriedFind find : finds) {
+            if (!find.hasLeftTheCut()) {
+                continue;
+            }
+            if (find.getFindNumber() <= 0) {
+                find.setFindNumber(nextFindNumber());
+                changed = true;
+            }
+            if (find.getRecoveredAt() == null) {
+                find.setRecoveredAt(now);
+                changed = true;
+            }
+            if (find.getRecoveredBy() == null && actor != null) {
+                find.setRecoveredBy(actor);
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    /**
+     * Assigns inventory numbers to recovered or lost rows that predate the register, without
+     * stamping a new recoverer or time. Used when loading old dossiers.
+     *
+     * @return whether any number was filled in
+     */
+    public boolean assignMissingFindNumbers() {
+        boolean changed = false;
+        for (BuriedFind find : finds) {
+            if (find.getFindNumber() > 0 || !find.hasLeftTheCut()) {
+                continue;
+            }
+            find.setFindNumber(nextFindNumber());
+            changed = true;
+        }
+        return changed;
+    }
+
+    /**
+     * @return next unused inventory sequence on this excavation
+     */
+    private int nextFindNumber() {
+        int max = 0;
+        for (BuriedFind find : finds) {
+            max = Math.max(max, find.getFindNumber());
+        }
+        return max + 1;
+    }
+
+    /**
      * Adds a worker. The director cannot be duplicated.
      *
      * @param playerId excavator to grant

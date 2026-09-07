@@ -273,6 +273,7 @@ public class PrismListener implements Listener {
             }
         }
         for (Site site : dirty) {
+            site.catalogSettledFinds(player == null ? null : player.getUniqueId());
             sites.save(site);
             SiteClosure.settle(sites, site);
         }

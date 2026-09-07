@@ -16,6 +16,7 @@ import java.util.Set;
  * @param strata stratum ids this template may spawn in
  * @param tags matching tags for hints
  * @param item Bukkit material name for the recovered item
+ * @param studyNotes English note revealed when the piece is studied at camp; may be blank
  */
 public record ArtifactTemplate(
         String id,
@@ -28,7 +29,8 @@ public record ArtifactTemplate(
         int weight,
         Set<String> strata,
         Set<String> tags,
-        String item
+        String item,
+        String studyNotes
 ) {
     /**
      * Clamps a requested cell count into this template's size range.

@@ -2,8 +2,10 @@ package com.nowko.archeology.site;
 
 import com.nowko.archeology.model.BlockCell;
 import com.nowko.archeology.model.BuriedFind;
+import com.nowko.archeology.model.FindInterpretation;
 import com.nowko.archeology.model.FindState;
 import com.nowko.archeology.model.InterestLevel;
+import com.nowko.archeology.model.InterpretationConfidence;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.SiteRole;
 import com.nowko.archeology.model.SiteStatus;
@@ -355,6 +357,35 @@ public class SiteRepository {
                 brush.add(cell.x() + "," + cell.y() + "," + cell.z() + ":" + entry.getValue());
             }
             node.put("brush-remaining", brush);
+            if (find.getFindNumber() > 0) {
+                node.put("find-number", find.getFindNumber());
+            }
+            if (find.getRecoveredBy() != null) {
+                node.put("recovered-by", find.getRecoveredBy().toString());
+            }
+            if (find.getRecoveredAt() != null) {
+                node.put("recovered-at", find.getRecoveredAt().toString());
+            }
+            node.put("studied", find.isStudied());
+            if (find.getStudyNotes() != null && !find.getStudyNotes().isBlank()) {
+                node.put("study-notes", find.getStudyNotes());
+            }
+            if (!find.getInterpretations().isEmpty()) {
+                List<Map<String, Object>> readings = new ArrayList<>();
+                for (FindInterpretation reading : find.getInterpretations()) {
+                    Map<String, Object> row = new java.util.LinkedHashMap<>();
+                    row.put("id", reading.interpretationId());
+                    if (reading.author() != null) {
+                        row.put("author", reading.author().toString());
+                    }
+                    if (reading.recordedAt() != null) {
+                        row.put("at", reading.recordedAt().toString());
+                    }
+                    row.put("confidence", reading.confidence().yamlKey());
+                    readings.add(row);
+                }
+                node.put("interpretations", readings);
+            }
             finds.add(node);
         }
         yaml.set("finds", finds);
@@ -546,6 +577,28 @@ public class SiteRepository {
             addCells(map.get("direct-hit-cells"), find.getDirectHitCells());
             addCells(map.get("prior-cells"), find.getPriorCells());
             addRemaining(map.get("brush-remaining"), find.getBrushRemaining());
+            if (map.get("find-number") != null) {
+                find.setFindNumber(parsePositive(map.get("find-number")));
+            }
+            if (map.get("recovered-by") != null) {
+                try {
+                    find.setRecoveredBy(UUID.fromString(String.valueOf(map.get("recovered-by"))));
+                } catch (IllegalArgumentException ignored) {
+                    // old or corrupt dossier line
+                }
+            }
+            if (map.get("recovered-at") != null) {
+                try {
+                    find.setRecoveredAt(Instant.parse(String.valueOf(map.get("recovered-at"))));
+                } catch (RuntimeException ignored) {
+                    // old or corrupt dossier line
+                }
+            }
+            find.setStudied(parseBoolean(map.get("studied")));
+            if (map.get("study-notes") != null) {
+                find.setStudyNotes(String.valueOf(map.get("study-notes")));
+            }
+            addInterpretations(map.get("interpretations"), find);
             if (map.get("buried-conservation") != null) {
                 find.setBuriedConservation(parseConservation(map.get("buried-conservation")));
             } else if (find.getGrazedCells().isEmpty()
@@ -558,6 +611,7 @@ public class SiteRepository {
             }
             site.getFinds().add(find);
         }
+        site.assignMissingFindNumbers();
 
         site.setJornadaWorldDay(yaml.getLong("jornada.world-day", -1L));
         site.setJornadaPickLeft(yaml.getInt("jornada.pick-left"));
@@ -655,6 +709,72 @@ public class SiteRepository {
                 // skip a corrupt dossier line
             }
         }
+    }
+
+    /**
+     * @param raw YAML list of interpretation maps
+     * @param find row to fill
+     */
+    private static void addInterpretations(Object raw, BuriedFind find) {
+        if (!(raw instanceof List<?> list)) {
+            return;
+        }
+        for (Object entry : list) {
+            if (!(entry instanceof Map<?, ?> map)) {
+                continue;
+            }
+            Object id = map.get("id");
+            if (id == null) {
+                continue;
+            }
+            UUID author = null;
+            if (map.get("author") != null) {
+                try {
+                    author = UUID.fromString(String.valueOf(map.get("author")));
+                } catch (IllegalArgumentException ignored) {
+                    // skip a corrupt author
+                }
+            }
+            Instant at = null;
+            if (map.get("at") != null) {
+                try {
+                    at = Instant.parse(String.valueOf(map.get("at")));
+                } catch (RuntimeException ignored) {
+                    // skip a corrupt timestamp
+                }
+            }
+            find.getInterpretations().add(new FindInterpretation(
+                    String.valueOf(id),
+                    author,
+                    at,
+                    InterpretationConfidence.fromYaml(stringOr(map.get("confidence"), "medium"))));
+        }
+    }
+
+    /**
+     * @param value YAML number or missing
+     * @return integer ≥ 0, or {@code 0} when missing or unparsable
+     */
+    private static int parsePositive(Object value) {
+        if (value == null) {
+            return 0;
+        }
+        try {
+            return Math.max(0, Integer.parseInt(String.valueOf(value)));
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
+    /**
+     * @param value YAML boolean or missing
+     * @return {@code true} only when the value is a true boolean or the string {@code true}
+     */
+    private static boolean parseBoolean(Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        return value != null && Boolean.parseBoolean(String.valueOf(value));
     }
 
     /**

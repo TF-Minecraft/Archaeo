@@ -1,4 +1,4 @@
-# Readings a player may attach to a find. Not loaded by the plugin yet.
+# Readings a player may attach after studying a find. suggested-by tags are listed first; nothing is hidden.
 interpretations:
   conflict:
     display-name: "possible armed conflict"

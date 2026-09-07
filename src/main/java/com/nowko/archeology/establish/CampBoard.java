@@ -25,10 +25,11 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Chest GUI for an excavation sign: dossier, staff access, and director camp tools.
+ * Chest GUI for an excavation sign: dossier, finds register, staff access, and director camp tools.
  */
 public final class CampBoard implements InventoryHolder {
     static final int SLOT_INFO = 4;
+    static final int SLOT_DOCUMENTATION = 9;
     static final int SLOT_PERSONAL = 11;
     static final int SLOT_INFORMATION = 13;
     static final int SLOT_LIMITS = 15;
@@ -94,6 +95,7 @@ public final class CampBoard implements InventoryHolder {
             inventory.setItem(slot, filler);
         }
         inventory.setItem(SLOT_INFO, infoItem(player, site));
+        inventory.setItem(SLOT_DOCUMENTATION, findsItem(site));
         inventory.setItem(SLOT_PERSONAL, staffItem(site));
         inventory.setItem(SLOT_INFORMATION, dossierItem(site));
         inventory.setItem(SLOT_LIMITS, limitsItem());
@@ -168,6 +170,23 @@ public final class CampBoard implements InventoryHolder {
             lore.add(ChatColor.DARK_GRAY + "Open to read the roster and its files.");
         }
         return named(Material.PLAYER_HEAD, ChatColor.WHITE + "Staff", lore.toArray(String[]::new));
+    }
+
+    /**
+     * @param site excavation
+     * @return finds-register button
+     */
+    private ItemStack findsItem(Site site) {
+        int filed = site.cataloguedFinds().size();
+        List<String> lore = new ArrayList<>();
+        lore.add(ChatColor.GRAY + "The excavation archive.");
+        lore.add(ChatColor.WHITE + String.valueOf(filed) + ChatColor.GRAY
+                + (filed == 1 ? " find filed." : " finds filed."));
+        lore.add(ChatColor.DARK_GRAY + "Open to read a fiche. Losing the piece keeps the record.");
+        if (director && site.getStatus() == SiteStatus.EXHAUSTED) {
+            lore.add(ChatColor.DARK_GRAY + "The cut is closed: you may issue a signed report.");
+        }
+        return named(Material.WRITTEN_BOOK, ChatColor.WHITE + "Finds", lore.toArray(String[]::new));
     }
 
     /**

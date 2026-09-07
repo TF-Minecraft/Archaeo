@@ -1,5 +1,6 @@
 package com.nowko.archeology.model;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -18,6 +19,13 @@ public class BuriedFind {
     private FindState state = FindState.HIDDEN;
     private int buriedConservation = 100;
     private int conservation = 100;
+    /** Public inventory number once the piece has left the cut; {@code 0} means not yet filed. */
+    private int findNumber;
+    private UUID recoveredBy;
+    private Instant recoveredAt;
+    private boolean studied;
+    private String studyNotes;
+    private final List<FindInterpretation> interpretations = new ArrayList<>();
     private final List<BlockCell> cells = new ArrayList<>();
     private final Set<BlockCell> cleanedCells = new LinkedHashSet<>();
     private final Set<BlockCell> grazedCells = new LinkedHashSet<>();
@@ -133,6 +141,179 @@ public class BuriedFind {
      */
     public void setConservation(int conservation) {
         this.conservation = Math.max(0, Math.min(100, conservation));
+    }
+
+    /**
+     * Public inventory number assigned when the piece leaves the cut. Zero means it is still buried.
+     *
+     * @return find number, or {@code 0}
+     */
+    public int getFindNumber() {
+        return findNumber;
+    }
+
+    /**
+     * @param findNumber public inventory number, or {@code 0} while still buried
+     */
+    public void setFindNumber(int findNumber) {
+        this.findNumber = Math.max(0, findNumber);
+    }
+
+    /**
+     * Formats the inventory number the way a finds register writes it: site serial, then sequence.
+     *
+     * @param siteSerial excavation serial
+     * @return {@code #027-14}, or {@code null} when this find has no number yet
+     */
+    public String publicNumber(int siteSerial) {
+        if (findNumber <= 0) {
+            return null;
+        }
+        return String.format("#%03d-%d", siteSerial, findNumber);
+    }
+
+    /**
+     * @return who lifted the piece, or who last wounded it into loss; {@code null} if unknown
+     */
+    public UUID getRecoveredBy() {
+        return recoveredBy;
+    }
+
+    /**
+     * @param recoveredBy recoverer or responsible player, or {@code null}
+     */
+    public void setRecoveredBy(UUID recoveredBy) {
+        this.recoveredBy = recoveredBy;
+    }
+
+    /**
+     * @return when the piece left the cut, or {@code null} if it is still buried
+     */
+    public Instant getRecoveredAt() {
+        return recoveredAt;
+    }
+
+    /**
+     * @param recoveredAt when the piece left the cut
+     */
+    public void setRecoveredAt(Instant recoveredAt) {
+        this.recoveredAt = recoveredAt;
+    }
+
+    /**
+     * @return whether study has revealed rarity, tags, and notes on this row
+     */
+    public boolean isStudied() {
+        return studied;
+    }
+
+    /**
+     * @param studied whether the piece has been examined at camp
+     */
+    public void setStudied(boolean studied) {
+        this.studied = studied;
+    }
+
+    /**
+     * Snapshot of the catalog note copied at study time, so later YAML edits do not rewrite the archive.
+     *
+     * @return study notes, or {@code null} before study
+     */
+    public String getStudyNotes() {
+        return studyNotes;
+    }
+
+    /**
+     * @param studyNotes catalog note copied at study time
+     */
+    public void setStudyNotes(String studyNotes) {
+        this.studyNotes = studyNotes;
+    }
+
+    /**
+     * @return readings filed on this row, in the order they were written
+     */
+    public List<FindInterpretation> getInterpretations() {
+        return interpretations;
+    }
+
+    /**
+     * A find may carry at most two readings. A second click on the same catalog key removes it.
+     *
+     * @param reading new reading
+     * @return {@code true} if the list changed
+     */
+    public boolean addInterpretation(FindInterpretation reading) {
+        if (reading == null || reading.interpretationId() == null || reading.interpretationId().isBlank()) {
+            return false;
+        }
+        if (interpretations.size() >= 2) {
+            return false;
+        }
+        for (FindInterpretation existing : interpretations) {
+            if (reading.interpretationId().equals(existing.interpretationId())) {
+                return false;
+            }
+        }
+        interpretations.add(reading);
+        return true;
+    }
+
+    /**
+     * @param interpretationId catalog key to drop
+     * @return {@code true} if a reading was removed
+     */
+    public boolean removeInterpretation(String interpretationId) {
+        if (interpretationId == null) {
+            return false;
+        }
+        return interpretations.removeIf(reading -> interpretationId.equals(reading.interpretationId()));
+    }
+
+    /**
+     * @param interpretationId catalog key
+     * @return whether that reading is already on this row
+     */
+    public boolean hasInterpretation(String interpretationId) {
+        if (interpretationId == null) {
+            return false;
+        }
+        for (FindInterpretation reading : interpretations) {
+            if (interpretationId.equals(reading.interpretationId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @return whether this find has left the cut (lifted or destroyed)
+     */
+    public boolean hasLeftTheCut() {
+        return state == FindState.RECOVERED || state == FindState.LOST;
+    }
+
+    /**
+     * @return short register status for lore and boards
+     */
+    public String catalogStatusLabel() {
+        if (state == FindState.LOST) {
+            return "Lost in the cut";
+        }
+        if (!interpretations.isEmpty()) {
+            return "Catalogued";
+        }
+        if (studied) {
+            return "Studied";
+        }
+        return "Field catalog";
+    }
+
+    /**
+     * @return whether at least one reading has been filed
+     */
+    public boolean isCatalogued() {
+        return !interpretations.isEmpty();
     }
 
     /** @return connected cells that make up the hidden shape */

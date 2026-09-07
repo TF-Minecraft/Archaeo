@@ -548,6 +548,7 @@ public class HandPickService {
         if (late && lifted.size() > 1) {
             playLateSmash(block);
         }
+        site.catalogSettledFinds(player.getUniqueId());
         sites.save(site);
         SiteClosure.settle(sites, site);
     }

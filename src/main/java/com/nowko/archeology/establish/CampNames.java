@@ -13,7 +13,7 @@ import java.util.UUID;
 /**
  * Resolves excavation staff names without asking Mojang for unknown accounts.
  */
-final class CampNames {
+public final class CampNames {
     private CampNames() {
     }
 
@@ -23,7 +23,7 @@ final class CampNames {
      * @param site excavation
      * @return ordered roster
      */
-    static List<UUID> roster(Site site) {
+    public static List<UUID> roster(Site site) {
         LinkedHashSet<UUID> ids = new LinkedHashSet<>();
         if (site.getDirector() != null) {
             ids.add(site.getDirector());
@@ -33,11 +33,11 @@ final class CampNames {
     }
 
     /**
-     * @param viewer player opening the board
+     * @param viewer player opening the board, or {@code null} when resolving a name off a fiche
      * @param id stored uuid
      * @return last known name, or a short uuid
      */
-    static String of(Player viewer, UUID id) {
+    public static String of(Player viewer, UUID id) {
         if (id == null) {
             return "—";
         }
@@ -62,7 +62,7 @@ final class CampNames {
      * @param raw chat name
      * @return known player, or {@code null}
      */
-    static OfflinePlayer known(String raw) {
+    public static OfflinePlayer known(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
         }

@@ -344,10 +344,13 @@ public class RecoverService {
         String grade = catalogs.pick().conservation().gradeLabel(conservation);
         boolean fieldDamaged = find.isFieldDamaged();
         if (conservation <= 0) {
+            find.setState(FindState.LOST);
+            site.catalogSettledFinds(player.getUniqueId());
             player.sendMessage("Those remains were destroyed. Nothing could be recovered.");
             world.playSound(origin.getLocation(), Sound.ENTITY_ITEM_BREAK, SoundCategory.BLOCKS, 0.8f, 0.7f);
             return;
         }
+        site.catalogSettledFinds(player.getUniqueId());
         site.setRecoveredCount(site.getRecoveredCount() + 1);
         WorkerRecord log = site.staffLog(player.getUniqueId());
         if (log != null) {
@@ -358,7 +361,8 @@ public class RecoverService {
             player.sendMessage("Recovered a find, but its template is missing from the catalog.");
             return;
         }
-        ItemStack stack = recoveredItem.create(template, site, find, player.getUniqueId(), grade, fieldDamaged);
+        ItemStack stack = recoveredItem.create(
+                template, site, find, player.getUniqueId(), grade, fieldDamaged, catalogs);
         Location dropAt = origin.getLocation().add(0.5, 0.35, 0.5);
         Item dropped = world.dropItem(dropAt, stack);
         dropped.setVelocity(new Vector(0, 0.12, 0));
@@ -374,7 +378,8 @@ public class RecoverService {
         if (fieldDamaged) {
             quality.append(" · hurt while digging");
         }
-        player.sendMessage("Recovered: " + template.displayName() + quality);
+        player.sendMessage("Recovered: " + find.publicNumber(site.getSerial()) + " · "
+                + template.displayName() + quality);
     }
 
     /**
