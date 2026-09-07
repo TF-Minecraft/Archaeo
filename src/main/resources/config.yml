@@ -67,11 +67,11 @@ excavation:
   # Hold left-click on fill. Warning / ready sounds follow vanilla mining speed (tool vs block).
   # Cracks stay frozen. First matching tool wins.
   # How many cubes come out, and in what pattern. Both counts use the same break-shape.
-  # The aimed cube is always first. Then:
+  # The aimed cube is always first. Extra cubes always share a face with the aim
+  # or with a cube already chosen this lift (no diagonal hops, no floating below).
   #   down    — straight down (Y-1, Y-2, …)
-  #   around  — 3×3 on this layer, then 3×3 one block below (includes the cube under the aim)
-  #             order: centre, N, E, S, W, then diagonals; then the same on the layer below
-  #   random  — same 3×3×2 as around, shuffled (aimed cube still first)
+  #   around  — 3×3×2 grown face-to-face: cardinals, then diagonals, then the layer below
+  #   random  — same 3×3×2; each extra cube is a random face neighbour of the lift so far
   # lift-on-ready / lift-if-late = how many of those cubes on a timely vs late release.
   tools:
     # Bare hand: the aimed cube only, even if you miss the ready window.

@@ -906,7 +906,7 @@ de romper; no sabes en cuántos tiempos. El recuento se tira **por hold**.
 | --- | --- |
 | **Antes** del ting | El cubo sigue. No hace falta guardar `3/6` en disco: el siguiente hold empieza de cero. |
 | **En el ting** | Salen `lift-on-ready` cubos con la `break-shape` (siempre el apuntado primero). |
-| **Después** del ting (te pasas) | La misma forma, `lift-if-late` cubos. `down` = pozo; `around` = 3×3 esta capa y la de debajo; `random` = baraja ese 3×3×2 (el apuntado sigue primero). |
+| **Después** del ting (te pasas) | La misma forma, `lift-if-late` cubos. `down` = pozo; `around` / `random` = 3×3×2, pero cada cubo extra comparte cara con el apuntado o con otro ya elegido en ese lift (el random no salta en diagonal ni a un cubo de abajo todavía suelto). |
 
 **Hay hallazgo** en esa celda (o el de abajo es hallazgo):
 

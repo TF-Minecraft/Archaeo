@@ -8,9 +8,9 @@ import java.util.Locale;
 public enum BreakShape {
     /** Aimed cube, then straight down. */
     DOWN,
-    /** Aimed 3×3, then the 3×3 one block below (centre of that layer is the cube under the aim). */
+    /** Aimed 3×3×2 grown face-to-face (cardinals, then diagonals, then the layer below). */
     AROUND,
-    /** Same 3×3×2 as {@link #AROUND}, shuffled (aimed cube still first). */
+    /** Same 3×3×2 as {@link #AROUND}; each extra cube is a random face neighbour of the lift so far. */
     RANDOM;
 
     /**
