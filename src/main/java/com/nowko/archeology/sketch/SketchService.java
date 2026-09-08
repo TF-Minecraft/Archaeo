@@ -1,7 +1,5 @@
 package com.nowko.archeology.sketch;
 
-import net.md_5.bungee.api.ChatMessageType;
-import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Input;
@@ -10,6 +8,9 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.inventory.ItemStack;
@@ -35,6 +36,7 @@ public class SketchService {
     private final NamespacedKey freezeKey;
     private final Map<UUID, SketchSession> sessions = new HashMap<>();
     private final Map<Integer, SketchSheet> sheets = new HashMap<>();
+    private final Map<UUID, BossBar> bars = new HashMap<>();
     private BukkitTask task;
 
     /**
@@ -71,6 +73,10 @@ public class SketchService {
             }
         }
         sheets.clear();
+        for (BossBar bar : bars.values()) {
+            bar.removeAll();
+        }
+        bars.clear();
     }
 
     /**
@@ -96,8 +102,8 @@ public class SketchService {
         putMapInHand(player, view);
         freeze(player);
         player.sendMessage(ChatColor.GOLD + "Sketch prototype.");
-        player.sendMessage(ChatColor.GRAY + "Hold the map. WASD moves, sneak paints, jump changes ink.");
-        player.sendMessage(ChatColor.GRAY + "Left-click paints, right-click erases, drop or /archaeo sketch leaves.");
+        player.sendMessage(ChatColor.GRAY + "Hold the map. WASD moves, sneak paints, right-click erases.");
+        player.sendMessage(ChatColor.GRAY + "Space changes ink, drop or /archaeo sketch leaves.");
         player.sendMessage(ChatColor.DARK_GRAY + "Nothing is saved. The drawing dies on leave or reload.");
     }
 
@@ -110,9 +116,9 @@ public class SketchService {
     public void leave(Player player, boolean announce) {
         sessions.remove(player.getUniqueId());
         thaw(player);
+        hideHud(player);
         if (announce) {
             player.sendMessage(ChatColor.GRAY + "Left the sketch. The map is a snapshot until you drop this world.");
-            player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(""));
         }
     }
 
@@ -141,19 +147,7 @@ public class SketchService {
     }
 
     /**
-     * Stamps the current ink. Used by left-click.
-     *
-     * @param player editor
-     */
-    public void paint(Player player) {
-        SketchSession session = sessions.get(player.getUniqueId());
-        if (session != null) {
-            session.paint();
-        }
-    }
-
-    /**
-     * Clears the cursor cell. Used by right-click.
+     * Clears the cursor cell. Used by right-click / interact.
      *
      * @param player editor
      */
@@ -176,7 +170,7 @@ public class SketchService {
     }
 
     /**
-     * Reads WASD as cursor steps and sneak as a continuous stamp.
+     * Reads WASD as cursor steps and sneak as a continuous stroke.
      */
     private void tick() {
         Iterator<Map.Entry<UUID, SketchSession>> iterator = sessions.entrySet().iterator();
@@ -192,7 +186,7 @@ public class SketchService {
                 iterator.remove();
                 thaw(player);
                 player.sendMessage(ChatColor.GRAY + "Left the sketch (the map left the hand).");
-                player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(""));
+                hideHud(player);
                 continue;
             }
             applyInput(player, session);
@@ -219,16 +213,37 @@ public class SketchService {
     }
 
     /**
+     * Same strip as camp placement: a per-player boss bar, so the action bar stays free.
+     *
      * @param player editor
      * @param session cursor and ink
      */
     private void sendHud(Player player, SketchSession session) {
-        String line = ChatColor.GOLD + "Sketch "
-                + ChatColor.WHITE + session.cursorX() + "," + session.cursorY()
-                + ChatColor.GRAY + " · "
-                + ChatColor.WHITE + session.ink().label()
-                + ChatColor.DARK_GRAY + " · sneak paint · jump ink";
-        player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(line));
+        BossBar bar = bars.computeIfAbsent(
+                player.getUniqueId(),
+                id -> plugin.getServer().createBossBar("", BarColor.WHITE, BarStyle.SOLID));
+        if (!bar.getPlayers().contains(player)) {
+            bar.addPlayer(player);
+        }
+        bar.setVisible(true);
+        bar.setProgress(1.0);
+        bar.setColor(player.getCurrentInput().isSneak() ? BarColor.GREEN : BarColor.WHITE);
+        bar.setTitle(ChatColor.WHITE
+                + session.ink().label()
+                + "  " + session.cursorX() + "," + session.cursorY()
+                + "  ·  sneak paints  ·  right-click erases  ·  space ink");
+    }
+
+    /**
+     * @param player editor
+     */
+    private void hideHud(Player player) {
+        BossBar bar = bars.remove(player.getUniqueId());
+        if (bar == null) {
+            return;
+        }
+        bar.removePlayer(player);
+        bar.removeAll();
     }
 
     /**
@@ -271,7 +286,8 @@ public class SketchService {
     }
 
     /**
-     * Zeroes walking so WASD is free for the cursor.
+     * Zeroes walking so WASD is free for the cursor. Jump and block-break speed are also
+     * zeroed so space and clicks do not rubber-band; the client never starts those actions.
      *
      * @param player editor
      */
@@ -289,23 +305,46 @@ public class SketchService {
 
     /**
      * @param player editor
-     * @param frozen whether movement speed should be multiplied to zero
+     * @param frozen whether movement, jump, and mining should be multiplied to zero
      */
     private void setFrozen(Player player, boolean frozen) {
         AttributeInstance speed = player.getAttribute(Attribute.MOVEMENT_SPEED);
         if (speed == null) {
             player.setWalkSpeed(frozen ? 0f : 0.2f);
+        } else {
+            zeroAttribute(speed, frozen);
+        }
+        zeroAttribute(player, Attribute.JUMP_STRENGTH, frozen);
+        zeroAttribute(player, Attribute.BLOCK_BREAK_SPEED, frozen);
+    }
+
+    /**
+     * @param player editor
+     * @param attribute jump or mining speed
+     * @param frozen whether to attach the zeroing modifier
+     */
+    private void zeroAttribute(Player player, Attribute attribute, boolean frozen) {
+        AttributeInstance instance = player.getAttribute(attribute);
+        if (instance == null) {
             return;
         }
+        zeroAttribute(instance, frozen);
+    }
+
+    /**
+     * @param instance live attribute
+     * @param frozen whether to attach the zeroing modifier
+     */
+    private void zeroAttribute(AttributeInstance instance, boolean frozen) {
         AttributeModifier found = null;
-        for (AttributeModifier modifier : speed.getModifiers()) {
+        for (AttributeModifier modifier : instance.getModifiers()) {
             if (freezeKey.equals(modifier.getKey())) {
                 found = modifier;
                 break;
             }
         }
         if (frozen && found == null) {
-            speed.addModifier(new AttributeModifier(
+            instance.addModifier(new AttributeModifier(
                     freezeKey,
                     -1.0,
                     AttributeModifier.Operation.MULTIPLY_SCALAR_1,
@@ -313,7 +352,7 @@ public class SketchService {
             return;
         }
         if (!frozen && found != null) {
-            speed.removeModifier(found);
+            instance.removeModifier(found);
         }
     }
 }

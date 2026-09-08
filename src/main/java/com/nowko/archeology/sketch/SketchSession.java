@@ -118,7 +118,7 @@ final class SketchSession {
     }
 
     /**
-     * Walks the palette, including paper so erase is reachable without a right-click.
+     * Walks the five stroke colours. Paper stays erase-only.
      */
     void cycleInk() {
         ink = ink.next();

@@ -3,17 +3,15 @@ package com.nowko.archeology.sketch;
 import java.awt.Color;
 
 /**
- * Field-sketch palette: paper plus seven crayon hues the map palette can actually show.
+ * Small field-notebook palette: paper plus five strokes. Jump cycles the strokes; paper is erase.
  */
 public enum SketchInk {
     PAPER(247, 236, 214, "paper"),
-    CHARCOAL(45, 42, 38, "charcoal"),
-    OCHRE(176, 112, 48, "ochre"),
-    SANGUINE(138, 44, 36, "sanguine"),
-    TERRA(92, 64, 51, "terra"),
-    MOSS(62, 92, 48, "moss"),
-    SLATE(68, 84, 108, "slate"),
-    BONE(232, 220, 196, "bone");
+    CHARCOAL(36, 32, 30, "charcoal"),
+    RED(168, 42, 36, "red"),
+    OCHRE(186, 122, 48, "ochre"),
+    SLATE(62, 92, 138, "slate"),
+    MOSS(72, 108, 58, "moss");
 
     private final Color color;
     private final String label;
@@ -44,10 +42,20 @@ public enum SketchInk {
     }
 
     /**
-     * @return next swatch, wrapping
+     * Walks charcoal → red → ochre → slate → moss. Paper is not in the cycle.
+     *
+     * @return the next stroke colour
      */
     public SketchInk next() {
         SketchInk[] values = values();
-        return values[(ordinal() + 1) % values.length];
+        int firstStroke = CHARCOAL.ordinal();
+        if (ordinal() < firstStroke) {
+            return CHARCOAL;
+        }
+        int next = ordinal() + 1;
+        if (next >= values.length) {
+            return CHARCOAL;
+        }
+        return values[next];
     }
 }

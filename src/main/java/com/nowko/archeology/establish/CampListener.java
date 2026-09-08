@@ -198,7 +198,7 @@ public class CampListener implements Listener {
      *
      * @param event interact event
      */
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
         if (event.getHand() != EquipmentSlot.HAND) {
             return;
@@ -244,7 +244,7 @@ public class CampListener implements Listener {
      *
      * @param event entity interact at a point
      */
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onAimProxyAt(PlayerInteractAtEntityEvent event) {
         if (event.getHand() != EquipmentSlot.HAND) {
             return;
@@ -257,7 +257,7 @@ public class CampListener implements Listener {
     /**
      * @param event entity interact
      */
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onAimProxy(PlayerInteractEntityEvent event) {
         if (event.getHand() != EquipmentSlot.HAND) {
             return;
