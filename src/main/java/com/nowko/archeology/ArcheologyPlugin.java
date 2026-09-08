@@ -189,7 +189,7 @@ public class ArcheologyPlugin extends JavaPlugin {
     }
 
     /**
-     * @return in-memory 32×32 map sketch (staff prototype, not persisted)
+     * @return staff field-sketch prototype; the drawing lives on the {@code FILLED_MAP} item
      */
     public SketchService sketch() {
         return sketch;

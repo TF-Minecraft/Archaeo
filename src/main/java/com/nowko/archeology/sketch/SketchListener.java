@@ -1,6 +1,7 @@
 package com.nowko.archeology.sketch;
 
 import org.bukkit.Location;
+import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
@@ -10,10 +11,16 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockDamageEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.hanging.HangingBreakByEntityEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerAnimationEvent;
 import org.bukkit.event.player.PlayerAnimationType;
 import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
@@ -29,6 +36,7 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerShearEntityEvent;
@@ -36,7 +44,9 @@ import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.event.player.PlayerTakeLecternBookEvent;
 import org.bukkit.event.player.PlayerToggleFlightEvent;
 import org.bukkit.event.player.PlayerToggleSprintEvent;
+import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
 
 /**
  * Keeps a sketch editor still and maps sneak / interact / space onto paint, erase, and ink.
@@ -74,7 +84,7 @@ public class SketchListener implements Listener {
     }
 
     /**
-     * Right-click erases. Left-click is swallowed so it never stamps, attacks, or mines.
+     * Right-click erases. Left-click starts the sign confirm. Vanilla use is cancelled.
      *
      * @param event interact
      */
@@ -90,6 +100,10 @@ public class SketchListener implements Listener {
             return;
         }
         Action action = event.getAction();
+        if (action == Action.LEFT_CLICK_AIR || action == Action.LEFT_CLICK_BLOCK) {
+            sketches.askToSign(event.getPlayer());
+            return;
+        }
         if (action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK) {
             sketches.erase(event.getPlayer());
         }
@@ -231,15 +245,21 @@ public class SketchListener implements Listener {
     }
 
     /**
-     * Chests, villagers, the camp board, and any other GUI must not open over the map.
+     * Own bag (E) stays available so moving the map away can save. Chests, villagers,
+     * workbenches, the camp board, and other GUIs stay closed while editing.
      *
      * @param event inventory open
      */
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onInventory(InventoryOpenEvent event) {
-        if (event.getPlayer() instanceof Player player && sketches.editing(player)) {
-            event.setCancelled(true);
+        if (!(event.getPlayer() instanceof Player player) || !sketches.editing(player)) {
+            return;
         }
+        InventoryType type = event.getInventory().getType();
+        if (type == InventoryType.CRAFTING || type == InventoryType.CREATIVE || type == InventoryType.PLAYER) {
+            return;
+        }
+        event.setCancelled(true);
     }
 
     /**
@@ -313,29 +333,34 @@ public class SketchListener implements Listener {
     }
 
     /**
-     * Dropping the map leaves the editor; any other drop is swallowed so Q is only that exit.
+     * Dropping the map saves onto the dropped stack and leaves the editor.
      *
      * @param event drop
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDrop(PlayerDropItemEvent event) {
-        if (!sketches.editing(event.getPlayer())) {
+        Player player = event.getPlayer();
+        if (!sketches.editing(player)) {
             return;
         }
-        event.setCancelled(true);
-        if (sketches.isSketchMap(event.getItemDrop().getItemStack())) {
-            sketches.leave(event.getPlayer(), true);
+        ItemStack dropped = event.getItemDrop().getItemStack();
+        if (sketches.isSketchMap(dropped)) {
+            sketches.leave(player, true, dropped);
         }
     }
 
     /**
+     * Hotbar numbers and the scroll wheel: save the sheet that left, then enter if the new slot is unsigned.
+     *
      * @param event hotbar change
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onHeld(PlayerItemHeldEvent event) {
-        if (sketches.editing(event.getPlayer())) {
-            sketches.leave(event.getPlayer(), true);
+        Player player = event.getPlayer();
+        if (sketches.editing(player)) {
+            sketches.leave(player, true, player.getInventory().getItem(event.getPreviousSlot()));
         }
+        sketches.syncHand(player, player.getInventory().getItem(event.getNewSlot()));
     }
 
     /**
@@ -343,9 +368,7 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onSwap(PlayerSwapHandItemsEvent event) {
-        if (sketches.editing(event.getPlayer())) {
-            sketches.leave(event.getPlayer(), true);
-        }
+        sketches.syncHandLater(event.getPlayer());
     }
 
     /**
@@ -353,9 +376,11 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDeath(PlayerDeathEvent event) {
-        if (sketches.editing(event.getEntity())) {
-            sketches.leave(event.getEntity(), false);
+        Player player = event.getEntity();
+        if (!sketches.editing(player)) {
+            return;
         }
+        sketches.leave(player, false, event.getDrops());
     }
 
     /**
@@ -363,9 +388,7 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onWorld(PlayerChangedWorldEvent event) {
-        if (sketches.editing(event.getPlayer())) {
-            sketches.leave(event.getPlayer(), true);
-        }
+        sketches.syncHandLater(event.getPlayer());
     }
 
     /**
@@ -375,6 +398,102 @@ public class SketchListener implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         if (sketches.editing(event.getPlayer())) {
             sketches.leave(event.getPlayer(), false);
+        }
+    }
+
+    /**
+     * @param event chat
+     */
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onChat(AsyncPlayerChatEvent event) {
+        Player player = event.getPlayer();
+        SketchSession session = sketches.session(player);
+        if (session == null || !session.awaitingSign()) {
+            return;
+        }
+        event.setCancelled(true);
+        String raw = event.getMessage() == null ? "" : event.getMessage().trim();
+        sketches.handleSignChatLater(player, raw);
+    }
+
+    /**
+     * Moving the map out of the hotbar (or onto the cursor) saves onto that stack.
+     *
+     * @param event click
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
+        ItemStack hotbar = event.getHotbarButton() >= 0
+                ? player.getInventory().getItem(event.getHotbarButton())
+                : null;
+        sketches.syncHandLater(player, event.getCursor(), event.getCurrentItem(), hotbar);
+    }
+
+    /**
+     * @param event drag
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
+        java.util.ArrayList<ItemStack> extras = new java.util.ArrayList<>();
+        extras.add(event.getCursor());
+        extras.add(event.getOldCursor());
+        extras.addAll(event.getNewItems().values());
+        sketches.syncHandLater(player, extras.toArray(ItemStack[]::new));
+    }
+
+    /**
+     * Closing with the map on the cursor dumps it back into the bag; save if it left the hand.
+     *
+     * @param event close
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (event.getPlayer() instanceof Player player) {
+            sketches.syncHandLater(player, event.getView().getCursor());
+        }
+    }
+
+    /**
+     * @param event pickup
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPickup(EntityPickupItemEvent event) {
+        if (event.getEntity() instanceof Player player) {
+            sketches.hydrate(event.getItem().getItemStack());
+            sketches.syncHandLater(player);
+        }
+    }
+
+    /**
+     * @param event join
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        for (ItemStack stack : player.getInventory().getContents()) {
+            sketches.hydrate(stack);
+        }
+        sketches.hydrate(player.getInventory().getItemInOffHand());
+        sketches.syncHandLater(player);
+    }
+
+    /**
+     * Maps hanging in frames must show the saved drawing after a restart.
+     *
+     * @param event chunk
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onChunk(ChunkLoadEvent event) {
+        for (org.bukkit.entity.Entity entity : event.getChunk().getEntities()) {
+            if (entity instanceof ItemFrame frame) {
+                sketches.hydrate(frame.getItem());
+            }
         }
     }
 }

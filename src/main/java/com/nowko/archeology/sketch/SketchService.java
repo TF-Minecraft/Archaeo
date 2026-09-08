@@ -5,14 +5,18 @@ import org.bukkit.ChatColor;
 import org.bukkit.Input;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
+import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlotGroup;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.MapMeta;
 import org.bukkit.map.MapView;
@@ -21,18 +25,22 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 
 /**
- * Staff-only 32×32 map sketch, in memory only, so we can feel WASD-as-cursor before designing a real station.
+ * Staff field sketch: the {@code FILLED_MAP} item is the drawing. Hold an unsigned sheet to edit;
+ * switch it away to save; left-click then {@code sign} in chat to lock it forever.
  */
 public class SketchService {
     private static final long TICK_PERIOD = 2L;
 
     private final JavaPlugin plugin;
     private final NamespacedKey markerKey;
+    private final NamespacedKey cellsKey;
+    private final NamespacedKey signedKey;
+    private final NamespacedKey authorKey;
+    private final NamespacedKey mapIdKey;
     private final NamespacedKey freezeKey;
     private final Map<UUID, SketchSession> sessions = new HashMap<>();
     private final Map<Integer, SketchSheet> sheets = new HashMap<>();
@@ -45,15 +53,31 @@ public class SketchService {
     public SketchService(JavaPlugin plugin) {
         this.plugin = plugin;
         this.markerKey = new NamespacedKey(plugin, "sketch_proto");
+        this.cellsKey = new NamespacedKey(plugin, "sketch_cells");
+        this.signedKey = new NamespacedKey(plugin, "sketch_signed");
+        this.authorKey = new NamespacedKey(plugin, "sketch_author");
+        this.mapIdKey = new NamespacedKey(plugin, "sketch_map_id");
         this.freezeKey = new NamespacedKey(plugin, "sketch_freeze");
     }
 
     /**
-     * Starts the input loop that walks the cursor while a session is open.
+     * Starts the input loop, rebinds maps already in the world, and re-enters anyone holding an unsigned sheet.
      */
     public void start() {
         stop();
         task = plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, TICK_PERIOD, TICK_PERIOD);
+        for (World world : Bukkit.getWorlds()) {
+            for (ItemFrame frame : world.getEntitiesByClass(ItemFrame.class)) {
+                hydrate(frame.getItem());
+            }
+        }
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            for (ItemStack stack : player.getInventory().getContents()) {
+                hydrate(stack);
+            }
+            hydrate(player.getInventory().getItemInOffHand());
+            syncHand(player);
+        }
     }
 
     /**
@@ -67,12 +91,11 @@ public class SketchService {
         for (UUID playerId : Map.copyOf(sessions).keySet()) {
             Player player = Bukkit.getPlayer(playerId);
             if (player != null) {
-                leave(player, false);
+                leave(player, false, findSaveTarget(player, sessions.get(playerId)));
             } else {
                 sessions.remove(playerId);
             }
         }
-        sheets.clear();
         for (BossBar bar : bars.values()) {
             bar.removeAll();
         }
@@ -80,46 +103,206 @@ public class SketchService {
     }
 
     /**
-     * Gives a locked map and freezes the player in the editor.
+     * Staff command: new blank sheet, or a reminder if already holding one.
      *
      * @param player staff tester
      */
     public void begin(Player player) {
-        if (sessions.containsKey(player.getUniqueId())) {
-            leave(player, true);
+        ItemStack hand = player.getInventory().getItemInMainHand();
+        if (editing(player)) {
+            player.sendMessage(ChatColor.GRAY + "Switch the map away to save. Left-click, then type sign to lock it.");
             return;
         }
-        MapView view = Bukkit.createMap(player.getWorld());
-        view.getRenderers().clear();
-        view.setLocked(true);
-        view.setTrackingPosition(false);
-        view.setUnlimitedTracking(false);
-        SketchSheet sheet = new SketchSheet();
-        sheets.put(view.getId(), sheet);
-        view.addRenderer(new SketchRenderer(this));
-        SketchSession session = new SketchSession(player.getUniqueId(), view, sheet);
-        sessions.put(player.getUniqueId(), session);
-        putMapInHand(player, view);
-        freeze(player);
-        player.sendMessage(ChatColor.GOLD + "Sketch prototype.");
-        player.sendMessage(ChatColor.GRAY + "Hold the map. WASD moves, sneak paints, right-click erases.");
-        player.sendMessage(ChatColor.GRAY + "Space changes ink, drop or /archaeo sketch leaves.");
-        player.sendMessage(ChatColor.DARK_GRAY + "Nothing is saved. The drawing dies on leave or reload.");
+        if (isSketchMap(hand)) {
+            if (isSigned(hand)) {
+                player.sendMessage(ChatColor.GRAY + "This sketch is signed. It cannot be edited.");
+                hydrate(hand);
+                return;
+            }
+            enter(player, hand);
+            return;
+        }
+        enter(player, createBlank(player));
     }
 
     /**
-     * Thaws the player and forgets the session. The map item may still show the last blit.
+     * Opens the editor for an unsigned map already in (or just moved to) the main hand.
+     *
+     * @param player holder
+     * @param stack unsigned sketch
+     */
+    public void enter(Player player, ItemStack stack) {
+        if (stack == null || !isSketchMap(stack) || isSigned(stack) || editing(player)) {
+            return;
+        }
+        hydrate(stack);
+        MapView view = mapView(stack);
+        if (view == null) {
+            return;
+        }
+        SketchSheet sheet = sheets.get(view.getId());
+        if (sheet == null) {
+            return;
+        }
+        sessions.put(player.getUniqueId(), new SketchSession(player.getUniqueId(), view, sheet));
+        freeze(player);
+        player.sendMessage(ChatColor.GOLD + "Editing field sketch.");
+        player.sendMessage(ChatColor.WHITE + "Sneak paints. Right-click erases. Space changes ink.");
+        player.sendMessage(ChatColor.WHITE + "Switch the item away to save. Left-click, then type sign to lock.");
+    }
+
+    /**
+     * Writes the sheet onto {@code stack} when possible, then thaws.
      *
      * @param player editor
-     * @param announce whether to tell them they left
+     * @param announce whether this leave was a player action (hotbar, inventory, drop) and should tell them
+     * @param stack item that left the hand, or {@code null} to search the inventory
      */
-    public void leave(Player player, boolean announce) {
-        sessions.remove(player.getUniqueId());
+    public void leave(Player player, boolean announce, ItemStack stack) {
+        SketchSession session = sessions.remove(player.getUniqueId());
         thaw(player);
         hideHud(player);
-        if (announce) {
-            player.sendMessage(ChatColor.GRAY + "Left the sketch. The map is a snapshot until you drop this world.");
+        if (session == null) {
+            return;
         }
+        ItemStack target = stack != null && matchesView(stack, session.view().getId())
+                ? stack
+                : findSaveTarget(player, session);
+        if (target == null) {
+            return;
+        }
+        writeItem(target, session.sheet(), isSigned(target), authorOf(target));
+        if (announce) {
+            player.sendMessage(ChatColor.GRAY + "Sketch saved on the map.");
+        }
+    }
+
+    /**
+     * @param player editor
+     * @param announce whether this leave was a player action and should tell them
+     */
+    public void leave(Player player, boolean announce) {
+        leave(player, announce, findSaveTarget(player, sessions.get(player.getUniqueId())));
+    }
+
+    /**
+     * Prefers a matching stack among {@code extras} (death drops, a thrown item) before searching the inventory.
+     *
+     * @param player editor
+     * @param announce whether this leave was a player action and should tell them
+     * @param extras stacks that just left the inventory
+     */
+    public void leave(Player player, boolean announce, Iterable<ItemStack> extras) {
+        SketchSession session = sessions.get(player.getUniqueId());
+        ItemStack target = null;
+        if (session != null && extras != null) {
+            int viewId = session.view().getId();
+            for (ItemStack stack : extras) {
+                if (matchesView(stack, viewId)) {
+                    target = stack;
+                    break;
+                }
+            }
+        }
+        leave(player, announce, target);
+    }
+
+    /**
+     * Enters or leaves according to the stack that is (or will be) in the main hand.
+     *
+     * @param player holder
+     * @param hand main-hand stack after the change; {@code null} means empty
+     */
+    public void syncHand(Player player, ItemStack hand) {
+        SketchSession session = sessions.get(player.getUniqueId());
+        if (session != null) {
+            if (!matchesView(hand, session.view().getId())) {
+                leave(player, true);
+            } else {
+                return;
+            }
+        }
+        if (isSketchMap(hand) && !isSigned(hand)) {
+            enter(player, hand);
+        } else if (isSketchMap(hand)) {
+            hydrate(hand);
+        }
+    }
+
+    /**
+     * Enters or leaves according to whatever is in the main hand now.
+     *
+     * @param player holder
+     */
+    public void syncHand(Player player) {
+        syncHand(player, player.getInventory().getItemInMainHand());
+    }
+
+    /**
+     * After a tick, so inventory clicks have finished moving the stack.
+     *
+     * @param player holder
+     * @param extras stacks involved in the click (cursor, clicked slot, hotbar swap)
+     */
+    public void syncHandLater(Player player, ItemStack... extras) {
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            SketchSession session = sessions.get(player.getUniqueId());
+            if (session != null && !holdingThisSketch(player, session)) {
+                leave(player, true, extras == null ? java.util.List.of() : java.util.Arrays.asList(extras));
+            }
+            syncHand(player);
+        });
+    }
+
+    /**
+     * Chat confirm for signing runs on the main thread.
+     *
+     * @param player editor
+     * @param raw chat line
+     */
+    public void handleSignChatLater(Player player, String raw) {
+        plugin.getServer().getScheduler().runTask(plugin, () -> handleSignChat(player, raw));
+    }
+
+    /**
+     * Asks for a chat confirm before locking the sheet.
+     *
+     * @param player editor
+     */
+    public void askToSign(Player player) {
+        SketchSession session = sessions.get(player.getUniqueId());
+        if (session == null) {
+            return;
+        }
+        session.setAwaitingSign(true);
+        player.sendMessage(ChatColor.GOLD + "Lock this sketch forever?");
+        player.sendMessage(ChatColor.WHITE + "Type sign to finish, or cancel to keep editing.");
+    }
+
+    /**
+     * @param player editor who just typed
+     * @param raw chat line
+     * @return whether this line was the sign prompt
+     */
+    public boolean handleSignChat(Player player, String raw) {
+        SketchSession session = sessions.get(player.getUniqueId());
+        if (session == null || !session.awaitingSign()) {
+            return false;
+        }
+        if (raw.equalsIgnoreCase("cancel")) {
+            session.setAwaitingSign(false);
+            player.sendMessage(ChatColor.GRAY + "Still editing.");
+            return true;
+        }
+        if (!raw.equalsIgnoreCase("sign")) {
+            player.sendMessage(ChatColor.WHITE + "Type sign to finish, or cancel to keep editing.");
+            return true;
+        }
+        ItemStack hand = player.getInventory().getItemInMainHand();
+        writeItem(hand, session.sheet(), true, player.getName());
+        leave(player, false, hand);
+        player.sendMessage(ChatColor.GOLD + "Sketch signed. It can no longer be edited.");
+        return true;
     }
 
     /**
@@ -170,23 +353,32 @@ public class SketchService {
     }
 
     /**
-     * Reads WASD as cursor steps and sneak as a continuous stroke.
+     * Reads WASD as cursor steps and sneak as a continuous stroke. Also opens the editor
+     * for anyone who is holding an unsigned sheet, so a missed hotbar event cannot skip enter.
      */
     private void tick() {
-        Iterator<Map.Entry<UUID, SketchSession>> iterator = sessions.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<UUID, SketchSession> entry = iterator.next();
-            Player player = Bukkit.getPlayer(entry.getKey());
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (!sessions.containsKey(player.getUniqueId())) {
+                ItemStack hand = player.getInventory().getItemInMainHand();
+                if (isSketchMap(hand) && !isSigned(hand)) {
+                    enter(player, hand);
+                } else if (isSketchMap(hand)) {
+                    hydrate(hand);
+                }
+            }
+        }
+        for (UUID playerId : Map.copyOf(sessions).keySet()) {
+            Player player = Bukkit.getPlayer(playerId);
             if (player == null || !player.isOnline()) {
-                iterator.remove();
+                sessions.remove(playerId);
                 continue;
             }
-            SketchSession session = entry.getValue();
+            SketchSession session = sessions.get(playerId);
+            if (session == null) {
+                continue;
+            }
             if (!holdingThisSketch(player, session)) {
-                iterator.remove();
-                thaw(player);
-                player.sendMessage(ChatColor.GRAY + "Left the sketch (the map left the hand).");
-                hideHud(player);
+                leave(player, true);
                 continue;
             }
             applyInput(player, session);
@@ -229,9 +421,11 @@ public class SketchService {
         bar.setProgress(1.0);
         bar.setColor(player.getCurrentInput().isSneak() ? BarColor.GREEN : BarColor.WHITE);
         bar.setTitle(ChatColor.WHITE
-                + session.ink().label()
+                + (session.awaitingSign()
+                ? "Type sign to lock, or cancel"
+                : session.ink().label()
                 + "  " + session.cursorX() + "," + session.cursorY()
-                + "  ·  sneak paints  ·  right-click erases  ·  space ink");
+                + "  ·  sneak paints  ·  right-click erases  ·  space ink  ·  left-click signs"));
     }
 
     /**
@@ -252,37 +446,259 @@ public class SketchService {
      * @return whether the main hand is that sketch
      */
     private boolean holdingThisSketch(Player player, SketchSession session) {
-        ItemStack stack = player.getInventory().getItemInMainHand();
+        return matchesView(player.getInventory().getItemInMainHand(), session.view().getId());
+    }
+
+    /**
+     * Loads pixels from the item and binds our renderer to its map view.
+     *
+     * @param stack sketch map
+     */
+    public void hydrate(ItemStack stack) {
+        if (!isSketchMap(stack)) {
+            return;
+        }
+        MapView view = mapView(stack);
+        if (view == null) {
+            return;
+        }
+        bindRenderer(view);
+        attachView(stack, view);
+        int id = view.getId();
+        if (!sheets.containsKey(id)) {
+            sheets.put(id, SketchSheet.fromBytes(cellsOf(stack)));
+        }
+    }
+
+    /**
+     * @param stack sketch or {@code null}
+     * @return whether this sheet is locked
+     */
+    public boolean isSigned(ItemStack stack) {
         if (!isSketchMap(stack) || !(stack.getItemMeta() instanceof MapMeta meta)) {
             return false;
         }
-        MapView held = meta.getMapView();
-        return held != null && held.getId() == session.view().getId();
+        Byte flag = meta.getPersistentDataContainer().get(signedKey, PersistentDataType.BYTE);
+        return flag != null && flag == 1;
     }
 
     /**
      * @param player tester
-     * @param view new map
+     * @return new unsigned map now in the main hand
      */
-    private void putMapInHand(Player player, MapView view) {
+    private ItemStack createBlank(Player player) {
+        MapView view = Bukkit.createMap(player.getWorld());
+        bindRenderer(view);
+        SketchSheet sheet = new SketchSheet();
+        sheets.put(view.getId(), sheet);
         ItemStack map = new ItemStack(Material.FILLED_MAP);
-        MapMeta meta = (MapMeta) map.getItemMeta();
-        if (meta == null) {
-            return;
+        if (map.getItemMeta() instanceof MapMeta meta) {
+            meta.setMapView(view);
+            map.setItemMeta(meta);
         }
-        meta.setMapView(view);
-        meta.setDisplayName(ChatColor.WHITE + "Field sketch");
-        meta.setLore(java.util.List.of(
-                ChatColor.GRAY + "Prototype 32×32.",
-                ChatColor.DARK_GRAY + "Not saved."));
-        meta.getPersistentDataContainer().set(markerKey, PersistentDataType.BYTE, (byte) 1);
-        map.setItemMeta(meta);
+        writeItem(map, sheet, false, null);
         ItemStack previous = player.getInventory().getItemInMainHand();
         player.getInventory().setItemInMainHand(map);
         if (previous != null && previous.getType() != Material.AIR) {
             HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(previous);
             leftover.values().forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
         }
+        return player.getInventory().getItemInMainHand();
+    }
+
+    /**
+     * @param view map to own
+     */
+    private void bindRenderer(MapView view) {
+        view.setLocked(true);
+        view.setTrackingPosition(false);
+        view.setUnlimitedTracking(false);
+        boolean ours = false;
+        for (org.bukkit.map.MapRenderer renderer : view.getRenderers()) {
+            if (renderer instanceof SketchRenderer) {
+                ours = true;
+                break;
+            }
+        }
+        if (ours) {
+            return;
+        }
+        view.getRenderers().clear();
+        view.addRenderer(new SketchRenderer(this));
+    }
+
+    /**
+     * @param stack map item
+     * @param sheet pixels
+     * @param signed locked
+     * @param author signer, or {@code null}
+     * @return whether the PDC write reached {@code setItemMeta}
+     */
+    private boolean writeItem(ItemStack stack, SketchSheet sheet, boolean signed, String author) {
+        if (stack == null || !(stack.getItemMeta() instanceof MapMeta meta)) {
+            return false;
+        }
+        MapView view = meta.getMapView();
+        if (view == null) {
+            view = mapView(stack);
+        }
+        org.bukkit.persistence.PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        pdc.set(markerKey, PersistentDataType.BYTE, (byte) 1);
+        pdc.set(cellsKey, PersistentDataType.BYTE_ARRAY, sheet.toBytes());
+        pdc.set(signedKey, PersistentDataType.BYTE, (byte) (signed ? 1 : 0));
+        if (view != null) {
+            pdc.set(mapIdKey, PersistentDataType.INTEGER, view.getId());
+            meta.setMapView(view);
+        }
+        if (signed && author != null && !author.isEmpty()) {
+            pdc.set(authorKey, PersistentDataType.STRING, author);
+            meta.setDisplayName(ChatColor.WHITE + "Field sketch (signed)");
+            meta.setLore(java.util.List.of(
+                    ChatColor.GRAY + "Signed by " + author + ".",
+                    ChatColor.DARK_GRAY + "This drawing cannot be edited."));
+        } else {
+            pdc.remove(authorKey);
+            meta.setDisplayName(ChatColor.WHITE + "Field sketch");
+            meta.setLore(java.util.List.of(
+                    ChatColor.GRAY + "Hold to edit. Switch away to save.",
+                    ChatColor.DARK_GRAY + "Left-click, then type sign to lock."));
+        }
+        stack.setItemMeta(meta);
+        return true;
+    }
+
+    /**
+     * @param stack map
+     * @return stored cells, or {@code null}
+     */
+    private byte[] cellsOf(ItemStack stack) {
+        if (!(stack.getItemMeta() instanceof MapMeta meta)) {
+            return null;
+        }
+        return meta.getPersistentDataContainer().get(cellsKey, PersistentDataType.BYTE_ARRAY);
+    }
+
+    /**
+     * @param stack map
+     * @return signer, or {@code null}
+     */
+    private String authorOf(ItemStack stack) {
+        if (!(stack.getItemMeta() instanceof MapMeta meta)) {
+            return null;
+        }
+        return meta.getPersistentDataContainer().get(authorKey, PersistentDataType.STRING);
+    }
+
+    /**
+     * @param stack map
+     * @return view, or {@code null}
+     */
+    @SuppressWarnings("deprecation")
+    private MapView mapView(ItemStack stack) {
+        if (!(stack.getItemMeta() instanceof MapMeta meta)) {
+            return null;
+        }
+        MapView view = meta.getMapView();
+        if (view != null) {
+            return view;
+        }
+        Integer stored = meta.getPersistentDataContainer().get(mapIdKey, PersistentDataType.INTEGER);
+        if (stored != null) {
+            view = Bukkit.getMap(stored);
+            if (view != null) {
+                return view;
+            }
+        }
+        if (meta.hasMapId()) {
+            return Bukkit.getMap(meta.getMapId());
+        }
+        return null;
+    }
+
+    /**
+     * Puts the live {@link MapView} back on the stack when vanilla meta lost the link.
+     *
+     * @param stack sketch map
+     * @param view resolved view
+     */
+    private void attachView(ItemStack stack, MapView view) {
+        if (!(stack.getItemMeta() instanceof MapMeta meta) || view == null) {
+            return;
+        }
+        if (meta.getMapView() != null && meta.getMapView().getId() == view.getId()) {
+            return;
+        }
+        meta.setMapView(view);
+        meta.getPersistentDataContainer().set(mapIdKey, PersistentDataType.INTEGER, view.getId());
+        stack.setItemMeta(meta);
+    }
+
+    /**
+     * @param stack possible sketch
+     * @param viewId session map
+     * @return whether this stack is that map
+     */
+    private boolean matchesView(ItemStack stack, int viewId) {
+        if (!isSketchMap(stack)) {
+            return false;
+        }
+        MapView view = mapView(stack);
+        return view != null && view.getId() == viewId;
+    }
+
+    /**
+     * @param player editor
+     * @param session open sheet
+     * @return the item that should receive the pixels, or {@code null} if it is gone
+     */
+    private ItemStack findSaveTarget(Player player, SketchSession session) {
+        if (player == null || session == null) {
+            return null;
+        }
+        int viewId = session.view().getId();
+        ItemStack hand = player.getInventory().getItemInMainHand();
+        if (matchesView(hand, viewId)) {
+            return hand;
+        }
+        ItemStack off = player.getInventory().getItemInOffHand();
+        if (matchesView(off, viewId)) {
+            return off;
+        }
+        InventoryView open = player.getOpenInventory();
+        if (open != null) {
+            if (matchesView(open.getCursor(), viewId)) {
+                return open.getCursor();
+            }
+            ItemStack inTop = firstMatch(open.getTopInventory(), viewId);
+            if (inTop != null) {
+                return inTop;
+            }
+            ItemStack inBottom = firstMatch(open.getBottomInventory(), viewId);
+            if (inBottom != null) {
+                return inBottom;
+            }
+        }
+        if (matchesView(player.getItemOnCursor(), viewId)) {
+            return player.getItemOnCursor();
+        }
+        return firstMatch(player.getInventory(), viewId);
+    }
+
+    /**
+     * @param inventory bag, crafting grid, or {@code null}
+     * @param viewId session map
+     * @return first matching stack, or {@code null}
+     */
+    private ItemStack firstMatch(Inventory inventory, int viewId) {
+        if (inventory == null) {
+            return null;
+        }
+        for (ItemStack stack : inventory.getContents()) {
+            if (matchesView(stack, viewId)) {
+                return stack;
+            }
+        }
+        return null;
     }
 
     /**

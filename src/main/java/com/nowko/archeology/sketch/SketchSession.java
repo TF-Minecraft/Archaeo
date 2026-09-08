@@ -15,6 +15,7 @@ final class SketchSession {
     private int cursorY = SketchSheet.SIZE / 2;
     private SketchInk ink = SketchInk.CHARCOAL;
     private boolean jumpHeld;
+    private boolean awaitingSign;
 
     /**
      * @param playerId editor
@@ -63,7 +64,7 @@ final class SketchSession {
     }
 
     /**
-     * @return ink that sneak / left-click will stamp
+     * @return ink that sneak will stamp
      */
     SketchInk ink() {
         return ink;
@@ -74,6 +75,20 @@ final class SketchSession {
      */
     boolean jumpHeld() {
         return jumpHeld;
+    }
+
+    /**
+     * @return whether chat is waiting for sign / cancel
+     */
+    boolean awaitingSign() {
+        return awaitingSign;
+    }
+
+    /**
+     * @param awaiting chat confirm for locking the sheet
+     */
+    void setAwaitingSign(boolean awaiting) {
+        this.awaitingSign = awaiting;
     }
 
     /**

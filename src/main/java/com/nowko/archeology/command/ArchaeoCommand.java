@@ -695,7 +695,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * Toggles the in-memory 32×32 map editor. Staff-only feel test; nothing is written to disk.
+     * Gives a new unsigned sketch, or reminds how to save / sign if one is already in hand.
      *
      * @param sender staff issuer; must be a player
      * @return {@code true} always
