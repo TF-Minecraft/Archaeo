@@ -24,8 +24,8 @@ import java.util.UUID;
  */
 public final class CampFindsBoard implements InventoryHolder {
     static final int SLOT_REPORT = 18;
-    static final int SLOT_BACK = 22;
-    private static final int LIST_SLOTS = 18;
+    static final int SLOT_BACK = CampGui.SLOT_BACK;
+    private static final int LIST_SLOTS = CampGui.LIST_SLOTS;
 
     private final UUID siteId;
     private final boolean director;
@@ -68,7 +68,7 @@ public final class CampFindsBoard implements InventoryHolder {
         for (BuriedFind find : site.cataloguedFinds()) {
             finds.add(find.getId());
         }
-        inventory = Bukkit.createInventory(this, 27, ChatColor.DARK_GREEN + "Finds");
+        inventory = Bukkit.createInventory(this, 27, "Finds");
         int shown = Math.min(finds.size(), LIST_SLOTS);
         for (int i = 0; i < shown; i++) {
             BuriedFind find = site.findById(finds.get(i)).orElse(null);

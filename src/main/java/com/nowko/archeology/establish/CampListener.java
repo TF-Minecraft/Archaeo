@@ -323,7 +323,7 @@ public class CampListener implements Listener {
             return;
         }
         if (slot == CampBoard.SLOT_PERSONAL) {
-            new CampStaffBoard(site.getId(), board.director()).open(player, site);
+            openStaff(player, site, board.director());
             return;
         }
         if (slot == CampBoard.SLOT_LIMITS) {
@@ -390,6 +390,9 @@ public class CampListener implements Listener {
             return;
         }
         if (slot == CampStaffBoard.SLOT_ADD) {
+            if (staff.staffFull()) {
+                return;
+            }
             player.closeInventory();
             establish.abortRename(player);
             inviteForSite.put(player.getUniqueId(), site.getId());
@@ -421,7 +424,7 @@ public class CampListener implements Listener {
         }
         int slot = event.getRawSlot();
         if (slot == CampWorkerBoard.SLOT_BACK) {
-            new CampStaffBoard(site.getId(), site.isDirector(player.getUniqueId())).open(player, site);
+            openStaff(player, site, site.isDirector(player.getUniqueId()));
             return;
         }
         if (!site.isDirector(player.getUniqueId())) {
@@ -650,7 +653,7 @@ public class CampListener implements Listener {
         if (online != null) {
             online.sendMessage("You may no longer work on " + site.displayLabel() + ".");
         }
-        new CampStaffBoard(site.getId(), true).open(player, site);
+        openStaff(player, site, true);
     }
 
     /**
@@ -784,7 +787,14 @@ public class CampListener implements Listener {
         }
         if (site.isDirector(target.getUniqueId()) || site.getExcavators().contains(target.getUniqueId())) {
             player.sendMessage(CampNames.of(player, target.getUniqueId()) + " is already on the staff.");
-            new CampStaffBoard(site.getId(), true).open(player, site);
+            openStaff(player, site, true);
+            return;
+        }
+        int cap = catalogs.establish().maxStaff();
+        if (CampNames.roster(site).size() >= cap) {
+            player.sendMessage("This excavation already has " + cap
+                    + (cap == 1 ? " person" : " people") + " on the staff.");
+            openStaff(player, site, true);
             return;
         }
         if (!site.grantExcavator(target.getUniqueId())) {
@@ -798,7 +808,16 @@ public class CampListener implements Listener {
         if (online != null) {
             online.sendMessage("You may now excavate " + site.displayLabel() + ".");
         }
-        new CampStaffBoard(site.getId(), true).open(player, site);
+        openStaff(player, site, true);
+    }
+
+    /**
+     * @param player viewer
+     * @param site excavation
+     * @param director whether the viewer may change the roster
+     */
+    private void openStaff(Player player, Site site, boolean director) {
+        new CampStaffBoard(site.getId(), director, catalogs.establish().maxStaff()).open(player, site);
     }
 
     /**

@@ -53,6 +53,10 @@ establish:
   protect-dig-site: true
   invalid-block: RED_STAINED_GLASS
   ruin-outline-block: LIGHT_BLUE_STAINED_GLASS
+  # People on one excavation staff, including the director. The staff board has 18 roster slots
+  # (the first two chest rows); there is no second page. Use a smaller number to run a tighter
+  # crew. Values above 18 are ignored and treated as 18.
+  max-staff: 18
 
 # 4) Dig the prism, then brush exposed finds
 excavation:

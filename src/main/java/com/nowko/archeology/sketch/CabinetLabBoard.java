@@ -146,8 +146,7 @@ final class CabinetLabBoard implements InventoryHolder {
      * @param player worker
      */
     void open(org.bukkit.entity.Player player) {
-        String title = ChatColor.DARK_AQUA + material.firstStepGerund();
-        inventory = Bukkit.createInventory(this, 27, title);
+        inventory = Bukkit.createInventory(this, 27, material.firstStepGerund());
         fillField();
         fillTools();
         player.openInventory(inventory);

@@ -74,8 +74,7 @@ public final class SketchCabinet implements InventoryHolder {
     ) {
         this.siteId = site.getId();
         this.findId = find.getId();
-        String title = ChatColor.DARK_GREEN + "Register";
-        inventory = Bukkit.createInventory(this, InventoryType.FURNACE, title);
+        inventory = Bukkit.createInventory(this, InventoryType.FURNACE, "Register");
         inventory.setItem(SLOT_FIND, recovered.standIn(template, site, find, catalogs));
         inventory.setItem(SLOT_REGISTER, registerControl());
         player.openInventory(inventory);

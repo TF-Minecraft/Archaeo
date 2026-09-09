@@ -1,5 +1,6 @@
 package com.nowko.archeology.establish;
 
+import com.nowko.archeology.config.EstablishSettings;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.SiteRole;
 import org.bukkit.Bukkit;
@@ -20,24 +21,30 @@ import java.util.UUID;
 /**
  * Roster of who may excavate. The director adds by chat name; every head opens that person's file,
  * where their contribution, their role, and their dismissal live.
+ *
+ * <p>The first two chest rows are the roster. That many heads is the hard cap per excavation; the
+ * YAML may only lower it. There is no second page.
  */
 public final class CampStaffBoard implements InventoryHolder {
     static final int SLOT_ADD = 18;
-    static final int SLOT_BACK = 22;
-    private static final int ROSTER_SLOTS = 18;
+    static final int SLOT_BACK = CampGui.SLOT_BACK;
+    private static final int ROSTER_SLOTS = EstablishSettings.STAFF_BOARD_SLOTS;
 
     private final UUID siteId;
     private final boolean director;
+    private final int maxStaff;
     private final List<UUID> roster = new ArrayList<>();
     private Inventory inventory;
 
     /**
      * @param siteId excavation
      * @param director whether the viewer may change the roster
+     * @param maxStaff configured cap, already clamped to the board
      */
-    public CampStaffBoard(UUID siteId, boolean director) {
+    public CampStaffBoard(UUID siteId, boolean director, int maxStaff) {
         this.siteId = siteId;
         this.director = director;
+        this.maxStaff = maxStaff;
     }
 
     /**
@@ -69,23 +76,26 @@ public final class CampStaffBoard implements InventoryHolder {
     public void open(Player player, Site site) {
         roster.clear();
         roster.addAll(CampNames.roster(site));
-        inventory = Bukkit.createInventory(this, 27, ChatColor.DARK_GREEN + "Staff");
+        inventory = Bukkit.createInventory(this, 27, "Staff");
         int shown = Math.min(roster.size(), ROSTER_SLOTS);
         for (int i = 0; i < shown; i++) {
             inventory.setItem(i, head(player, site, roster.get(i)));
         }
         if (director) {
-            inventory.setItem(SLOT_ADD, named(
-                    Material.NAME_TAG,
-                    ChatColor.WHITE + "Add worker",
-                    ChatColor.GRAY + "Type their name in chat.",
-                    ChatColor.DARK_GRAY + "They may then work on the dig site."));
+            inventory.setItem(SLOT_ADD, addItem());
         }
         inventory.setItem(SLOT_BACK, named(
                 Material.BARRIER,
                 ChatColor.WHITE + "Back",
                 ChatColor.GRAY + "Return to the excavation board."));
         player.openInventory(inventory);
+    }
+
+    /**
+     * @return whether this excavation already holds as many people as the cap allows
+     */
+    boolean staffFull() {
+        return roster.size() >= maxStaff;
     }
 
     /**
@@ -97,6 +107,25 @@ public final class CampStaffBoard implements InventoryHolder {
             return null;
         }
         return roster.get(slot);
+    }
+
+    /**
+     * @return add-worker button, or a full-crew notice when the cap is reached
+     */
+    private ItemStack addItem() {
+        if (staffFull()) {
+            return named(
+                    Material.ARMOR_STAND,
+                    ChatColor.WHITE + "Staff is full",
+                    ChatColor.GRAY + "This excavation holds " + maxStaff
+                            + (maxStaff == 1 ? " person." : " people."),
+                    ChatColor.DARK_GRAY + "Remove someone before adding.");
+        }
+        return named(
+                Material.ARMOR_STAND,
+                ChatColor.WHITE + "Add worker",
+                ChatColor.GRAY + "Type their name in chat.",
+                ChatColor.DARK_GRAY + "They may then work on the dig site.");
     }
 
     /**

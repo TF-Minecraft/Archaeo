@@ -145,7 +145,7 @@ public final class CampIdentifyBoard implements InventoryHolder {
                 find.getArtifactId(),
                 tags);
         offerIds.clear();
-        String title = ChatColor.DARK_GREEN + type.question();
+        String title = type.question();
         if (title.length() > 32) {
             title = title.substring(0, 32);
         }

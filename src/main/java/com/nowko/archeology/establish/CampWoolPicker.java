@@ -18,7 +18,7 @@ import java.util.UUID;
  * Director palette for one camp wool role. Slots 0–15 are the vanilla colours.
  */
 public final class CampWoolPicker implements InventoryHolder {
-    static final int SLOT_BACK = 22;
+    static final int SLOT_BACK = CampGui.SLOT_BACK;
 
     private final UUID siteId;
     private final CampWoolRole role;
@@ -64,7 +64,7 @@ public final class CampWoolPicker implements InventoryHolder {
         String stored = role == CampWoolRole.PRIMARY ? site.getCampWoolPrimary() : site.getCampWoolSecondary();
         DyeColor current = CampWools.parse(stored, fallback);
         String title = role == CampWoolRole.PRIMARY ? "Primary color" : "Secondary color";
-        inventory = Bukkit.createInventory(this, 27, ChatColor.DARK_GREEN + title);
+        inventory = Bukkit.createInventory(this, 27, title);
         DyeColor[] palette = CampWools.palette();
         for (int i = 0; i < palette.length; i++) {
             DyeColor color = palette[i];

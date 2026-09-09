@@ -25,14 +25,23 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Chest GUI for an excavation sign: dossier, finds register, staff access, and director camp tools.
+ * Chest GUI for an excavation sign: site card, finds register, staff access, and director camp tools.
+ *
+ * <pre>
+ *           [ Site ]
+ *   [Finds] [Staff] [Dossier] [Limits]
+ *   [Rename] [Pri]  [Sec]     [Move]
+ * </pre>
+ *
+ * Navigation and director tools share columns 1, 3, 5 and 7 so the board stays centred
+ * whether or not the bottom row is shown.
  */
 public final class CampBoard implements InventoryHolder {
     static final int SLOT_INFO = 4;
-    static final int SLOT_DOCUMENTATION = 9;
-    static final int SLOT_PERSONAL = 11;
-    static final int SLOT_INFORMATION = 13;
-    static final int SLOT_LIMITS = 15;
+    static final int SLOT_DOCUMENTATION = 10;
+    static final int SLOT_PERSONAL = 12;
+    static final int SLOT_INFORMATION = 14;
+    static final int SLOT_LIMITS = 16;
     static final int SLOT_RENAME = 19;
     static final int SLOT_WOOL_PRIMARY = 21;
     static final int SLOT_WOOL_SECONDARY = 23;
@@ -48,7 +57,7 @@ public final class CampBoard implements InventoryHolder {
     /**
      * @param siteId excavation
      * @param director whether the viewer may edit camp and staff
-     * @param catalogs strata labels and work-day size for the record
+     * @param catalogs strata labels and work-day size for the site card
      */
     public CampBoard(UUID siteId, boolean director, CatalogRegistry catalogs) {
         this.siteId = siteId;
@@ -85,7 +94,7 @@ public final class CampBoard implements InventoryHolder {
      * @param site excavation
      */
     public void open(Player player, Site site) {
-        String title = ChatColor.DARK_GREEN + "Excavation " + site.displayLabel();
+        String title = "Excavation " + site.displayLabel();
         if (title.length() > 32) {
             title = title.substring(0, 32);
         }
@@ -106,7 +115,7 @@ public final class CampBoard implements InventoryHolder {
                     ChatColor.GRAY + "Type the new name in chat.",
                     ChatColor.DARK_GRAY + "The camp sign updates."));
             inventory.setItem(SLOT_MOVE, named(
-                    Material.ENDER_PEARL,
+                    Material.CAMPFIRE,
                     ChatColor.WHITE + "Move camp",
                     ChatColor.GRAY + "Right-click to place the ghost you see.",
                     ChatColor.DARK_GRAY + "Left-click or type cancel to abort."));
@@ -127,7 +136,7 @@ public final class CampBoard implements InventoryHolder {
     /**
      * @param player viewer (for director name lookup)
      * @param site excavation
-     * @return dossier item
+     * @return site card
      */
     private ItemStack infoItem(Player player, Site site) {
         List<String> lore = new ArrayList<>();
@@ -152,7 +161,7 @@ public final class CampBoard implements InventoryHolder {
             lore.add(ChatColor.DARK_GRAY + "You are " + role.displayName() + " here.");
             lore.add(ChatColor.DARK_GRAY + role.duty());
         }
-        return named(Material.WRITABLE_BOOK, ChatColor.GOLD + "Record", lore.toArray(String[]::new));
+        return named(Material.WRITABLE_BOOK, ChatColor.GOLD + "Site", lore.toArray(String[]::new));
     }
 
     /**
@@ -186,12 +195,12 @@ public final class CampBoard implements InventoryHolder {
         if (director && site.getStatus() == SiteStatus.EXHAUSTED) {
             lore.add(ChatColor.DARK_GRAY + "The cut is closed: you may issue a signed report.");
         }
-        return named(Material.WRITTEN_BOOK, ChatColor.WHITE + "Finds", lore.toArray(String[]::new));
+        return named(Material.DECORATED_POT, ChatColor.WHITE + "Finds", lore.toArray(String[]::new));
     }
 
     /**
      * The prospecting dossier: what the survey suggested and the field notes it produced.
-     * They live here rather than in the record so the record stays a progress sheet.
+     * They live here rather than on the site card so that card stays a progress sheet.
      *
      * @param site excavation
      * @return information item
@@ -206,7 +215,7 @@ public final class CampBoard implements InventoryHolder {
         }
         if (site.getHintIds().isEmpty()) {
             lore.add(ChatColor.DARK_GRAY + "No field notes were filed for this dossier.");
-            return named(Material.BOOK, ChatColor.AQUA + "Information", lore.toArray(String[]::new));
+            return named(Material.FEATHER, ChatColor.AQUA + "Dossier", lore.toArray(String[]::new));
         }
         lore.add(ChatColor.GRAY + "Field notes:");
         for (String hintId : site.getHintIds()) {
@@ -214,7 +223,7 @@ public final class CampBoard implements InventoryHolder {
             String text = hint == null ? hintId : hint.text();
             wrap(lore, text);
         }
-        return named(Material.BOOK, ChatColor.AQUA + "Information", lore.toArray(String[]::new));
+        return named(Material.FEATHER, ChatColor.AQUA + "Dossier", lore.toArray(String[]::new));
     }
 
     /**
@@ -222,7 +231,7 @@ public final class CampBoard implements InventoryHolder {
      */
     private ItemStack limitsItem() {
         return named(
-                Material.SPYGLASS,
+                Material.ENDER_EYE,
                 ChatColor.WHITE + "Show limits",
                 ChatColor.GRAY + "Traces the dig chunk and each stratum,",
                 ChatColor.GRAY + "through spoil heaps and walls.",
@@ -259,7 +268,7 @@ public final class CampBoard implements InventoryHolder {
     /**
      * One lore line per present band: recovered, generated total, and destroyed finds.
      *
-     * @param lore record lore
+     * @param lore site-card lore
      * @param site excavation
      */
     private void addStratumLines(List<String> lore, Site site) {

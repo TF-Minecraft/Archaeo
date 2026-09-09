@@ -30,10 +30,10 @@ import java.util.UUID;
  */
 public final class CampWorkerBoard implements InventoryHolder {
     static final int SLOT_HEAD = 4;
-    static final int SLOT_BACK = 8;
+    static final int SLOT_BACK = CampGui.SLOT_BACK;
     static final int SLOT_WORK = 10;
     static final int SLOT_FINDS = 12;
-    static final int SLOT_STANDING = 14;
+    static final int SLOT_ROLE = 14;
     static final int SLOT_REMOVE = 16;
     /** Role buttons sit spaced out across the bottom row, centred on however many roles exist. */
     private static final int ROLE_ROW = 18;
@@ -91,7 +91,7 @@ public final class CampWorkerBoard implements InventoryHolder {
      */
     public void open(Player player, Site site) {
         String name = CampNames.of(player, member);
-        String title = ChatColor.DARK_GREEN + name;
+        String title = name;
         if (title.length() > 32) {
             title = title.substring(0, 32);
         }
@@ -106,7 +106,7 @@ public final class CampWorkerBoard implements InventoryHolder {
         inventory.setItem(SLOT_HEAD, headItem(name, role, record));
         inventory.setItem(SLOT_WORK, workItem(record));
         inventory.setItem(SLOT_FINDS, findsItem(record));
-        inventory.setItem(SLOT_STANDING, standingItem(role, lead));
+        inventory.setItem(SLOT_ROLE, roleCard(role, lead));
         inventory.setItem(SLOT_BACK, named(
                 Material.BARRIER,
                 ChatColor.WHITE + "Back",
@@ -154,7 +154,7 @@ public final class CampWorkerBoard implements InventoryHolder {
 
     /**
      * @param name display name
-     * @param role current standing
+     * @param role current role
      * @param record tally, or {@code null} when they have never been filed
      * @return skull with the identity lines
      */
@@ -216,11 +216,11 @@ public final class CampWorkerBoard implements InventoryHolder {
     }
 
     /**
-     * @param role standing shown
+     * @param role role shown
      * @param lead whether this person is the director
      * @return what the role lets them do
      */
-    private ItemStack standingItem(SiteRole role, boolean lead) {
+    private ItemStack roleCard(SiteRole role, boolean lead) {
         List<String> lore = new ArrayList<>();
         lore.add(roleColor(role) + role.displayName());
         lore.add(ChatColor.GRAY + role.duty());
@@ -232,12 +232,12 @@ public final class CampWorkerBoard implements InventoryHolder {
         } else {
             lore.add(ChatColor.DARK_GRAY + "Only the director may change this.");
         }
-        return named(Material.PAPER, ChatColor.WHITE + "Standing", lore.toArray(String[]::new));
+        return named(Material.PAPER, ChatColor.WHITE + "Role", lore.toArray(String[]::new));
     }
 
     /**
      * @param option role this button hands out
-     * @param current standing right now
+     * @param current role right now
      * @return role button
      */
     private static ItemStack roleItem(SiteRole option, SiteRole current) {
@@ -246,12 +246,13 @@ public final class CampWorkerBoard implements InventoryHolder {
         return named(
                 roleIcon(option),
                 name,
+                true,
                 ChatColor.GRAY + option.duty(),
                 active ? ChatColor.DARK_GRAY + "Current role." : ChatColor.DARK_GRAY + "Click to assign.");
     }
 
     /**
-     * @param role standing
+     * @param role current role
      * @return icon that reads as the tool of that role
      */
     private static Material roleIcon(SiteRole role) {
@@ -263,7 +264,7 @@ public final class CampWorkerBoard implements InventoryHolder {
     }
 
     /**
-     * @param role standing
+     * @param role current role
      * @return colour used for that role wherever it is named
      */
     private static ChatColor roleColor(SiteRole role) {
@@ -332,12 +333,26 @@ public final class CampWorkerBoard implements InventoryHolder {
      * @return stack
      */
     private static ItemStack named(Material material, String name, String... lore) {
+        return named(material, name, false, lore);
+    }
+
+    /**
+     * @param material icon
+     * @param name display name
+     * @param glint whether this is an action, not a read-only card
+     * @param lore extra lines
+     * @return stack
+     */
+    private static ItemStack named(Material material, String name, boolean glint, String... lore) {
         ItemStack stack = new ItemStack(material);
         ItemMeta meta = stack.getItemMeta();
         if (meta != null) {
             meta.setDisplayName(name);
             if (lore.length > 0) {
                 meta.setLore(List.of(lore));
+            }
+            if (glint) {
+                meta.setEnchantmentGlintOverride(true);
             }
             stack.setItemMeta(meta);
         }

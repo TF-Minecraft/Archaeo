@@ -25,7 +25,7 @@ import java.util.UUID;
  */
 public final class CampFindBoard implements InventoryHolder {
     static final int SLOT_IDENTITY = 4;
-    static final int SLOT_BACK = 8;
+    static final int SLOT_BACK = CampGui.SLOT_BACK;
     static final int SLOT_PROVENIENCE = 11;
     static final int SLOT_CONDITION = 13;
     static final int SLOT_READINGS = 15;
@@ -80,7 +80,7 @@ public final class CampFindBoard implements InventoryHolder {
         }
         ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
         String number = find.publicNumber(site.getSerial());
-        String title = ChatColor.DARK_GREEN + (number == null ? "Find" : number);
+        String title = number == null ? "Find" : number;
         if (title.length() > 32) {
             title = title.substring(0, 32);
         }
