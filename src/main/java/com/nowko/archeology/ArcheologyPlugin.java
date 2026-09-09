@@ -56,7 +56,7 @@ public class ArcheologyPlugin extends JavaPlugin {
     private SketchService sketch;
 
     /**
-     * Copies missing default YAML, loads catalogs and saved sites, and starts gameplay loops.
+     * Copies missing default YAML, loads catalogs and saved sites, starts the dossier flusher, and starts gameplay loops.
      */
     @Override
     public void onEnable() {
@@ -64,6 +64,7 @@ public class ArcheologyPlugin extends JavaPlugin {
         catalogs.load();
         sites = new SiteRepository(this);
         sites.loadAll();
+        sites.start();
         generator = new SiteGenerator(catalogs, sites);
         trackerItem = new TrackerItem(catalogs.items().tracker());
         prospectItem = new ProspectItem(catalogs.items().prospect());
@@ -173,7 +174,7 @@ public class ArcheologyPlugin extends JavaPlugin {
     }
 
     /**
-     * Stops tracker, prospecting, establishment, Hand Pick HUD, prism outlines, find-particles, and the sketch prototype.
+     * Stops tracker, prospecting, establishment, Hand Pick HUD, prism outlines, find-particles, and the sketch prototype, then flushes dirty dossiers.
      */
     @Override
     public void onDisable() {
@@ -200,6 +201,9 @@ public class ArcheologyPlugin extends JavaPlugin {
         }
         if (sketch != null) {
             sketch.stop();
+        }
+        if (sites != null) {
+            sites.stop();
         }
     }
 

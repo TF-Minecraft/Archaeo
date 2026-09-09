@@ -138,7 +138,7 @@ public class FindDustService implements Listener {
                 }
             }
             if (dirty) {
-                sites.save(site);
+                sites.touch(site);
             }
         }
         if (!anyLoaded) {

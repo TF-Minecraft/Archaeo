@@ -167,12 +167,14 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
 
     /**
      * Re-reads catalog YAML from the data folder into memory. Does not overwrite existing files.
+     * Dirty site dossiers are flushed first so reload cannot throw away jornada or brush progress.
      *
      * @param sender staff issuer
      * @return {@code true} always (handled)
      */
     private boolean handleReload(CommandSender sender) {
         try {
+            sites.flushDirty();
             catalogs.load();
             plugin.bindItemMatcher(ItemMatcher.detect(plugin));
             trackerItem.update(catalogs.items().tracker());

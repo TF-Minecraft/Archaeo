@@ -47,6 +47,8 @@ import java.util.UUID;
  */
 public class SketchService {
     private static final long TICK_PERIOD = 2L;
+    /** How often an open sheet is written onto its map item (~2 s). */
+    private static final int AUTOSAVE_PERIOD_TICKS = 40;
 
     private final JavaPlugin plugin;
     private final SketchSupplies supplies;
@@ -69,6 +71,7 @@ public class SketchService {
     private final Map<Integer, SketchSheet> sheets = new HashMap<>();
     private final Map<UUID, BossBar> bars = new HashMap<>();
     private BukkitTask task;
+    private int autosaveClock;
 
     /**
      * @param plugin scheduler and PDC owner
@@ -893,6 +896,8 @@ public class SketchService {
     /**
      * Reads WASD as cursor steps and sneak as a continuous stroke. Also opens the editor
      * for anyone who is holding an unsigned sheet, so a missed hotbar event cannot skip enter.
+     * Open sheets are written back onto the map item on a short interval so a crash does not
+     * wipe strokes since the last leave.
      */
     private void tick() {
         for (Player player : Bukkit.getOnlinePlayers()) {
@@ -921,6 +926,29 @@ public class SketchService {
             }
             applyInput(player, session);
             sendHud(player, session);
+        }
+        autosaveClock += (int) TICK_PERIOD;
+        if (autosaveClock >= AUTOSAVE_PERIOD_TICKS) {
+            autosaveClock = 0;
+            autosaveOpenSessions();
+        }
+    }
+
+    /**
+     * Copies each live sheet onto its {@code FILLED_MAP} without ending the session.
+     */
+    private void autosaveOpenSessions() {
+        for (Map.Entry<UUID, SketchSession> entry : Map.copyOf(sessions).entrySet()) {
+            Player player = Bukkit.getPlayer(entry.getKey());
+            if (player == null || !player.isOnline()) {
+                continue;
+            }
+            SketchSession session = entry.getValue();
+            ItemStack target = findSaveTarget(player, session);
+            if (target == null) {
+                continue;
+            }
+            writeItem(target, session.sheet(), isSigned(target), authorOf(target));
         }
     }
 

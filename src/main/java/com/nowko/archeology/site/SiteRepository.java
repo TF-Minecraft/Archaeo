@@ -14,9 +14,13 @@ import com.nowko.archeology.model.WorkerRecord;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -24,19 +28,33 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
 /**
  * Loads and writes site dossiers under {@code plugins/Archaeo/sites/}.
+ *
+ * <p>World-coupled mutations call {@link #commit(Site)} in the same tick. Plugin counters
+ * call {@link #touch(Site)} and land on disk within one second, on disable, or before reload.
+ * Files are replaced atomically so a crash cannot leave a truncated YAML.
  */
 public class SiteRepository {
+    /** Dossier format written by this build; older files without the key are treated as 1. */
+    public static final int SCHEMA = 1;
+    /** Dirty sites are flushed at least this often (~1 s). */
+    private static final long FLUSH_PERIOD_TICKS = 20L;
+
     private final JavaPlugin plugin;
     private final File sitesFolder;
     private final File indexFile;
     private final Map<UUID, Site> byId = new ConcurrentHashMap<>();
+    private final Set<UUID> dirty = ConcurrentHashMap.newKeySet();
     private int nextSerial = 1;
+    /** Last {@link #nextSerial} known to be on disk in {@code sites-index.yml}. */
+    private int persistedSerial = 1;
+    private BukkitTask flushTask;
 
     /**
      * @param plugin used for the data folder and logging
@@ -48,27 +66,63 @@ public class SiteRepository {
     }
 
     /**
-     * Reads every {@code .yml} in the sites folder into memory and updates the next serial.
+     * Reads every {@code .yml} in the sites folder into a new map, then swaps it in so a failed
+     * listing cannot wipe the live session. Temp files and {@code .trash/} are ignored.
      */
     public void loadAll() {
         if (!sitesFolder.exists() && !sitesFolder.mkdirs()) {
             plugin.getLogger().warning("Could not create " + sitesFolder.getPath());
+            if (!byId.isEmpty()) {
+                return;
+            }
         }
-        byId.clear();
-        nextSerial = 1;
         File[] files = sitesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
         if (files == null) {
-            return;
+            plugin.getLogger().warning("Could not list " + sitesFolder.getPath());
+            if (!byId.isEmpty()) {
+                return;
+            }
+            files = new File[0];
         }
+        Map<UUID, Site> loaded = new ConcurrentHashMap<>();
+        int serial = 1;
         for (File file : files) {
             try {
                 Site site = read(YamlConfiguration.loadConfiguration(file));
-                byId.put(site.getId(), site);
-                nextSerial = Math.max(nextSerial, site.getSerial() + 1);
+                loaded.put(site.getId(), site);
+                serial = Math.max(serial, site.getSerial() + 1);
             } catch (Exception exception) {
                 plugin.getLogger().log(Level.WARNING, "Could not read " + file.getName(), exception);
             }
         }
+        serial = Math.max(serial, readIndexSerial());
+        byId.clear();
+        byId.putAll(loaded);
+        dirty.clear();
+        nextSerial = serial;
+        persistedSerial = serial;
+    }
+
+    /**
+     * Starts the dirty-flush loop so {@link #touch(Site)} hits disk within about one second.
+     */
+    public void start() {
+        if (flushTask != null) {
+            return;
+        }
+        flushTask = plugin.getServer().getScheduler()
+                .runTaskTimer(plugin, this::flushDirty, FLUSH_PERIOD_TICKS, FLUSH_PERIOD_TICKS);
+    }
+
+    /**
+     * Stops the flush loop and writes every dirty dossier before the JVM unloads the plugin.
+     */
+    public void stop() {
+        if (flushTask != null) {
+            flushTask.cancel();
+            flushTask = null;
+        }
+        flushDirty();
     }
 
     /**
@@ -223,38 +277,146 @@ public class SiteRepository {
     }
 
     /**
-     * Writes {@code site} to {@code sites/<uuid>.yml} and refreshes {@code sites-index.yml}.
+     * Same as {@link #commit(Site)}. Kept so existing field code stays a one-line persist.
      *
      * @param site dossier to persist
-     * @throws IllegalStateException if the folder cannot be created or the file cannot be written
      */
     public void save(Site site) {
+        commit(site);
+    }
+
+    /**
+     * Writes {@code site} this tick. Use when the world or the finds register already changed.
+     *
+     * @param site dossier to persist
+     * @throws IllegalArgumentException if {@code site} or its id is missing
+     * @throws IllegalStateException if the folder cannot be created or the file cannot be written
+     */
+    public void commit(Site site) {
+        if (site == null || site.getId() == null) {
+            throw new IllegalArgumentException("Site with id is required");
+        }
         byId.put(site.getId(), site);
+        try {
+            writeAtomic(site);
+            dirty.remove(site.getId());
+        } catch (RuntimeException exception) {
+            dirty.add(site.getId());
+            throw exception;
+        }
+    }
+
+    /**
+     * Marks {@code site} dirty. The flusher, disable, or the next {@link #commit(Site)} writes it.
+     * Use for plugin counters (jornada, brush remaining, find dust) that must survive a restart
+     * but need not match a block change in this tick.
+     *
+     * @param site dossier whose RAM copy changed
+     */
+    public void touch(Site site) {
+        if (site == null || site.getId() == null) {
+            return;
+        }
+        byId.put(site.getId(), site);
+        dirty.add(site.getId());
+    }
+
+    /**
+     * Commits every dirty dossier. Safe to call from the scheduler, disable, or reload.
+     */
+    public void flushDirty() {
+        for (UUID id : List.copyOf(dirty)) {
+            Site site = byId.get(id);
+            if (site == null) {
+                dirty.remove(id);
+                continue;
+            }
+            try {
+                commit(site);
+            } catch (RuntimeException exception) {
+                plugin.getLogger().log(Level.WARNING, "Could not flush site " + id, exception);
+            }
+        }
+    }
+
+    /**
+     * Serializes {@code site} to a temp file, then replaces {@code sites/<uuid>.yml}.
+     *
+     * @param site dossier already in {@link #byId}
+     */
+    private void writeAtomic(Site site) {
         if (!sitesFolder.exists() && !sitesFolder.mkdirs()) {
             throw new IllegalStateException("Could not create " + sitesFolder.getPath());
         }
         YamlConfiguration yaml = write(site);
         File file = new File(sitesFolder, site.getId() + ".yml");
+        replaceAtomically(yaml, file);
+        persistIndexIfNeeded();
+    }
+
+    /**
+     * Writes {@code sites-index.yml} only when the next serial has moved since the last disk copy.
+     */
+    private void persistIndexIfNeeded() {
+        if (nextSerial == persistedSerial) {
+            return;
+        }
+        YamlConfiguration index = new YamlConfiguration();
+        index.set("schema", SCHEMA);
+        index.set("next-serial", nextSerial);
         try {
-            yaml.save(file);
-            saveIndex();
-        } catch (IOException exception) {
-            throw new IllegalStateException("Could not save " + file.getName(), exception);
+            replaceAtomically(index, indexFile);
+            persistedSerial = nextSerial;
+        } catch (RuntimeException exception) {
+            plugin.getLogger().log(Level.WARNING, "Could not save sites-index.yml", exception);
         }
     }
 
     /**
-     * Writes serial counter and known ids so reloads can keep numbering stable.
+     * @return {@code next-serial} from the index, or {@code 1} when the file is missing or corrupt
      */
-    private void saveIndex() {
-        YamlConfiguration index = new YamlConfiguration();
-        index.set("next-serial", nextSerial);
-        List<String> ids = byId.keySet().stream().map(UUID::toString).toList();
-        index.set("ids", ids);
+    private int readIndexSerial() {
+        if (!indexFile.exists()) {
+            return 1;
+        }
         try {
-            index.save(indexFile);
+            YamlConfiguration index = YamlConfiguration.loadConfiguration(indexFile);
+            return Math.max(1, index.getInt("next-serial", 1));
+        } catch (RuntimeException exception) {
+            plugin.getLogger().log(Level.WARNING, "Could not read sites-index.yml", exception);
+            return 1;
+        }
+    }
+
+    /**
+     * Writes {@code yaml} to {@code target} via a sibling {@code .tmp} so a crash leaves the
+     * previous file intact.
+     *
+     * @param yaml contents
+     * @param target destination file
+     */
+    private void replaceAtomically(YamlConfiguration yaml, File target) {
+        File directory = target.getParentFile() == null ? sitesFolder : target.getParentFile();
+        if (!directory.exists() && !directory.mkdirs()) {
+            throw new IllegalStateException("Could not create " + directory.getPath());
+        }
+        File tmp = new File(directory, target.getName() + ".tmp");
+        try {
+            yaml.save(tmp);
+            try {
+                Files.move(
+                        tmp.toPath(),
+                        target.toPath(),
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException ignored) {
+                Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException exception) {
-            plugin.getLogger().log(Level.WARNING, "Could not save sites-index.yml", exception);
+            if (tmp.exists() && !tmp.delete()) {
+                plugin.getLogger().warning("Could not delete leftover " + tmp.getName());
+            }
+            throw new IllegalStateException("Could not save " + target.getName(), exception);
         }
     }
 
@@ -264,6 +426,7 @@ public class SiteRepository {
      */
     private YamlConfiguration write(Site site) {
         YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("schema", SCHEMA);
         yaml.set("id", site.getId().toString());
         yaml.set("serial", site.getSerial());
         yaml.set("type", site.getType().name());
@@ -482,6 +645,12 @@ public class SiteRepository {
      * @return reconstructed site
      */
     private Site read(YamlConfiguration yaml) {
+        int schema = yaml.getInt("schema", 1);
+        if (schema > SCHEMA) {
+            plugin.getLogger().warning(
+                    "Site " + yaml.getString("id") + " uses schema " + schema
+                            + " (this build writes " + SCHEMA + ")");
+        }
         Site site = new Site();
         site.setId(UUID.fromString(yaml.getString("id")));
         site.setSerial(yaml.getInt("serial"));

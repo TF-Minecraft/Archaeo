@@ -506,6 +506,7 @@ public class RecoverService {
 
     /**
      * Writes remaining ticks onto the find cube so a later look with the brush can restore the bar.
+     * Marked dirty rather than committed: a few lost ticks are acceptable, a restart is not.
      *
      * @param channel watcher, or {@code null}
      */
@@ -527,7 +528,7 @@ public class RecoverService {
         } else {
             find.setBrushRemaining(cell, channel.remaining);
         }
-        sites.save(site);
+        sites.touch(site);
     }
 
     /**

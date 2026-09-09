@@ -290,7 +290,8 @@ public class HandPickService {
     }
 
     /**
-     * Restores pick actions when the world day rolls over.
+     * Restores pick actions when the world day rolls over and marks the dossier dirty so the
+     * new budget survives a restart.
      *
      * @param site excavation
      * @param world site world
@@ -300,6 +301,7 @@ public class HandPickService {
         if (site.getJornadaWorldDay() != day) {
             site.setJornadaWorldDay(day);
             site.setJornadaPickLeft(settings.jornadaActions());
+            sites.touch(site);
         }
     }
 
