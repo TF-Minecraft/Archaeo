@@ -304,6 +304,17 @@ public class Site {
     }
 
     /**
+     * @param playerId viewer
+     * @return whether they are the director or a hired excavator, including after the cut closes
+     */
+    public boolean onStaff(UUID playerId) {
+        if (playerId == null) {
+            return false;
+        }
+        return isDirector(playerId) || excavators.contains(playerId);
+    }
+
+    /**
      * Director and granted excavators may work on the dig site. Every role opens the cut; only the
      * brush is rationed, so this stays the plain roster question it always was. Visibility modes are
      * unused in v1.
@@ -963,7 +974,7 @@ public class Site {
      * @return serial plus name for command and log output
      */
     public String displayLabel() {
-        String label = name != null && !name.isBlank() ? name : "Site #" + serial;
+        String label = name != null && !name.isBlank() ? name : "Site";
         return "#" + serial + " — " + label;
     }
 }

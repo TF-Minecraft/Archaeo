@@ -90,7 +90,7 @@ public class SiteGenerator {
         site.setCreatedBy(createdBy);
         site.setCreatedAt(Instant.now());
         site.setDetectionRadius(settings.detectionRadius());
-        site.setName(resolveName(name, site.getSerial(), chunk));
+        site.setName(resolveName(name, chunk));
         site.setSurfaceY(GroundDatum.medianY(chunk));
 
         assignStrata(site, settings, random);
@@ -199,7 +199,7 @@ public class SiteGenerator {
         site.setCreatedBy(director);
         site.setCreatedAt(Instant.now());
         site.setDetectionRadius(settings.detectionRadius());
-        site.setName("Staff sandbox #" + site.getSerial());
+        site.setName("Staff sandbox");
         site.setSurfaceY(originY);
         assignStrata(site, settings, new Random());
         repository.save(site);
@@ -713,11 +713,10 @@ public class SiteGenerator {
 
     /**
      * @param requested player-supplied name
-     * @param serial site serial number
      * @param chunk used to read biome for a fallback name
-     * @return display name
+     * @return display name; the excavation serial is added later by {@code displayLabel}
      */
-    private String resolveName(String requested, int serial, Chunk chunk) {
+    private String resolveName(String requested, Chunk chunk) {
         if (requested != null && !requested.isBlank()) {
             return requested.trim();
         }
@@ -736,7 +735,7 @@ public class SiteGenerator {
         } catch (Exception ignored) {
             // keep fallback
         }
-        return "Site in " + biomeName + " #" + serial;
+        return "Site in " + biomeName;
     }
 
     /**

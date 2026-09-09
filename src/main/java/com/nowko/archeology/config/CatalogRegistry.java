@@ -685,7 +685,7 @@ public class CatalogRegistry {
     }
 
     /**
-     * Reads establishment-kit rules, camp block, preview blocks, and the staff-roster cap.
+     * Reads establishment-kit rules, camp block, preview blocks, staff cap, and the camp-sign hint.
      *
      * @param config root plugin config
      */
@@ -709,7 +709,10 @@ public class CatalogRegistry {
                         section.getString("ruin-outline-block"),
                         fallback.ruinOutlineBlock(),
                         "establish.ruin-outline-block"),
-                EstablishSettings.clampMaxStaff(section.getInt("max-staff", fallback.maxStaff()))
+                EstablishSettings.clampMaxStaff(section.getInt("max-staff", fallback.maxStaff())),
+                EstablishSettings.clampSignHintRadius(section.getInt("sign-hint-radius", fallback.signHintRadius())),
+                EstablishSettings.clampSignHintInterval(
+                        section.getInt("sign-hint-interval-ticks", fallback.signHintIntervalTicks()))
         );
     }
 

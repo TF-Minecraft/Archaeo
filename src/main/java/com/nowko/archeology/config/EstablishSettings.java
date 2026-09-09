@@ -10,13 +10,17 @@ import org.bukkit.Material;
  * @param invalidBlock client-only block for template cells that cannot be planted
  * @param ruinOutlineBlock client-only glass for the dig chunk perimeter
  * @param maxStaff people on one excavation roster, including the director; never above {@link #STAFF_BOARD_SLOTS}
+ * @param signHintRadius blocks from the camp sign at which roster motes appear; {@code 0} disables them
+ * @param signHintIntervalTicks ticks between motes
  */
 public record EstablishSettings(
         boolean enabled,
         boolean protectDigSite,
         Material invalidBlock,
         Material ruinOutlineBlock,
-        int maxStaff
+        int maxStaff,
+        int signHintRadius,
+        int signHintIntervalTicks
 ) {
     /**
      * First two rows of the staff chest. {@code establish.max-staff} cannot exceed this: there is no
@@ -33,7 +37,9 @@ public record EstablishSettings(
                 true,
                 Material.RED_STAINED_GLASS,
                 Material.LIGHT_BLUE_STAINED_GLASS,
-                STAFF_BOARD_SLOTS
+                STAFF_BOARD_SLOTS,
+                40,
+                15
         );
     }
 
@@ -49,5 +55,24 @@ public record EstablishSettings(
             return STAFF_BOARD_SLOTS;
         }
         return Math.min(requested, STAFF_BOARD_SLOTS);
+    }
+
+    /**
+     * @param requested value from {@code establish.sign-hint-radius}
+     * @return usable radius in blocks, or {@code 0} to disable
+     */
+    public static int clampSignHintRadius(int requested) {
+        if (requested <= 0) {
+            return 0;
+        }
+        return Math.min(requested, 128);
+    }
+
+    /**
+     * @param requested value from {@code establish.sign-hint-interval-ticks}
+     * @return ticks between motes
+     */
+    public static int clampSignHintInterval(int requested) {
+        return Math.max(1, requested);
     }
 }

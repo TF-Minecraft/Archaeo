@@ -57,6 +57,11 @@ establish:
   # (the first two chest rows); there is no second page. Use a smaller number to run a tighter
   # crew. Values above 18 are ignored and treated as 18.
   max-staff: 18
+  # Quiet dust on the camp sign while a roster member is this close, so the board is not just
+  # another oak sign. Only that member sees it. 0 disables the cue.
+  sign-hint-radius: 40
+  # Ticks between motes (20 = 1 second).
+  sign-hint-interval-ticks: 15
 
 # 4) Dig the prism, then brush exposed finds
 excavation:
