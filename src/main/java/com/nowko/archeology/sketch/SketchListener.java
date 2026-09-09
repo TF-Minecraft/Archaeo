@@ -447,7 +447,7 @@ public class SketchListener implements Listener {
     }
 
     /**
-     * Pack plugins may rewrite lore on open; stamp Archaeo how-to again.
+     * Unstack sketch maps and restore how-to lore on Archaeo-given vanilla kits only.
      *
      * @param event inventory open
      */

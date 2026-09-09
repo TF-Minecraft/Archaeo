@@ -567,7 +567,7 @@ public class SketchService {
     }
 
     /**
-     * Re-applies sheet/pencil how-to lore after pack plugins have had a tick to write theirs.
+     * Unstacks sketch maps and restores how-to lore on Archaeo-given vanilla kits only.
      *
      * @param player holder
      */
@@ -584,7 +584,7 @@ public class SketchService {
     }
 
     /**
-     * Writes cursor and slot after converting a sheet, then restamps kit lore.
+     * Writes cursor and slot after converting a sheet, then unstacks maps and restamps given kits.
      *
      * @param player clicker
      * @param inventory clicked bag
@@ -665,7 +665,7 @@ public class SketchService {
         }
         writeItem(target, session.sheet(), isSigned(target), authorOf(target));
         if (announce) {
-            player.sendMessage(ChatColor.GRAY + "Sketch saved on the map.");
+            player.sendMessage(ChatColor.GRAY + "Sketch saved.");
         }
     }
 

@@ -11,6 +11,8 @@
 # Item ids: STONE_HOE | itemsadder:namespace:id | mmoitems:TYPE:id
 # Any matching stack works (crafted, given, or from a pack). Pack items keep the pack look.
 # A vanilla id such as STICK matches every vanilla stick, not a custom pack stick.
+# Sketch paper/pencil: matching still uses that id, but Archaeo does not rewrite lore on
+# unmarked vanilla stacks. Put your own tooltip on a pack item, or /archaeo give paper|pencil.
 
 permissions:
   staff: archaeo.admin
@@ -186,9 +188,10 @@ excavation:
 # Click the sheet onto the pencil (inventory), or hold the sheet and right-click
 # with the pencil in the other hand. Sign the map, then register the drawing at
 # the cabinet with the recovered find in hand (right-click the configured block).
-# Prefer a unique pack item. A vanilla id such as PAPER matches every paper of that type
-# and Archaeo overwrites its lore with these instructions (MMOItems may rewrite lore;
-# we stamp again when the item is held, picked up, or the inventory opens).
+# Prefer a unique pack item: that item's pack lore is left alone.
+# A vanilla id such as PAPER still matches every paper of that type for the sketch
+# gesture, but only /archaeo give paper|pencil writes Archaeo how-to lore (and only
+# on those given copies). Ordinary paper and feathers keep a vanilla tooltip.
 sketch:
   paper: PAPER
   # paper: "itemsadder:archeo:field_sheet"
