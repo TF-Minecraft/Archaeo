@@ -15,7 +15,6 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
-import org.bukkit.Tag;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -60,7 +59,6 @@ public class EstablishService {
     private final Map<UUID, UUID> moveAimProxies = new ConcurrentHashMap<>();
     private final Map<UUID, CampPlacement> lastPulse = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> lastPulseSite = new ConcurrentHashMap<>();
-    private final CampSignHintService signHint;
     private FindDustService findDust;
 
     /**
@@ -79,7 +77,6 @@ public class EstablishService {
         this.sites = sites;
         this.item = item;
         this.settings = settings;
-        this.signHint = new CampSignHintService(plugin, sites, settings);
     }
 
     /**
@@ -87,7 +84,6 @@ public class EstablishService {
      */
     public void setSettings(EstablishSettings settings) {
         this.settings = settings;
-        signHint.setSettings(settings);
     }
 
     /**
@@ -103,7 +99,6 @@ public class EstablishService {
     public void start() {
         stop();
         task = plugin.getServer().getScheduler().runTaskTimer(plugin, this::pulse, 20L, 5L);
-        signHint.start();
     }
 
     /**
@@ -114,7 +109,6 @@ public class EstablishService {
             task.cancel();
             task = null;
         }
-        signHint.stop();
         for (UUID playerId : new HashSet<>(previews.keySet())) {
             Player player = plugin.getServer().getPlayer(playerId);
             if (player != null) {
@@ -206,13 +200,13 @@ public class EstablishService {
      * Kit right-click plants a new camp. Placement follows the look ray, same as the ghost.
      *
      * @param player kit holder
-     * @param clicked block the client reported, or {@code null} for air; camp signs are ignored
+     * @param clicked block the client reported, or {@code null} for air; planted camp pieces are ignored
      */
     public void tryUseKit(Player player, Block clicked) {
         if (!settings.enabled()) {
             return;
         }
-        if (clicked != null && isCampSign(clicked)) {
+        if (isLockedCampBlock(clicked)) {
             return;
         }
         if (isRelocating(player)) {
@@ -946,11 +940,11 @@ public class EstablishService {
     }
 
     /**
-     * @param block world block
-     * @return whether this is the excavation sign (board), not a place target
+     * @param block world block, or {@code null}
+     * @return whether this cell is a planted camp piece (board handle, not a place target)
      */
-    private boolean isCampSign(Block block) {
-        if (!Tag.ALL_SIGNS.isTagged(block.getType())) {
+    public boolean isLockedCampBlock(Block block) {
+        if (block == null) {
             return false;
         }
         return sites.findLockedCampBlock(

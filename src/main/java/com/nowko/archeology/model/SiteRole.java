@@ -10,7 +10,7 @@ import java.util.Locale;
  * lifts the piece with the brush. A role decides which of the two this person is trusted with, so a
  * newcomer can move spoil without being handed a fragile find.
  *
- * <p>There is deliberately no "may look but not touch" role. Anyone can walk up to the camp sign and
+ * <p>There is deliberately no "may look but not touch" role. Anyone can walk up to the camp and
  * read the record, the dossier, the roster and the prism outline without being on the staff at all,
  * so a role that only takes things away from someone who had nothing would mean nothing.
  *

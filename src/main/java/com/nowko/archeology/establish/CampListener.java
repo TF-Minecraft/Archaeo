@@ -17,10 +17,10 @@ import com.nowko.archeology.site.SiteRepository;
 import com.nowko.archeology.sketch.CabinetCues;
 import com.nowko.archeology.sketch.SketchCabinet;
 import org.bukkit.OfflinePlayer;
-import org.bukkit.Tag;
 import org.bukkit.DyeColor;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -55,8 +55,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Locks camp blocks, opens the excavation board from the sign, and finishes board actions
- * including the finds register, study, interpretation, and the director's report book.
+ * Locks camp blocks, opens the excavation board from any planted camp piece, and finishes
+ * board actions including the finds register, study, interpretation, and the director's report book.
  */
 public class CampListener implements Listener {
     private final JavaPlugin plugin;
@@ -196,16 +196,20 @@ public class CampListener implements Listener {
     }
 
     /**
-     * Opens the board, confirms a camp move, or aborts a move.
+     * Opens the board from any locked camp piece, confirms a camp move, or aborts a move.
      *
      * @param event interact event
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
+        Action action = event.getAction();
+        Block block = event.getClickedBlock();
         if (event.getHand() != EquipmentSlot.HAND) {
+            if (action == Action.RIGHT_CLICK_BLOCK && block != null && locked(block)) {
+                denyUse(event);
+            }
             return;
         }
-        Action action = event.getAction();
         if (action == Action.LEFT_CLICK_AIR || action == Action.LEFT_CLICK_BLOCK) {
             if (establish.tryCancelMove(event.getPlayer())) {
                 event.setCancelled(true);
@@ -215,9 +219,8 @@ public class CampListener implements Listener {
         if (action != Action.RIGHT_CLICK_BLOCK && action != Action.RIGHT_CLICK_AIR) {
             return;
         }
-        Block block = event.getClickedBlock();
-        if (block != null && Tag.ALL_SIGNS.isTagged(block.getType()) && locked(block)) {
-            event.setCancelled(true);
+        if (block != null && locked(block)) {
+            denyUse(event);
             Site site = sites.findLockedCampBlock(
                     block.getWorld().getName(),
                     block.getX(),
@@ -239,6 +242,17 @@ public class CampListener implements Listener {
             event.setCancelled(true);
             establish.tryFinishMove(event.getPlayer());
         }
+    }
+
+    /**
+     * Stops vanilla use (campfire cooking, sign edit) so the click only means the board.
+     *
+     * @param event interact to deny
+     */
+    private void denyUse(PlayerInteractEvent event) {
+        event.setCancelled(true);
+        event.setUseInteractedBlock(Event.Result.DENY);
+        event.setUseItemInHand(Event.Result.DENY);
     }
 
     /**

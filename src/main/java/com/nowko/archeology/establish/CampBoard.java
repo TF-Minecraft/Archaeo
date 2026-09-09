@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Chest GUI for an excavation sign: site card, finds register, staff access, and director camp tools.
+ * Chest GUI for an excavation camp: site card, finds register, staff access, and director camp tools.
  *
  * <pre>
  *           [ Site ]

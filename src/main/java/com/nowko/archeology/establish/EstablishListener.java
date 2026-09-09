@@ -55,6 +55,9 @@ public class EstablishListener implements Listener {
         if (action != Action.RIGHT_CLICK_BLOCK && action != Action.RIGHT_CLICK_AIR) {
             return;
         }
+        if (service.isLockedCampBlock(event.getClickedBlock())) {
+            return;
+        }
         event.setCancelled(true);
         service.tryUseKit(event.getPlayer(), event.getClickedBlock());
     }
