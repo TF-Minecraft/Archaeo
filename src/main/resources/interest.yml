@@ -1,4 +1,5 @@
 # How rich a staff-registered ruin is. Established sites keep the dossier they already have.
+# Relic quotas stay at 0 until a later pack marks templates as relic (architecture, etc.).
 
 interest-levels:
   low:
@@ -8,8 +9,8 @@ interest-levels:
     detection-radius: 64
     min-finds: 3
     max-finds: 5
-    min-relics: 1
-    max-relics: 1
+    min-relics: 0
+    max-relics: 0
     hint-count: 2
     stratum-iv-chance: 0.0
     disturbed-chance: 0.15
@@ -20,8 +21,8 @@ interest-levels:
     detection-radius: 128
     min-finds: 5
     max-finds: 8
-    min-relics: 1
-    max-relics: 1
+    min-relics: 0
+    max-relics: 0
     hint-count: 3
     stratum-iv-chance: 0.25
     disturbed-chance: 0.2
@@ -32,8 +33,8 @@ interest-levels:
     detection-radius: 256
     min-finds: 8
     max-finds: 12
-    min-relics: 1
-    max-relics: 2
+    min-relics: 0
+    max-relics: 0
     hint-count: 3
     stratum-iv-chance: 0.6
     disturbed-chance: 0.25
@@ -44,8 +45,8 @@ interest-levels:
     detection-radius: 512
     min-finds: 12
     max-finds: 18
-    min-relics: 2
-    max-relics: 3
+    min-relics: 0
+    max-relics: 0
     hint-count: 4
     stratum-iv-chance: 1.0
     disturbed-chance: 0.3

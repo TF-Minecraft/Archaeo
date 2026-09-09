@@ -1,4 +1,5 @@
-# Find templates. size-* = connected cells. relic = counts toward the relic quota.
+# Find templates. size-* = connected cells. relic = counts toward the relic quota
+# (unused in the default pack: every find is a liftable object).
 # profile = object | individual | animal (omit for object). That path picks the
 # station questions; species is signed there, not named here.
 # study-notes are revealed at camp after the piece is studied; they do not show on lift.
@@ -45,7 +46,7 @@ artifacts:
     size-max: 5
     material: metal
     rarity: rare
-    relic: true
+    relic: false
     weight: 6
     strata: [II, III, IV]
     tags: [conflict, metal, blade]
@@ -70,7 +71,7 @@ artifacts:
     size-max: 15
     material: bone
     rarity: rare
-    relic: true
+    relic: false
     weight: 4
     strata: [III, IV]
     tags: [burial, bone]
@@ -89,18 +90,6 @@ artifacts:
     tags: [bone, food, animal]
     item: BONE
     study-notes: "Disarticulated bone with kitchen scatter. This looks like refuse, not a grave."
-  structure:
-    display-name: Buried structure
-    size-min: 20
-    size-max: 40
-    material: stone
-    rarity: exceptional
-    relic: true
-    weight: 2
-    strata: [III, IV]
-    tags: [settlement, deposit]
-    item: BRICKS
-    study-notes: "Dressed stone in a line, not a tumble. This was built, then buried."
   charcoal:
     display-name: Fire remains
     size-min: 1

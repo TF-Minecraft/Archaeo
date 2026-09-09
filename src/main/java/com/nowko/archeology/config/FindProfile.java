@@ -8,7 +8,7 @@ import java.util.Optional;
  * Individual is whoever the lore treats as a person, including fantasy races.
  */
 public enum FindProfile {
-    /** Made things: tools, vessels, ornaments, structures. */
+    /** Made things: tools, vessels, ornaments. */
     OBJECT,
     /** Remains of a person (or a people the staff configured). */
     INDIVIDUAL,

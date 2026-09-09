@@ -42,7 +42,7 @@ types:
       unknown_function:
         display-name: "function unknown"
         suggested-by: [unknown]
-        suggested-for: [structure, charcoal]
+        suggested-for: [charcoal]
   formation:
     display-name: Formation
     question: "How did it reach this layer?"
@@ -66,7 +66,7 @@ types:
       washed_in:
         display-name: "washed or slumped in"
         suggested-by: [unknown]
-        suggested-for: [structure]
+        suggested-for: [pottery_sherd, charcoal]
       unknown_path:
         display-name: "how it arrived is unknown"
         suggested-by: [unknown]
