@@ -34,7 +34,9 @@ tracker:
   beep-max-ticks: 70
   beep-min-ticks: 5
 
-# 2) Confirm it (several ground samples)
+# 2) Confirm it (several ground samples). Only shovel-dug ground counts
+# (dirt, grass, sand, gravel, clay, mud). Stations, wool, stone, and other
+# furniture are left to vanilla.
 prospect:
   item: STONE_HOE
   enabled: true

@@ -292,6 +292,40 @@ public class RecoveredFindItem {
     }
 
     /**
+     * Stand-in for cabinet GUIs: same name and lore as the recovered piece, plus a reminder
+     * that the real item stays in hand.
+     *
+     * @param template catalog row, or {@code null}
+     * @param site excavation
+     * @param find archive row
+     * @param catalogs materials, grades, and readings
+     * @return display copy that must not be given to the player
+     */
+    public ItemStack standIn(ArtifactTemplate template, Site site, BuriedFind find, CatalogRegistry catalogs) {
+        Material icon = Material.BRICK;
+        if (template != null) {
+            Material match = Material.matchMaterial(template.item());
+            if (match != null && !match.isAir() && match.isItem()) {
+                icon = match;
+            }
+        }
+        String name = template == null || template.displayName() == null || template.displayName().isBlank()
+                ? find.getArtifactId()
+                : template.displayName();
+        String grade = catalogs == null ? null : catalogs.pick().conservation().gradeLabel(find.getConservation());
+        ItemStack stack = new ItemStack(icon);
+        ItemMeta meta = stack.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(ChatColor.WHITE + name);
+            List<String> lines = lore(template, site, find, grade, find.isFieldDamaged(), catalogs);
+            lines.add(ChatColor.DARK_GRAY + "The real piece stays in your hand.");
+            meta.setLore(lines);
+            stack.setItemMeta(meta);
+        }
+        return stack;
+    }
+
+    /**
      * @param stack stack to stamp
      * @param template catalog row
      * @param site excavation
@@ -346,12 +380,15 @@ public class RecoveredFindItem {
     }
 
     /**
+     * Lore grows with cabinet work: provenience first; material and conservation after
+     * cleaning; rarity after a field sketch; signed readings last.
+     *
      * @param template catalog row
      * @param site excavation
      * @param find archive row
      * @param grade condition band label
      * @param fieldDamaged whether the dig wounded it
-     * @param catalogs rarity, notes, and interpretation labels
+     * @param catalogs materials, grades, and interpretation labels
      * @return lore lines
      */
     public List<String> lore(
@@ -369,16 +406,26 @@ public class RecoveredFindItem {
         }
         lore.add(ChatColor.GRAY + siteName(site));
         lore.add(ChatColor.DARK_GRAY + "Stratum " + find.getStratumId());
-        String condition = ChatColor.DARK_GRAY + "Conservation " + find.getConservation() + "%";
-        if (grade != null && !grade.isBlank()) {
-            condition += ChatColor.DARK_GRAY + " · " + grade;
-        }
-        lore.add(condition);
         if (find.isDisturbedBeforeDig()) {
             lore.add(ChatColor.GOLD + "Disturbed before the dig");
         }
         if (fieldDamaged) {
             lore.add(ChatColor.RED + "Hurt while digging");
+        }
+        if (conditionKnown(find)) {
+            if (template != null && catalogs != null) {
+                lore.add(ChatColor.GRAY + "Material: " + ChatColor.WHITE
+                        + catalogs.materialDisplayName(template.material()));
+            }
+            String condition = ChatColor.GRAY + "Conservation: " + ChatColor.WHITE + find.getConservation() + "%";
+            if (grade != null && !grade.isBlank()) {
+                condition += ChatColor.DARK_GRAY + " · " + grade;
+            }
+            lore.add(condition);
+        }
+        if (find.hasFieldSketch() && template != null
+                && template.rarity() != null && !template.rarity().isBlank()) {
+            lore.add(ChatColor.GRAY + "Rarity: " + ChatColor.WHITE + template.rarity());
         }
         lore.add(ChatColor.AQUA + find.catalogStatusLabel());
         String hint = nextCabinetHint(template, find, catalogs);
@@ -386,9 +433,6 @@ public class RecoveredFindItem {
             lore.add(hint);
         }
         if (find.isStudied() && template != null) {
-            if (template.rarity() != null && !template.rarity().isBlank()) {
-                lore.add(ChatColor.GRAY + "Rarity: " + ChatColor.WHITE + template.rarity());
-            }
             String notes = find.getStudyNotes();
             if (notes == null || notes.isBlank()) {
                 notes = template.studyNotes();
@@ -405,6 +449,14 @@ public class RecoveredFindItem {
             }
         }
         return lore;
+    }
+
+    /**
+     * @param find archive row
+     * @return whether cleaning (or loss in the cut) has made material and conservation readable
+     */
+    public static boolean conditionKnown(BuriedFind find) {
+        return find != null && (find.isLabCleaned() || find.getState() == FindState.LOST);
     }
 
     /**

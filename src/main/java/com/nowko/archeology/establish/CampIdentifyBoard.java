@@ -4,6 +4,7 @@ import com.nowko.archeology.config.ArtifactTemplate;
 import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.config.InterpretationTemplate;
 import com.nowko.archeology.config.InterpretationType;
+import com.nowko.archeology.item.RecoveredFindItem;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.Site;
 import org.bukkit.Bukkit;
@@ -42,6 +43,7 @@ public final class CampIdentifyBoard implements InventoryHolder {
     private final UUID siteId;
     private final UUID findId;
     private final CatalogRegistry catalogs;
+    private final RecoveredFindItem recovered;
     private final boolean atCabinet;
     private InterpretationType type;
     private final List<String> offerIds = new ArrayList<>();
@@ -51,21 +53,30 @@ public final class CampIdentifyBoard implements InventoryHolder {
      * @param siteId excavation
      * @param findId archive row
      * @param catalogs station pools
+     * @param recovered recovered-find lore for the stand-in
      */
-    public CampIdentifyBoard(UUID siteId, UUID findId, CatalogRegistry catalogs) {
-        this(siteId, findId, catalogs, false);
+    public CampIdentifyBoard(UUID siteId, UUID findId, CatalogRegistry catalogs, RecoveredFindItem recovered) {
+        this(siteId, findId, catalogs, recovered, false);
     }
 
     /**
      * @param siteId excavation
      * @param findId archive row
      * @param catalogs station pools
+     * @param recovered recovered-find lore for the stand-in
      * @param atCabinet whether this reading was opened from the field cabinet
      */
-    public CampIdentifyBoard(UUID siteId, UUID findId, CatalogRegistry catalogs, boolean atCabinet) {
+    public CampIdentifyBoard(
+            UUID siteId,
+            UUID findId,
+            CatalogRegistry catalogs,
+            RecoveredFindItem recovered,
+            boolean atCabinet
+    ) {
         this.siteId = siteId;
         this.findId = findId;
         this.catalogs = catalogs;
+        this.recovered = recovered;
         this.atCabinet = atCabinet;
     }
 
@@ -139,7 +150,7 @@ public final class CampIdentifyBoard implements InventoryHolder {
             title = title.substring(0, 32);
         }
         inventory = Bukkit.createInventory(this, InventoryType.BREWING, title);
-        inventory.setItem(SLOT_PIECE, pieceItem(template, find, site));
+        inventory.setItem(SLOT_PIECE, recovered.standIn(template, site, find, catalogs));
         for (int i = 0; i < OFFER_SLOTS.length; i++) {
             if (i >= offers.size()) {
                 continue;
@@ -194,22 +205,6 @@ public final class CampIdentifyBoard implements InventoryHolder {
             }
         }
         return tags;
-    }
-
-    /**
-     * @param template catalog row, or {@code null}
-     * @param find archive row
-     * @param site excavation
-     * @return ingredient-slot stand-in for the piece
-     */
-    private ItemStack pieceItem(ArtifactTemplate template, BuriedFind find, Site site) {
-        String name = template == null ? find.getArtifactId() : template.displayName();
-        String number = find.publicNumber(site.getSerial());
-        return named(
-                CampFindsBoard.iconOf(template),
-                ChatColor.WHITE + name,
-                ChatColor.GOLD + (number == null ? "—" : number),
-                ChatColor.DARK_GRAY + "The real piece stays in your hand.");
     }
 
     /**

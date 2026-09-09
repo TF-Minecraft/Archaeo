@@ -118,7 +118,7 @@ public final class CampFindBoard implements InventoryHolder {
         if (hint != null) {
             lore.add(hint);
         }
-        if (template != null) {
+        if (template != null && RecoveredFindItem.conditionKnown(find)) {
             lore.add(ChatColor.GRAY + "Material: " + ChatColor.WHITE
                     + catalogs.materialDisplayName(template.material()));
         }
@@ -147,8 +147,12 @@ public final class CampFindBoard implements InventoryHolder {
     private ItemStack conditionItem(BuriedFind find) {
         String grade = catalogs.pick().conservation().gradeLabel(find.getConservation());
         List<String> lore = new ArrayList<>();
-        lore.add(ChatColor.GRAY + "Conservation: " + ChatColor.WHITE + find.getConservation() + "%"
-                + (grade == null || grade.isBlank() ? "" : ChatColor.GRAY + " · " + grade));
+        if (RecoveredFindItem.conditionKnown(find)) {
+            lore.add(ChatColor.GRAY + "Conservation: " + ChatColor.WHITE + find.getConservation() + "%"
+                    + (grade == null || grade.isBlank() ? "" : ChatColor.GRAY + " · " + grade));
+        } else if (find.getState() == FindState.RECOVERED) {
+            lore.add(ChatColor.DARK_GRAY + "Clean the piece to read its condition.");
+        }
         if (find.isDisturbedBeforeDig()) {
             lore.add(ChatColor.GOLD + "Disturbed before the dig");
         }
@@ -168,28 +172,31 @@ public final class CampFindBoard implements InventoryHolder {
      */
     private static ItemStack studyItem(ArtifactTemplate template, BuriedFind find) {
         List<String> lore = new ArrayList<>();
-        if (!find.isStudied()) {
-            lore.add(ChatColor.DARK_GRAY + "Not studied.");
+        if (find.hasFieldSketch()) {
+            if (template != null && template.rarity() != null && !template.rarity().isBlank()) {
+                lore.add(ChatColor.GRAY + "Rarity: " + ChatColor.WHITE + template.rarity());
+            }
+        } else if (!find.isStudied()) {
+            lore.add(ChatColor.DARK_GRAY + "Not sketched.");
             if (find.getState() == FindState.LOST) {
                 lore.add(ChatColor.DARK_GRAY + "The piece was lost before it could be examined.");
             } else {
-                lore.add(ChatColor.DARK_GRAY + "Bring the piece and a field brush.");
+                lore.add(ChatColor.DARK_GRAY + "Draw the piece and register the drawing at the cabinet.");
             }
-            return named(Material.PAPER, ChatColor.WHITE + "Study", lore.toArray(String[]::new));
-        }
-        if (template != null && template.rarity() != null && !template.rarity().isBlank()) {
-            lore.add(ChatColor.GRAY + "Rarity: " + ChatColor.WHITE + template.rarity());
+            return named(Material.PAPER, ChatColor.WHITE + "Record", lore.toArray(String[]::new));
         }
         String notes = find.getStudyNotes();
         if (notes == null || notes.isBlank()) {
             notes = template == null ? null : template.studyNotes();
         }
-        if (notes == null || notes.isBlank()) {
-            lore.add(ChatColor.DARK_GRAY + "No further notes were filed.");
-        } else {
-            wrap(lore, notes);
+        if (find.isStudied()) {
+            if (notes == null || notes.isBlank()) {
+                lore.add(ChatColor.DARK_GRAY + "No further notes were filed.");
+            } else {
+                wrap(lore, notes);
+            }
         }
-        return named(Material.PAPER, ChatColor.AQUA + "Study", lore.toArray(String[]::new));
+        return named(Material.PAPER, ChatColor.AQUA + "Record", lore.toArray(String[]::new));
     }
 
     /**

@@ -607,7 +607,7 @@ public class CampListener implements Listener {
      * @param board station that just signed an answer
      */
     private void reopenIdentify(Player player, Site site, CampIdentifyBoard board) {
-        new CampIdentifyBoard(site.getId(), board.findId(), catalogs, board.atCabinet()).open(player, site);
+        new CampIdentifyBoard(site.getId(), board.findId(), catalogs, recoveredItem, board.atCabinet()).open(player, site);
     }
 
     /**

@@ -307,7 +307,13 @@ public class SketchService {
             return true;
         }
         if (!find.hasFieldSketch()) {
-            new SketchCabinet().open(player, site, find, catalogs.artifact(find.getArtifactId()));
+            new SketchCabinet().open(
+                    player,
+                    site,
+                    find,
+                    catalogs.artifact(find.getArtifactId()),
+                    recovered,
+                    catalogs);
             return true;
         }
         beginCabinetReading(player, null, site, find);
@@ -508,7 +514,7 @@ public class SketchService {
             if (live == null) {
                 return;
             }
-            new CampIdentifyBoard(siteId, findId, catalogs, true).open(player, live);
+            new CampIdentifyBoard(siteId, findId, catalogs, recovered, true).open(player, live);
         });
     }
 

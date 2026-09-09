@@ -16,6 +16,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
+import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -108,6 +109,9 @@ public class ProspectService {
         if (!settings.enabled()) {
             return;
         }
+        if (!isSampleGround(block)) {
+            return;
+        }
         if (onCooldown(player)) {
             return;
         }
@@ -137,6 +141,17 @@ public class ProspectService {
             return;
         }
         startChannel(player, block, site, cell);
+    }
+
+    /**
+     * Shovel-dug ground: dirt, grass, sand, gravel, clay, mud, snow, and the rest of
+     * {@link Tag#MINEABLE_SHOVEL}. Stations, wool, stone, and furniture are not samples.
+     *
+     * @param block clicked block, or {@code null}
+     * @return whether the kit may take a soil sample here
+     */
+    public boolean isSampleGround(Block block) {
+        return block != null && Tag.MINEABLE_SHOVEL.isTagged(block.getType());
     }
 
     /**

@@ -1,7 +1,8 @@
 package com.nowko.archeology.sketch;
 
 import com.nowko.archeology.config.ArtifactTemplate;
-import com.nowko.archeology.establish.CampFindsBoard;
+import com.nowko.archeology.config.CatalogRegistry;
+import com.nowko.archeology.item.RecoveredFindItem;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.Site;
 import org.bukkit.Bukkit;
@@ -60,13 +61,22 @@ public final class SketchCabinet implements InventoryHolder {
      * @param site excavation
      * @param find archive row
      * @param template catalog row, or {@code null}
+     * @param recovered recovered-find tags and lore
+     * @param catalogs materials, grades, and readings
      */
-    public void open(Player player, Site site, BuriedFind find, ArtifactTemplate template) {
+    public void open(
+            Player player,
+            Site site,
+            BuriedFind find,
+            ArtifactTemplate template,
+            RecoveredFindItem recovered,
+            CatalogRegistry catalogs
+    ) {
         this.siteId = site.getId();
         this.findId = find.getId();
         String title = ChatColor.DARK_GREEN + "Register";
         inventory = Bukkit.createInventory(this, InventoryType.FURNACE, title);
-        inventory.setItem(SLOT_FIND, pieceItem(template, find, site));
+        inventory.setItem(SLOT_FIND, recovered.standIn(template, site, find, catalogs));
         inventory.setItem(SLOT_REGISTER, registerControl());
         player.openInventory(inventory);
     }
@@ -92,27 +102,6 @@ public final class SketchCabinet implements InventoryHolder {
      */
     public static boolean locked(int slot) {
         return slot == SLOT_FIND || slot == SLOT_REGISTER;
-    }
-
-    /**
-     * @param template catalog row, or {@code null}
-     * @param find archive row
-     * @param site excavation
-     * @return fuel-slot stand-in
-     */
-    private static ItemStack pieceItem(ArtifactTemplate template, BuriedFind find, Site site) {
-        String name = template == null ? find.getArtifactId() : template.displayName();
-        String number = find.publicNumber(site.getSerial());
-        ItemStack stack = new ItemStack(CampFindsBoard.iconOf(template));
-        ItemMeta meta = stack.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName(ChatColor.WHITE + name);
-            meta.setLore(List.of(
-                    ChatColor.GOLD + (number == null ? "—" : number),
-                    ChatColor.DARK_GRAY + "The real piece stays in your hand."));
-            stack.setItemMeta(meta);
-        }
-        return stack;
     }
 
     /**

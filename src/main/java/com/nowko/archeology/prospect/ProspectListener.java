@@ -27,7 +27,7 @@ public class ProspectListener implements Listener {
     }
 
     /**
-     * Consumes the vanilla brush/block action so only Archaeo sampling runs.
+     * Consumes the vanilla hoe/block action on sampleable ground so only Archaeo sampling runs.
      *
      * @param event interact event
      */
@@ -43,7 +43,7 @@ public class ProspectListener implements Listener {
             return;
         }
         Block block = event.getClickedBlock();
-        if (block == null) {
+        if (block == null || !service.isSampleGround(block)) {
             return;
         }
         event.setCancelled(true);
