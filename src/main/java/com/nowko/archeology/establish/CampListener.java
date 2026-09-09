@@ -556,7 +556,11 @@ public class CampListener implements Listener {
         }
         int slot = event.getRawSlot();
         if (slot == CampFindBoard.SLOT_BACK) {
-            openFinds(player, site);
+            if (file.isMuseum()) {
+                player.closeInventory();
+            } else {
+                openFinds(player, site);
+            }
         }
     }
 

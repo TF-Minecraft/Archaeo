@@ -33,17 +33,31 @@ public final class CampFindBoard implements InventoryHolder {
     private final UUID siteId;
     private final UUID findId;
     private final CatalogRegistry catalogs;
+    private final boolean museum;
     private Inventory inventory;
 
     /**
+     * Consultation page opened from the excavation finds register.
+     *
      * @param siteId excavation
      * @param findId archive row
      * @param catalogs materials, rarity, and interpretation labels
      */
     public CampFindBoard(UUID siteId, UUID findId, CatalogRegistry catalogs) {
+        this(siteId, findId, catalogs, false);
+    }
+
+    /**
+     * @param siteId excavation
+     * @param findId archive row
+     * @param catalogs materials, rarity, and interpretation labels
+     * @param museum when true, this is a world plaque: no cabinet hint, and Back closes
+     */
+    public CampFindBoard(UUID siteId, UUID findId, CatalogRegistry catalogs, boolean museum) {
         this.siteId = siteId;
         this.findId = findId;
         this.catalogs = catalogs;
+        this.museum = museum;
     }
 
     /**
@@ -58,6 +72,13 @@ public final class CampFindBoard implements InventoryHolder {
      */
     public UUID findId() {
         return findId;
+    }
+
+    /**
+     * @return whether this window was opened from a displayed piece, not the camp register
+     */
+    public boolean isMuseum() {
+        return museum;
     }
 
     /**
@@ -93,10 +114,17 @@ public final class CampFindBoard implements InventoryHolder {
         inventory.setItem(SLOT_PROVENIENCE, provenienceItem(player, site, find));
         inventory.setItem(SLOT_CONDITION, conditionItem(find));
         inventory.setItem(SLOT_READINGS, readingsItem(find));
-        inventory.setItem(SLOT_BACK, named(
-                Material.BARRIER,
-                ChatColor.WHITE + "Back",
-                ChatColor.GRAY + "Return to the finds register."));
+        if (museum) {
+            inventory.setItem(SLOT_BACK, named(
+                    Material.BARRIER,
+                    ChatColor.WHITE + "Close",
+                    ChatColor.GRAY + "Leave the plaque."));
+        } else {
+            inventory.setItem(SLOT_BACK, named(
+                    Material.BARRIER,
+                    ChatColor.WHITE + "Back",
+                    ChatColor.GRAY + "Return to the finds register."));
+        }
         player.openInventory(inventory);
     }
 
@@ -121,9 +149,11 @@ public final class CampFindBoard implements InventoryHolder {
                 && template.rarity() != null && !template.rarity().isBlank()) {
             lore.add(ChatColor.GRAY + "Rarity: " + ChatColor.WHITE + template.rarity());
         }
-        String hint = RecoveredFindItem.nextCabinetHint(template, find, catalogs);
-        if (hint != null) {
-            lore.add(hint);
+        if (!museum) {
+            String hint = RecoveredFindItem.nextCabinetHint(template, find, catalogs);
+            if (hint != null) {
+                lore.add(hint);
+            }
         }
         return named(Material.NAME_TAG, ChatColor.WHITE + name, lore.toArray(String[]::new));
     }

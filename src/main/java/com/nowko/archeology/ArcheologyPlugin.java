@@ -20,6 +20,7 @@ import com.nowko.archeology.item.ProspectItem;
 import com.nowko.archeology.item.RecoveredFindItem;
 import com.nowko.archeology.item.SketchSupplies;
 import com.nowko.archeology.item.TrackerItem;
+import com.nowko.archeology.museum.MuseumListener;
 import com.nowko.archeology.prospect.ProspectListener;
 import com.nowko.archeology.prospect.ProspectService;
 import com.nowko.archeology.site.SiteGenerator;
@@ -116,6 +117,9 @@ public class ArcheologyPlugin extends JavaPlugin {
         sketch = new SketchService(this, sketchSupplies, recoveredFindItem, sites, catalogs, catalogs.sketch());
         sketch.start();
         getServer().getPluginManager().registerEvents(new SketchListener(sketch), this);
+        getServer().getPluginManager().registerEvents(
+                new MuseumListener(sites, catalogs, recoveredFindItem),
+                this);
 
         ArchaeoCommand command = new ArchaeoCommand(
                 this,
