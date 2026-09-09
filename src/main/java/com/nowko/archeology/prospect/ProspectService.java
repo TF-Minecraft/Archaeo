@@ -110,6 +110,7 @@ public class ProspectService {
             return;
         }
         if (!isSampleGround(block)) {
+            refuseWrongGround(player);
             return;
         }
         if (onCooldown(player)) {
@@ -152,6 +153,19 @@ public class ProspectService {
      */
     public boolean isSampleGround(Block block) {
         return block != null && Tag.MINEABLE_SHOVEL.isTagged(block.getType());
+    }
+
+    /**
+     * Tells the player that this block is not soil. Cooldown stops chat spam.
+     *
+     * @param player scanner
+     */
+    public void refuseWrongGround(Player player) {
+        if (player == null || onCooldown(player)) {
+            return;
+        }
+        armCooldown(player, 800);
+        player.sendMessage("That is not soil. Sample dirt, sand, gravel, or clay.");
     }
 
     /**

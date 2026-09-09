@@ -27,7 +27,8 @@ public class ProspectListener implements Listener {
     }
 
     /**
-     * Consumes the vanilla hoe/block action on sampleable ground so only Archaeo sampling runs.
+     * Consumes the vanilla hoe action on sampleable ground. Stone and other non-soil
+     * blocks get a short refusal; chests and stations stay vanilla.
      *
      * @param event interact event
      */
@@ -43,7 +44,15 @@ public class ProspectListener implements Listener {
             return;
         }
         Block block = event.getClickedBlock();
-        if (block == null || !service.isSampleGround(block)) {
+        if (block == null) {
+            return;
+        }
+        if (!service.isSampleGround(block)) {
+            if (block.getType().isInteractable()) {
+                return;
+            }
+            event.setCancelled(true);
+            service.refuseWrongGround(event.getPlayer());
             return;
         }
         event.setCancelled(true);
