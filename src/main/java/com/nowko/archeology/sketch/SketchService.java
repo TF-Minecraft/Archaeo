@@ -461,6 +461,10 @@ public class SketchService {
             refuseRegister(player, "Place the drawing in the top slot.");
             return;
         }
+        if (!hasInk(sheetOf(sketch))) {
+            refuseRegister(player, "That drawing is still blank.");
+            return;
+        }
         UUID bound = boundFindId(sketch);
         if (bound != null && !bound.equals(find.getId())) {
             refuseRegister(player, "This drawing already records a different find.");
@@ -530,18 +534,22 @@ public class SketchService {
     }
 
     /**
-     * Only a signed field sketch may occupy the top slot.
+     * Only a signed field sketch with enough ink may occupy the top slot.
      *
      * @param player cataloguer
      * @param stack candidate
      * @return whether the stack may go in
      */
     private boolean acceptFinishedDrawing(Player player, ItemStack stack) {
-        if (isSketchMap(stack) && isSigned(stack)) {
-            return true;
+        if (!isSketchMap(stack) || !isSigned(stack)) {
+            refuseRegister(player, "That cannot be registered.");
+            return false;
         }
-        refuseRegister(player, "That cannot be registered.");
-        return false;
+        if (!hasInk(sheetOf(stack))) {
+            refuseRegister(player, "That drawing is still blank.");
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -749,13 +757,18 @@ public class SketchService {
     }
 
     /**
-     * Asks for a chat confirm before locking the sheet.
+     * Asks for a chat confirm before locking the sheet. A blank page is refused here
+     * so the player keeps drawing instead of typing {@code sign} for nothing.
      *
      * @param player editor
      */
     public void askToSign(Player player) {
         SketchSession session = sessions.get(player.getUniqueId());
         if (session == null) {
+            return;
+        }
+        if (!hasInk(session.sheet())) {
+            refuseBlankSign(player);
             return;
         }
         session.setAwaitingSign(true);
@@ -782,11 +795,34 @@ public class SketchService {
             player.sendMessage(ChatColor.WHITE + "Type sign to finish, or cancel to keep editing.");
             return true;
         }
+        if (!hasInk(session.sheet())) {
+            session.setAwaitingSign(false);
+            refuseBlankSign(player);
+            return true;
+        }
         ItemStack hand = player.getInventory().getItemInMainHand();
         writeItem(hand, session.sheet(), true, player.getName());
         leave(player, false, hand);
         player.sendMessage(ChatColor.GOLD + "Sketch signed. It can no longer be edited.");
         return true;
+    }
+
+    /**
+     * Tells the editor the page still has no marks.
+     *
+     * @param player editor
+     */
+    private void refuseBlankSign(Player player) {
+        player.sendMessage(ChatColor.GOLD + "The sheet is still blank. Draw something first.");
+        player.sendMessage(ChatColor.GRAY + "Sneak paints. Right-click erases.");
+    }
+
+    /**
+     * @param sheet cells to judge, or {@code null}
+     * @return whether at least one cell is painted
+     */
+    private boolean hasInk(SketchSheet sheet) {
+        return sheet != null && sheet.hasInk();
     }
 
     /**
@@ -811,6 +847,24 @@ public class SketchService {
      */
     SketchSheet sheetOf(MapView view) {
         return sheets.get(view.getId());
+    }
+
+    /**
+     * Prefers the live editor buffer so a map still in hand is judged as drawn, then the item PDC.
+     *
+     * @param stack sketch map
+     * @return cells for that item; never {@code null}
+     */
+    private SketchSheet sheetOf(ItemStack stack) {
+        hydrate(stack);
+        MapView view = mapView(stack);
+        if (view != null) {
+            SketchSheet live = sheets.get(view.getId());
+            if (live != null) {
+                return live;
+            }
+        }
+        return SketchSheet.fromBytes(cellsOf(stack));
     }
 
     /**

@@ -52,6 +52,18 @@ final class SketchSheet {
     }
 
     /**
+     * @return whether at least one cell has been painted
+     */
+    boolean hasInk() {
+        for (SketchInk cell : cells) {
+            if (cell != SketchInk.PAPER) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * @return one ordinal per cell, for the map item PDC
      */
     byte[] toBytes() {
