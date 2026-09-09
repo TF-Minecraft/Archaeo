@@ -186,7 +186,11 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             prism.setProtectDigSite(catalogs.establish().protectDigSite());
             brushItem.update(catalogs.items().brush());
             recover.setSettings(catalogs.recovery());
-            plugin.sketchSupplies().update(catalogs.items().sketchPaper(), catalogs.items().sketchPencil());
+            plugin.sketchSupplies().update(
+                    catalogs.items().sketchPaper(),
+                    catalogs.items().sketchPencil(),
+                    catalogs.sketch().pencilUses());
+            plugin.sketch().setSettings(catalogs.sketch());
             sites.loadAll();
             sender.sendMessage("Reloaded Archaeo config, catalogs, and sites from disk.");
         } catch (RuntimeException exception) {
@@ -255,7 +259,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     target,
                     plugin.sketchSupplies().createPencil(),
                     "a field pencil",
-                    "You received a field pencil. Click a field sheet onto it; the pencil is not used up.");
+                    "You received a field pencil. Click a field sheet onto it; the pencil wears like a tool.");
             default -> {
                 sender.sendMessage("Unknown item. Use: tracker, prospect, establish, tool, brush, paper, or pencil.");
                 yield true;

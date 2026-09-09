@@ -68,7 +68,11 @@ public class ArcheologyPlugin extends JavaPlugin {
         prospectItem = new ProspectItem(catalogs.items().prospect());
         establishItem = new EstablishItem(catalogs.items().establish());
         brushItem = new BrushItem(catalogs.items().brush());
-        sketchSupplies = new SketchSupplies(this, catalogs.items().sketchPaper(), catalogs.items().sketchPencil());
+        sketchSupplies = new SketchSupplies(
+                this,
+                catalogs.items().sketchPaper(),
+                catalogs.items().sketchPencil(),
+                catalogs.sketch().pencilUses());
         digTools = new DigTools();
         bindItemMatcher(ItemMatcher.detect(this));
         tracker = new TrackerService(this, sites, trackerItem, catalogs.tracker());
@@ -109,7 +113,7 @@ public class ArcheologyPlugin extends JavaPlugin {
                 recoveredFindItem,
                 catalogs.recovery());
         getServer().getPluginManager().registerEvents(new RecoverListener(brushItem, recover), this);
-        sketch = new SketchService(this, sketchSupplies, recoveredFindItem);
+        sketch = new SketchService(this, sketchSupplies, recoveredFindItem, sites, catalogs, catalogs.sketch());
         sketch.start();
         getServer().getPluginManager().registerEvents(new SketchListener(sketch), this);
 

@@ -366,6 +366,8 @@ public class SiteRepository {
                 node.put("recovered-at", find.getRecoveredAt().toString());
             }
             node.put("studied", find.isStudied());
+            node.put("lab-cleaned", find.isLabCleaned());
+            node.put("field-sketch", find.hasFieldSketch());
             if (find.getStudyNotes() != null && !find.getStudyNotes().isBlank()) {
                 node.put("study-notes", find.getStudyNotes());
             }
@@ -596,6 +598,8 @@ public class SiteRepository {
                 }
             }
             find.setStudied(parseBoolean(map.get("studied")));
+            find.setLabCleaned(parseBoolean(map.get("lab-cleaned")));
+            find.setFieldSketch(parseBoolean(map.get("field-sketch")));
             if (map.get("study-notes") != null) {
                 find.setStudyNotes(String.valueOf(map.get("study-notes")));
             }

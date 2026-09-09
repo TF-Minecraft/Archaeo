@@ -46,6 +46,7 @@ import org.bukkit.event.player.PlayerToggleFlightEvent;
 import org.bukkit.event.player.PlayerToggleSprintEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 /**
@@ -84,8 +85,9 @@ public class SketchListener implements Listener {
     }
 
     /**
-     * Right-click with sheet and pencil starts a sketch. While editing, right-click erases
-     * and left-click starts the sign confirm.
+     * Right-click with sheet and pencil starts a sketch. Right-click on the cabinet
+     * with a recovered piece in hand opens clean, register, or a reading. While editing,
+     * right-click erases and left-click starts the sign confirm.
      *
      * @param event interact
      */
@@ -93,6 +95,15 @@ public class SketchListener implements Listener {
     public void onInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
         Action action = event.getAction();
+        if (!sketches.editing(player)
+                && action == Action.RIGHT_CLICK_BLOCK
+                && event.getHand() == EquipmentSlot.HAND
+                && sketches.tryOpenCabinet(player, event.getClickedBlock(), player.isSneaking())) {
+            event.setCancelled(true);
+            event.setUseInteractedBlock(Event.Result.DENY);
+            event.setUseItemInHand(Event.Result.DENY);
+            return;
+        }
         if (!sketches.editing(player)
                 && (action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK)
                 && event.getHand() == EquipmentSlot.HAND
@@ -121,7 +132,7 @@ public class SketchListener implements Listener {
     }
 
     /**
-     * Combines sheet+pencil or attaches a signed sketch to a recovered find in the player's bag.
+     * Combines sheet+pencil in the player's bag. Filing a signed sketch happens at the cabinet.
      *
      * @param event click
      */
@@ -134,26 +145,151 @@ public class SketchListener implements Listener {
             return;
         }
         InventoryType type = event.getClickedInventory().getType();
-        if (type != InventoryType.PLAYER && type != InventoryType.CRAFTING) {
+        if (type != InventoryType.PLAYER && type != InventoryType.CRAFTING && type != InventoryType.CREATIVE) {
             return;
         }
-        ItemStack[] cursorSlot = {
-                event.getCursor() == null ? new ItemStack(org.bukkit.Material.AIR) : event.getCursor().clone(),
-                event.getCurrentItem() == null ? new ItemStack(org.bukkit.Material.AIR) : event.getCurrentItem().clone()
-        };
-        if (sketches.tryAttachOnClick(player, cursorSlot[0], cursorSlot[1])) {
+        ItemStack cursor = event.getCursor() == null
+                ? new ItemStack(org.bukkit.Material.AIR)
+                : event.getCursor();
+        ItemStack slot = event.getCurrentItem() == null
+                ? new ItemStack(org.bukkit.Material.AIR)
+                : event.getCurrentItem();
+        if (sketches.tryCraftOnClick(player, cursor, slot)) {
             event.setCancelled(true);
-            sketches.applyBagClick(player, event.getClickedInventory(), event.getSlot(), cursorSlot[0], cursorSlot[1]);
+            event.setCurrentItem(emptyToNull(slot));
+            event.getView().setCursor(emptyToNull(cursor));
+            sketches.afterBagCraft(
+                    player,
+                    event.getClickedInventory(),
+                    event.getSlot(),
+                    cursor,
+                    slot);
+        }
+    }
+
+    /**
+     * @param stack result stack
+     * @return {@code null} when Bukkit should treat the slot as empty
+     */
+    private static ItemStack emptyToNull(ItemStack stack) {
+        if (stack == null || stack.getType().isAir() || stack.getAmount() <= 0) {
+            return null;
+        }
+        return stack;
+    }
+
+    /**
+     * Places a drawing in the furnace top slot, or files it on Register.
+     *
+     * @param event click
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onCabinetClick(InventoryClickEvent event) {
+        if (!(event.getView().getTopInventory().getHolder() instanceof SketchCabinet)) {
             return;
         }
-        if (sketches.tryCraftOnClick(
-                player,
-                cursorSlot[0],
-                cursorSlot[1],
-                crafted -> cursorSlot[0] = crafted,
-                updated -> cursorSlot[1] = updated)) {
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
+        Inventory top = event.getView().getTopInventory();
+        if (event.getClickedInventory() == top) {
             event.setCancelled(true);
-            sketches.applyBagClick(player, event.getClickedInventory(), event.getSlot(), cursorSlot[0], cursorSlot[1]);
+            ItemStack cursor = event.getCursor() == null
+                    ? new ItemStack(org.bukkit.Material.AIR)
+                    : event.getCursor().clone();
+            ItemStack next = sketches.handleCabinetClick(player, top, event.getSlot(), cursor);
+            event.getView().setCursor(next);
+            return;
+        }
+        if (event.isShiftClick()) {
+            event.setCancelled(true);
+            ItemStack current = event.getCurrentItem();
+            if (current != null && sketches.tryDepositCabinet(player, top, current)) {
+                event.setCurrentItem(current);
+            }
+        }
+    }
+
+    /**
+     * Picks a rack tool or wipes dirt in the cabinet lab window. The bag cannot take lab stacks.
+     *
+     * @param event click
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onLabClick(InventoryClickEvent event) {
+        if (!(event.getView().getTopInventory().getHolder() instanceof CabinetLabBoard board)) {
+            return;
+        }
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
+        event.setCancelled(true);
+        if (event.getClickedInventory() != event.getView().getTopInventory()) {
+            return;
+        }
+        ItemStack cursor = event.getCursor() == null
+                ? new ItemStack(org.bukkit.Material.AIR)
+                : event.getCursor().clone();
+        ItemStack next = sketches.handleLabClick(player, board, event.getSlot(), cursor);
+        event.getView().setCursor(next);
+    }
+
+    /**
+     * @param event drag across the register furnace
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onCabinetDrag(InventoryDragEvent event) {
+        if (!(event.getView().getTopInventory().getHolder() instanceof SketchCabinet)) {
+            return;
+        }
+        int topSize = event.getView().getTopInventory().getSize();
+        for (int slot : event.getRawSlots()) {
+            if (slot < topSize) {
+                event.setCancelled(true);
+                return;
+            }
+        }
+    }
+
+    /**
+     * Lab tools cannot be dragged into the field or the bag.
+     *
+     * @param event drag across the lab window
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onLabDrag(InventoryDragEvent event) {
+        if (event.getView().getTopInventory().getHolder() instanceof CabinetLabBoard) {
+            event.setCancelled(true);
+        }
+    }
+
+    /**
+     * Returns the drawing when the register closes so it is not destroyed with the furnace.
+     *
+     * @param event close
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onCabinetClose(InventoryCloseEvent event) {
+        if (!(event.getInventory().getHolder() instanceof SketchCabinet cabinet)) {
+            return;
+        }
+        if (event.getPlayer() instanceof Player player) {
+            cabinet.returnContents(player);
+        }
+    }
+
+    /**
+     * Drops fake lab tools and panes so they never stay in the bag.
+     *
+     * @param event close
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onLabClose(InventoryCloseEvent event) {
+        if (!(event.getInventory().getHolder() instanceof CabinetLabBoard board)) {
+            return;
+        }
+        if (event.getPlayer() instanceof Player player) {
+            sketches.handleLabClose(player, board);
         }
     }
 
@@ -394,12 +530,17 @@ public class SketchListener implements Listener {
 
     /**
      * Dropping the map saves onto the dropped stack and leaves the editor.
+     * Lab rack copies cannot be dropped into the world.
      *
      * @param event drop
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDrop(PlayerDropItemEvent event) {
         Player player = event.getPlayer();
+        if (sketches.isLabItem(event.getItemDrop().getItemStack())) {
+            event.setCancelled(true);
+            return;
+        }
         if (!sketches.editing(player)) {
             return;
         }
@@ -439,6 +580,7 @@ public class SketchListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();
+        sketches.cancelLab(player);
         if (!sketches.editing(player)) {
             return;
         }
@@ -450,6 +592,7 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onWorld(PlayerChangedWorldEvent event) {
+        sketches.cancelLab(event.getPlayer());
         sketches.syncHandLater(event.getPlayer());
     }
 
@@ -458,6 +601,7 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
+        sketches.cancelLab(event.getPlayer());
         if (sketches.editing(event.getPlayer())) {
             sketches.leave(event.getPlayer(), false);
         }

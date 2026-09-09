@@ -25,6 +25,8 @@ import java.util.UUID;
 /**
  * Classification station using the vanilla brewing-stand window: ingredient = piece, bottles = offers.
  * The client will not let a player drop a sword into those slots; the plugin places the items.
+ * After a drawing is registered, the cabinet opens this station instead of the camp mesa.
+ * The real recovered find stays in the player's hand.
  */
 public final class CampIdentifyBoard implements InventoryHolder {
     /** Left / middle / right bottle slots. */
@@ -40,6 +42,7 @@ public final class CampIdentifyBoard implements InventoryHolder {
     private final UUID siteId;
     private final UUID findId;
     private final CatalogRegistry catalogs;
+    private final boolean atCabinet;
     private InterpretationType type;
     private final List<String> offerIds = new ArrayList<>();
     private Inventory inventory;
@@ -50,9 +53,27 @@ public final class CampIdentifyBoard implements InventoryHolder {
      * @param catalogs station pools
      */
     public CampIdentifyBoard(UUID siteId, UUID findId, CatalogRegistry catalogs) {
+        this(siteId, findId, catalogs, false);
+    }
+
+    /**
+     * @param siteId excavation
+     * @param findId archive row
+     * @param catalogs station pools
+     * @param atCabinet whether this reading was opened from the field cabinet
+     */
+    public CampIdentifyBoard(UUID siteId, UUID findId, CatalogRegistry catalogs, boolean atCabinet) {
         this.siteId = siteId;
         this.findId = findId;
         this.catalogs = catalogs;
+        this.atCabinet = atCabinet;
+    }
+
+    /**
+     * @return whether this station was opened from the cabinet
+     */
+    public boolean atCabinet() {
+        return atCabinet;
     }
 
     /**
@@ -97,8 +118,12 @@ public final class CampIdentifyBoard implements InventoryHolder {
         }
         type = catalogs.nextOpenType(find);
         if (type == null) {
-            player.sendMessage("Every question on this piece already has an answer.");
-            new CampFindBoard(site.getId(), findId, catalogs).open(player, site);
+            player.sendMessage(ChatColor.GOLD + "The record on this piece is complete.");
+            if (atCabinet) {
+                player.closeInventory();
+            } else {
+                new CampFindBoard(site.getId(), findId, catalogs).open(player, site);
+            }
             return false;
         }
         ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
@@ -126,7 +151,9 @@ public final class CampIdentifyBoard implements InventoryHolder {
         inventory.setItem(SLOT_BACK, named(
                 Material.BLAZE_POWDER,
                 ChatColor.WHITE + "Back",
-                ChatColor.GRAY + "Leave the station. Signed answers stay."));
+                ChatColor.GRAY + (atCabinet
+                        ? "Leave the cabinet. Signed answers stay."
+                        : "Leave the station. Signed answers stay.")));
         player.openInventory(inventory);
         return true;
     }
@@ -182,7 +209,7 @@ public final class CampIdentifyBoard implements InventoryHolder {
                 CampFindsBoard.iconOf(template),
                 ChatColor.WHITE + name,
                 ChatColor.GOLD + (number == null ? "—" : number),
-                ChatColor.DARK_GRAY + "Placed by the station. The real piece stays on you.");
+                ChatColor.DARK_GRAY + "The real piece stays in your hand.");
     }
 
     /**

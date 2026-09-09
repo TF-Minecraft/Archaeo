@@ -3,6 +3,7 @@ package com.nowko.archeology.config;
 import com.nowko.archeology.item.ItemRef;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.InterestLevel;
+import org.bukkit.Material;
 import org.bukkit.configuration.Configuration;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -43,6 +44,7 @@ public class CatalogRegistry {
     private EstablishSettings establish = EstablishSettings.defaults();
     private PickSettings pick = PickSettings.defaults();
     private RecoverySettings recovery = RecoverySettings.defaults();
+    private SketchSettings sketch = SketchSettings.defaults();
     private ToolWearSettings toolWear = ToolWearSettings.defaults();
     private ItemMaterials items = ItemMaterials.defaults();
     private String staffPermission = "archaeo.admin";
@@ -77,6 +79,7 @@ public class CatalogRegistry {
         loadPick(config);
         loadToolWear(config);
         loadRecovery(config);
+        loadSketch(config);
         loadStaffPermission(config);
         loadStrata(yaml("strata.yml"));
         loadArtifacts(yaml("artifacts.yml"));
@@ -138,6 +141,30 @@ public class CatalogRegistry {
             return material.displayName();
         }
         return Character.toUpperCase(id.charAt(0)) + id.substring(1);
+    }
+
+    /**
+     * Lab profile for a catalog material. Unknown ids still get a dry {@code clean} so the cabinet wipe can run.
+     *
+     * @param id material key from {@code artifacts.yml} / {@code materials.yml}
+     * @return row, never {@code null}
+     */
+    public FindMaterial materialOf(String id) {
+        if (id != null && !id.isBlank()) {
+            FindMaterial material = materials.get(id);
+            if (material != null) {
+                return material;
+            }
+        }
+        String key = id == null || id.isBlank() ? "unknown" : id;
+        return new FindMaterial(
+                key,
+                materialDisplayName(key),
+                1.0,
+                false,
+                List.of("clean"),
+                defaultCleanGlass(key),
+                defaultStains(key));
     }
 
     /**
@@ -401,6 +428,13 @@ public class CatalogRegistry {
      */
     public RecoverySettings recovery() {
         return recovery;
+    }
+
+    /**
+     * @return field-sketch pencil wear, cabinet block, and lab wipe
+     */
+    public SketchSettings sketch() {
+        return sketch;
     }
 
     /**
@@ -1080,6 +1114,132 @@ public class CatalogRegistry {
     }
 
     /**
+     * Reads pencil wear, the cabinet block, and the lab wipe window from {@code sketch:}.
+     *
+     * @param config root plugin config
+     */
+    private void loadSketch(FileConfiguration config) {
+        ConfigurationSection section = config.getConfigurationSection("sketch");
+        SketchSettings fallback = SketchSettings.defaults();
+        if (section == null) {
+            sketch = fallback;
+            return;
+        }
+        sketch = new SketchSettings(
+                Math.max(0, section.getInt("pencil-uses", fallback.pencilUses())),
+                ConfigEnums.material(
+                        plugin,
+                        section.getString("cabinet"),
+                        fallback.cabinet(),
+                        "sketch.cabinet"),
+                loadLab(section.getConfigurationSection("lab"), fallback.lab()));
+    }
+
+    /**
+     * Reads the wipe field, rack tools, and stain catalogue from {@code sketch.lab}.
+     *
+     * @param section {@code sketch.lab}, or {@code null}
+     * @param fallback packaged lab
+     * @return merged settings
+     */
+    private LabSettings loadLab(ConfigurationSection section, LabSettings fallback) {
+        if (section == null) {
+            return fallback;
+        }
+        int dirty = Math.max(1, Math.min(LabSettings.FIELD_SLOTS, section.getInt("dirty-count", fallback.dirtyCount())));
+        ConfigurationSection toolsRoot = section.getConfigurationSection("tools");
+        List<LabTool> tools = new ArrayList<>();
+        if (toolsRoot != null) {
+            for (String id : toolsRoot.getKeys(false)) {
+                ConfigurationSection tool = toolsRoot.getConfigurationSection(id);
+                if (tool == null) {
+                    continue;
+                }
+                tools.add(new LabTool(
+                        id,
+                        ConfigEnums.material(
+                                plugin,
+                                tool.getString("item"),
+                                Material.STICK,
+                                "sketch.lab.tools." + id + ".item"),
+                        tool.getString("display-name", id),
+                        tool.getString("description", ""),
+                        ConfigEnums.sound(
+                                plugin,
+                                tool.getString("sound"),
+                                defaultToolSound(id),
+                                "sketch.lab.tools." + id + ".sound")));
+            }
+        }
+        if (tools.isEmpty()) {
+            tools = fallback.tools();
+        }
+        ConfigurationSection stainsRoot = section.getConfigurationSection("stains");
+        List<LabStain> stains = new ArrayList<>();
+        if (stainsRoot != null) {
+            for (String id : stainsRoot.getKeys(false)) {
+                ConfigurationSection stain = stainsRoot.getConfigurationSection(id);
+                if (stain == null) {
+                    continue;
+                }
+                stains.add(new LabStain(
+                        id,
+                        stain.getString("display-name", id),
+                        ConfigEnums.material(
+                                plugin,
+                                stain.getString("glass"),
+                                Material.BROWN_STAINED_GLASS_PANE,
+                                "sketch.lab.stains." + id + ".glass"),
+                        stain.getString("tool", "brush")));
+            }
+        }
+        if (stains.isEmpty()) {
+            stains = fallback.stains();
+        }
+        return new LabSettings(dirty, List.copyOf(tools), List.copyOf(stains));
+    }
+
+    /**
+     * @param id rack tool key
+     * @return packaged wipe sound
+     */
+    private static org.bukkit.Sound defaultToolSound(String id) {
+        return switch (id == null ? "" : id.toLowerCase(java.util.Locale.ROOT)) {
+            case "water" -> org.bukkit.Sound.ITEM_BUCKET_EMPTY;
+            case "air" -> org.bukkit.Sound.ITEM_BRUSH_BRUSHING_SAND;
+            case "brush" -> org.bukkit.Sound.ITEM_BRUSH_BRUSHING_GENERIC;
+            default -> org.bukkit.Sound.BLOCK_WOOL_HIT;
+        };
+    }
+
+    /**
+     * @param id material key
+     * @return packaged clean pane
+     */
+    private static Material defaultCleanGlass(String id) {
+        return switch (id == null ? "" : id.toLowerCase(java.util.Locale.ROOT)) {
+            case "metal" -> Material.GRAY_STAINED_GLASS_PANE;
+            case "organic" -> Material.LIME_STAINED_GLASS_PANE;
+            case "stone" -> Material.LIGHT_GRAY_STAINED_GLASS_PANE;
+            default -> Material.WHITE_STAINED_GLASS_PANE;
+        };
+    }
+
+    /**
+     * @param id material key
+     * @return packaged stain ids for that material
+     */
+    private static List<String> defaultStains(String id) {
+        return switch (id == null ? "" : id.toLowerCase(java.util.Locale.ROOT)) {
+            case "ceramic" -> List.of("limescale", "soil");
+            case "stone" -> List.of("limescale");
+            case "metal" -> List.of("rust");
+            case "organic" -> List.of("mud");
+            default -> List.of("soil");
+        };
+    }
+
+    /**
      * Reads the LuckPerms / Bukkit node for staff commands.
      *
      * @param config root plugin config
@@ -1304,7 +1464,8 @@ public class CatalogRegistry {
     }
 
     /**
-     * Reads field-trace labels from {@code materials.yml}. Lab steps are ignored until the lab exists.
+     * Reads field-trace labels, clean glass, and which stains may appear from {@code materials.yml}.
+     * Stain colour and matching tool live on {@code sketch.lab.stains}.
      *
      * @param yaml parsed materials file
      */
@@ -1319,8 +1480,26 @@ public class CatalogRegistry {
             if (section == null) {
                 continue;
             }
-            double survival = Math.max(0.05, Math.min(1.0, section.getDouble("survival", 1.0)));
-            materials.put(id, new FindMaterial(id, section.getString("display-name", id), survival));
+            boolean wash = section.getBoolean("wash", false);
+            List<String> steps = List.copyOf(section.getStringList("steps"));
+            List<String> stains = section.getStringList("stains");
+            if (stains.isEmpty()) {
+                stains = defaultStains(id);
+            } else {
+                stains = List.copyOf(stains);
+            }
+            materials.put(id, new FindMaterial(
+                    id,
+                    section.getString("display-name", id),
+                    Math.max(0.05, Math.min(1.0, section.getDouble("survival", 1.0))),
+                    wash,
+                    steps,
+                    ConfigEnums.material(
+                            plugin,
+                            section.getString("clean-glass"),
+                            defaultCleanGlass(id),
+                            "materials." + id + ".clean-glass"),
+                    stains));
         }
     }
 

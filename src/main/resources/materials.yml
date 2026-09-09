@@ -1,30 +1,42 @@
 # Find materials. display-name is used on neighbour traces in the cut.
 # survival (0-1) scales the buried-conservation roll from config.yml: organic rots in the
 # ground, stone barely cares. It never depends on how well the player digs.
-# Lab treatment chains are listed for later; they are not played in-game yet.
+# Lab: the first step is a wipe in the cabinet inventory. clean-glass is the cleaned field.
+# stains lists ids from config.yml sketch.lab.stains (colour and matching tool live there).
+# Later chain steps are listed for later.
 materials:
   ceramic:
     display-name: Ceramic
     survival: 0.95
     wash: true
     steps: [clean, wash, dry, photograph, interpret]
+    clean-glass: WHITE_STAINED_GLASS_PANE
+    stains: [limescale, soil]
   metal:
     display-name: Metal
     survival: 0.85
     wash: false
     steps: [clean, stabilize, photograph, interpret]
+    clean-glass: GRAY_STAINED_GLASS_PANE
+    stains: [rust]
   bone:
     display-name: Bone
     survival: 0.8
     wash: false
     steps: [clean, dry, photograph, interpret]
+    clean-glass: WHITE_STAINED_GLASS_PANE
+    stains: [soil]
   organic:
     display-name: Organic
     survival: 0.7
     wash: false
     steps: [dry, conserve, photograph, interpret]
+    clean-glass: LIME_STAINED_GLASS_PANE
+    stains: [mud]
   stone:
     display-name: Stone
     survival: 1.0
     wash: true
     steps: [clean, wash, dry, photograph, interpret]
+    clean-glass: LIGHT_GRAY_STAINED_GLASS_PANE
+    stains: [limescale]

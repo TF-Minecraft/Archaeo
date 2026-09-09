@@ -7,6 +7,7 @@ import com.nowko.archeology.config.InterpretationType;
 import com.nowko.archeology.establish.CampNames;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindInterpretation;
+import com.nowko.archeology.model.FindState;
 import com.nowko.archeology.model.Site;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -44,6 +45,8 @@ public class RecoveredFindItem {
     private final NamespacedKey recoveredByKey;
     private final NamespacedKey recoveredAtKey;
     private final NamespacedKey studiedKey;
+    private final NamespacedKey labCleanedKey;
+    private final NamespacedKey fieldSketchKey;
 
     /**
      * @param plugin owner of the PDC keys
@@ -64,6 +67,8 @@ public class RecoveredFindItem {
         this.recoveredByKey = new NamespacedKey(plugin, "recovered_by");
         this.recoveredAtKey = new NamespacedKey(plugin, "recovered_at");
         this.studiedKey = new NamespacedKey(plugin, "studied");
+        this.labCleanedKey = new NamespacedKey(plugin, "lab_cleaned");
+        this.fieldSketchKey = new NamespacedKey(plugin, "field_sketch");
     }
 
     /**
@@ -133,6 +138,41 @@ public class RecoveredFindItem {
             write(cursor, template, site, find, recoverer, grade, fieldDamaged, catalogs);
             player.getOpenInventory().setCursor(cursor);
         }
+    }
+
+    /**
+     * Rewrites lore and PDC on one stack already in a cabinet slot or similar, where
+     * {@link #refreshCarried} would miss it.
+     *
+     * @param stack recovered piece, or {@code null}
+     * @param site excavation
+     * @param find archive row
+     * @param template catalog row
+     * @param grade condition band label
+     * @param catalogs rarity, notes, and interpretation labels
+     */
+    public void refresh(
+            ItemStack stack,
+            Site site,
+            BuriedFind find,
+            ArtifactTemplate template,
+            String grade,
+            CatalogRegistry catalogs
+    ) {
+        if (stack == null || find == null || find.getId() == null || !isThisFind(stack, find.getId())) {
+            return;
+        }
+        UUID recoverer = find.getRecoveredBy();
+        write(stack, template, site, find, recoverer, grade, find.isFieldDamaged(), catalogs);
+    }
+
+    /**
+     * @param player carrier
+     * @param findId archive row
+     * @return whether the recovered piece is in the main hand
+     */
+    public boolean isInMainHand(Player player, UUID findId) {
+        return player != null && isThisFind(player.getInventory().getItemInMainHand(), findId);
     }
 
     /**
@@ -275,7 +315,9 @@ public class RecoveredFindItem {
         if (meta == null) {
             return;
         }
-        String name = template.displayName();
+        String name = template == null || template.displayName() == null || template.displayName().isBlank()
+                ? "recovered find"
+                : template.displayName();
         meta.setDisplayName(ChatColor.WHITE + name);
         meta.setLore(lore(template, site, find, grade, fieldDamaged, catalogs));
         var pdc = meta.getPersistentDataContainer();
@@ -298,6 +340,8 @@ public class RecoveredFindItem {
             pdc.set(recoveredAtKey, PersistentDataType.STRING, find.getRecoveredAt().toString());
         }
         pdc.set(studiedKey, PersistentDataType.BYTE, find.isStudied() ? (byte) 1 : (byte) 0);
+        pdc.set(labCleanedKey, PersistentDataType.BYTE, find.isLabCleaned() ? (byte) 1 : (byte) 0);
+        pdc.set(fieldSketchKey, PersistentDataType.BYTE, find.hasFieldSketch() ? (byte) 1 : (byte) 0);
         stack.setItemMeta(meta);
     }
 
@@ -337,6 +381,10 @@ public class RecoveredFindItem {
             lore.add(ChatColor.RED + "Hurt while digging");
         }
         lore.add(ChatColor.AQUA + find.catalogStatusLabel());
+        String hint = nextCabinetHint(template, find, catalogs);
+        if (hint != null) {
+            lore.add(hint);
+        }
         if (find.isStudied() && template != null) {
             if (template.rarity() != null && !template.rarity().isBlank()) {
                 lore.add(ChatColor.GRAY + "Rarity: " + ChatColor.WHITE + template.rarity());
@@ -357,6 +405,42 @@ public class RecoveredFindItem {
             }
         }
         return lore;
+    }
+
+    /**
+     * Next cabinet action for a recovered piece, with {@code (n/3)} progress,
+     * or a closing line when clean, drawing, and reading are all on file.
+     *
+     * @param template catalog row, or {@code null}
+     * @param find archive row
+     * @param catalogs materials for the first-step verb, and open station questions
+     * @return lore line, or {@code null} when the piece is not in the field archive
+     */
+    public static String nextCabinetHint(ArtifactTemplate template, BuriedFind find, CatalogRegistry catalogs) {
+        if (find == null || find.getState() != FindState.RECOVERED) {
+            return null;
+        }
+        if (!find.isLabCleaned()) {
+            String verb = "clean";
+            if (catalogs != null) {
+                String materialId = template == null ? null : template.material();
+                verb = catalogs.materialOf(materialId).firstStepVerb();
+            }
+            return ChatColor.GRAY + "Use the cabinet with this in hand to " + verb + ". "
+                    + ChatColor.DARK_GRAY + "(1/3)";
+        }
+        if (!find.hasFieldSketch()) {
+            return ChatColor.GRAY + "Draw the piece and register the drawing at the cabinet. "
+                    + ChatColor.DARK_GRAY + "(2/3)";
+        }
+        boolean readingOpen = catalogs == null
+                ? !find.isCatalogued()
+                : catalogs.nextOpenType(find) != null;
+        if (readingOpen) {
+            return ChatColor.GRAY + "Use the cabinet with this in hand for a reading. "
+                    + ChatColor.DARK_GRAY + "(3/3)";
+        }
+        return ChatColor.GRAY + "The record on this piece is complete.";
     }
 
     /**

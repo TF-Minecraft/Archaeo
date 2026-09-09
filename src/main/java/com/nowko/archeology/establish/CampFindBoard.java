@@ -30,7 +30,6 @@ public final class CampFindBoard implements InventoryHolder {
     static final int SLOT_CONDITION = 12;
     static final int SLOT_STUDY = 14;
     static final int SLOT_READINGS = 16;
-    static final int SLOT_IDENTIFY_ACTION = 22;
     private static final int LINE_WIDTH = 34;
 
     private final UUID siteId;
@@ -92,7 +91,6 @@ public final class CampFindBoard implements InventoryHolder {
         for (int slot = 0; slot < 27; slot++) {
             inventory.setItem(slot, filler);
         }
-        boolean cataloguer = site.mayCatalog(player.getUniqueId());
         inventory.setItem(SLOT_IDENTITY, identityItem(template, find, number));
         inventory.setItem(SLOT_PROVENIENCE, provenienceItem(player, site, find));
         inventory.setItem(SLOT_CONDITION, conditionItem(find));
@@ -102,13 +100,6 @@ public final class CampFindBoard implements InventoryHolder {
                 Material.BARRIER,
                 ChatColor.WHITE + "Back",
                 ChatColor.GRAY + "Return to the finds register."));
-        if (cataloguer && find.getState() == FindState.RECOVERED && catalogs.nextOpenType(find) != null) {
-            inventory.setItem(SLOT_IDENTIFY_ACTION, named(
-                    Material.ENCHANTING_TABLE,
-                    ChatColor.WHITE + "Identify",
-                    ChatColor.GRAY + "Opens the station. Bring the piece.",
-                    ChatColor.DARK_GRAY + "Three readings; pick one per question."));
-        }
         player.openInventory(inventory);
     }
 
@@ -123,6 +114,10 @@ public final class CampFindBoard implements InventoryHolder {
         List<String> lore = new ArrayList<>();
         lore.add(ChatColor.GOLD + (number == null ? "—" : number));
         lore.add(ChatColor.AQUA + find.catalogStatusLabel());
+        String hint = RecoveredFindItem.nextCabinetHint(template, find, catalogs);
+        if (hint != null) {
+            lore.add(hint);
+        }
         if (template != null) {
             lore.add(ChatColor.GRAY + "Material: " + ChatColor.WHITE
                     + catalogs.materialDisplayName(template.material()));
@@ -205,8 +200,10 @@ public final class CampFindBoard implements InventoryHolder {
         List<String> lore = new ArrayList<>();
         if (find.getInterpretations().isEmpty()) {
             lore.add(ChatColor.DARK_GRAY + "No readings yet.");
-            if (find.getState() == FindState.RECOVERED) {
-                lore.add(ChatColor.DARK_GRAY + "Identify at the station with the piece in hand.");
+            ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
+            String hint = RecoveredFindItem.nextCabinetHint(template, find, catalogs);
+            if (hint != null) {
+                lore.add(hint);
             }
             return named(Material.WRITABLE_BOOK, ChatColor.WHITE + "Readings", lore.toArray(String[]::new));
         }

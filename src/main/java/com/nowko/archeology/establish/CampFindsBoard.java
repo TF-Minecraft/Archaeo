@@ -123,7 +123,7 @@ public final class CampFindsBoard implements InventoryHolder {
      * @param template catalog row, or {@code null}
      * @return inventory icon
      */
-    static Material iconOf(ArtifactTemplate template) {
+    public static Material iconOf(ArtifactTemplate template) {
         if (template == null) {
             return Material.BRICK;
         }
@@ -145,7 +145,7 @@ public final class CampFindsBoard implements InventoryHolder {
         if (find.isCatalogued()) {
             return ChatColor.GOLD;
         }
-        if (find.isStudied()) {
+        if (find.isStudied() || find.hasFieldSketch() || find.isLabCleaned()) {
             return ChatColor.AQUA;
         }
         return ChatColor.GRAY;

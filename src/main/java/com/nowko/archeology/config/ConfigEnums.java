@@ -1,7 +1,10 @@
 package com.nowko.archeology.config;
 
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
+import org.bukkit.Registry;
+import org.bukkit.Sound;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Locale;
@@ -50,5 +53,46 @@ public final class ConfigEnums {
             plugin.getLogger().log(Level.WARNING, "Unknown particle at " + path + ": " + raw + " — using " + fallback.name());
             return fallback;
         }
+    }
+
+    /**
+     * @param plugin logger owner
+     * @param raw YAML token such as {@code ITEM_BUCKET_EMPTY} or {@code item.bucket.empty}
+     * @param fallback used when {@code raw} is missing or invalid
+     * @param path config path for the warning
+     * @return sound, or {@code fallback}
+     */
+    public static Sound sound(JavaPlugin plugin, String raw, Sound fallback, String path) {
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        String token = raw.trim();
+        String key = token;
+        if (!token.contains(":") && !token.contains(".")) {
+            key = "minecraft:" + token.toLowerCase(Locale.ROOT).replace('_', '.');
+        } else if (!token.contains(":")) {
+            key = "minecraft:" + token.toLowerCase(Locale.ROOT);
+        } else {
+            key = token.toLowerCase(Locale.ROOT);
+        }
+        NamespacedKey namespaced = NamespacedKey.fromString(key);
+        Sound sound = namespaced == null ? null : Registry.SOUNDS.get(namespaced);
+        if (sound != null) {
+            return sound;
+        }
+        plugin.getLogger().log(Level.WARNING, "Unknown sound at " + path + ": " + raw + " — using " + fallbackKey(fallback));
+        return fallback;
+    }
+
+    /**
+     * @param sound resolved sound
+     * @return log token
+     */
+    private static String fallbackKey(Sound sound) {
+        if (sound == null) {
+            return "none";
+        }
+        NamespacedKey key = sound.getKey();
+        return key == null ? sound.toString() : key.toString();
     }
 }

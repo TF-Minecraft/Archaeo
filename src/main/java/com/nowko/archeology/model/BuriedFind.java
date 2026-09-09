@@ -24,6 +24,10 @@ public class BuriedFind {
     private UUID recoveredBy;
     private Instant recoveredAt;
     private boolean studied;
+    /** Whether the first lab step (clean / wash / dry) has been finished at the cabinet. */
+    private boolean labCleaned;
+    /** Whether a signed field sketch has been filed at the cabinet. */
+    private boolean fieldSketch;
     private String studyNotes;
     private final List<FindInterpretation> interpretations = new ArrayList<>();
     private final List<BlockCell> cells = new ArrayList<>();
@@ -215,6 +219,34 @@ public class BuriedFind {
     }
 
     /**
+     * @return whether the first lab step has been finished at the cabinet
+     */
+    public boolean isLabCleaned() {
+        return labCleaned;
+    }
+
+    /**
+     * @param labCleaned whether the piece has been cleaned, washed, or dried at the cabinet
+     */
+    public void setLabCleaned(boolean labCleaned) {
+        this.labCleaned = labCleaned;
+    }
+
+    /**
+     * @return whether a signed field sketch has been filed for this piece
+     */
+    public boolean hasFieldSketch() {
+        return fieldSketch;
+    }
+
+    /**
+     * @param fieldSketch whether a signed field sketch is on file
+     */
+    public void setFieldSketch(boolean fieldSketch) {
+        this.fieldSketch = fieldSketch;
+    }
+
+    /**
      * Snapshot of the catalog note copied at study time, so later YAML edits do not rewrite the archive.
      *
      * @return study notes, or {@code null} before study
@@ -313,7 +345,7 @@ public class BuriedFind {
     }
 
     /**
-     * @return short register status for lore and boards
+     * @return short register status for lore and boards: field catalog, cleaned, sketched, studied, catalogued
      */
     public String catalogStatusLabel() {
         if (state == FindState.LOST) {
@@ -324,6 +356,12 @@ public class BuriedFind {
         }
         if (studied) {
             return "Studied";
+        }
+        if (fieldSketch) {
+            return "Sketched";
+        }
+        if (labCleaned) {
+            return "Cleaned";
         }
         return "Field catalog";
     }

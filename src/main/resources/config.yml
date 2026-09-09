@@ -176,9 +176,10 @@ excavation:
     progress-bar: true
     max-cells-to-clean: 6
 
-# Field sketch. The sheet is consumed; the pencil is not.
+# Field sketch. The sheet is consumed; the pencil wears like a vanilla tool.
 # Click the sheet onto the pencil (inventory), or hold the sheet and right-click
-# with the pencil in the other hand. Sign the map, then click it onto a recovered find.
+# with the pencil in the other hand. Sign the map, then register the drawing at
+# the cabinet with the recovered find in hand (right-click the configured block).
 # Prefer a unique pack item. A vanilla id such as PAPER matches every paper of that type
 # and Archaeo overwrites its lore with these instructions (MMOItems may rewrite lore;
 # we stamp again when the item is held, picked up, or the inventory opens).
@@ -187,3 +188,50 @@ sketch:
   # paper: "itemsadder:archeo:field_sheet"
   pencil: FEATHER
   # pencil: "mmoitems:TOOL:ARCHAEO_PENCIL"
+  # Sketches one pencil survives. 0 = never wears and has no durability bar.
+  pencil-uses: 64
+  # Any block of this type is a cabinet. Right-click with a recovered piece in hand:
+  # uncleaned opens the lab wipe; cleaned without a drawing opens Register (furnace:
+  # top = drawing, fuel = the piece, result = Register); a filed drawing opens a
+  # reading. Empty hand does not open a window. Sneak for vanilla.
+  cabinet: CARTOGRAPHY_TABLE
+  # First lab step: open this inventory with the piece in hand. Pick a tool from the
+  # rack and click each dirty pane. Stain colour, name, and
+  # matching tool live here. materials.yml only lists which stains a material may roll
+  # and the clean field colour. Tool description and sound apply only to the lab copies
+  # in this window, never to water buckets or feathers in the world.
+  lab:
+    dirty-count: 6
+    tools:
+      water:
+        item: WATER_BUCKET
+        display-name: Water
+        description: Washes mineral crust from ceramic and stone. Do not soak metal.
+        sound: ITEM_BUCKET_EMPTY
+      brush:
+        item: BRUSH
+        display-name: Brush
+        description: Dry-cleans rust and soil. Safe on metal and bone.
+        sound: ITEM_BRUSH_BRUSHING_GENERIC
+      air:
+        item: FEATHER
+        display-name: Air
+        description: Dries mud on organic finds. Do not wet these pieces.
+        sound: ITEM_BRUSH_BRUSHING_SAND
+    stains:
+      limescale:
+        display-name: Limescale
+        glass: ORANGE_STAINED_GLASS_PANE
+        tool: water
+      soil:
+        display-name: Soil
+        glass: BROWN_STAINED_GLASS_PANE
+        tool: brush
+      rust:
+        display-name: Rust
+        glass: RED_STAINED_GLASS_PANE
+        tool: brush
+      mud:
+        display-name: Mud
+        glass: BROWN_STAINED_GLASS_PANE
+        tool: air
