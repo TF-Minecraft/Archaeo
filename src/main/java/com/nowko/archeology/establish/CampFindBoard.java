@@ -21,16 +21,14 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * One find's page in the excavation archive: provenience, condition, and signed readings.
+ * One find's consultation page in the excavation archive: identity, provenience, condition, and signed readings.
  */
 public final class CampFindBoard implements InventoryHolder {
     static final int SLOT_IDENTITY = 4;
     static final int SLOT_BACK = 8;
-    static final int SLOT_PROVENIENCE = 10;
-    static final int SLOT_CONDITION = 12;
-    static final int SLOT_STUDY = 14;
-    static final int SLOT_READINGS = 16;
-    private static final int LINE_WIDTH = 34;
+    static final int SLOT_PROVENIENCE = 11;
+    static final int SLOT_CONDITION = 13;
+    static final int SLOT_READINGS = 15;
 
     private final UUID siteId;
     private final UUID findId;
@@ -40,7 +38,7 @@ public final class CampFindBoard implements InventoryHolder {
     /**
      * @param siteId excavation
      * @param findId archive row
-     * @param catalogs artifact notes and interpretation labels
+     * @param catalogs materials, rarity, and interpretation labels
      */
     public CampFindBoard(UUID siteId, UUID findId, CatalogRegistry catalogs) {
         this.siteId = siteId;
@@ -94,7 +92,6 @@ public final class CampFindBoard implements InventoryHolder {
         inventory.setItem(SLOT_IDENTITY, identityItem(template, find, number));
         inventory.setItem(SLOT_PROVENIENCE, provenienceItem(player, site, find));
         inventory.setItem(SLOT_CONDITION, conditionItem(find));
-        inventory.setItem(SLOT_STUDY, studyItem(template, find));
         inventory.setItem(SLOT_READINGS, readingsItem(find));
         inventory.setItem(SLOT_BACK, named(
                 Material.BARRIER,
@@ -104,6 +101,8 @@ public final class CampFindBoard implements InventoryHolder {
     }
 
     /**
+     * Catalog identity that grows with cabinet work: material after cleaning, rarity after a filed sketch.
+     *
      * @param template catalog row, or {@code null}
      * @param find archive row
      * @param number public inventory number
@@ -114,15 +113,19 @@ public final class CampFindBoard implements InventoryHolder {
         List<String> lore = new ArrayList<>();
         lore.add(ChatColor.GOLD + (number == null ? "—" : number));
         lore.add(ChatColor.AQUA + find.catalogStatusLabel());
-        String hint = RecoveredFindItem.nextCabinetHint(template, find, catalogs);
-        if (hint != null) {
-            lore.add(hint);
-        }
         if (template != null && RecoveredFindItem.conditionKnown(find)) {
             lore.add(ChatColor.GRAY + "Material: " + ChatColor.WHITE
                     + catalogs.materialDisplayName(template.material()));
         }
-        return named(CampFindsBoard.iconOf(template), ChatColor.WHITE + name, lore.toArray(String[]::new));
+        if (find.hasFieldSketch() && template != null
+                && template.rarity() != null && !template.rarity().isBlank()) {
+            lore.add(ChatColor.GRAY + "Rarity: " + ChatColor.WHITE + template.rarity());
+        }
+        String hint = RecoveredFindItem.nextCabinetHint(template, find, catalogs);
+        if (hint != null) {
+            lore.add(hint);
+        }
+        return named(Material.NAME_TAG, ChatColor.WHITE + name, lore.toArray(String[]::new));
     }
 
     /**
@@ -137,7 +140,7 @@ public final class CampFindBoard implements InventoryHolder {
         lore.add(ChatColor.GRAY + "Stratum: " + ChatColor.WHITE + find.getStratumId());
         lore.add(ChatColor.GRAY + "Recovered by: " + ChatColor.WHITE
                 + CampNames.of(player, find.getRecoveredBy()));
-        return named(Material.COMPASS, ChatColor.GOLD + "Provenience", lore.toArray(String[]::new));
+        return named(Material.MAP, ChatColor.GOLD + "Provenience", lore.toArray(String[]::new));
     }
 
     /**
@@ -162,41 +165,7 @@ public final class CampFindBoard implements InventoryHolder {
         if (find.getState() == FindState.LOST) {
             lore.add(ChatColor.RED + "Nothing could be recovered.");
         }
-        return named(Material.GLASS_PANE, ChatColor.GOLD + "Condition", lore.toArray(String[]::new));
-    }
-
-    /**
-     * @param template catalog row, or {@code null}
-     * @param find archive row
-     * @return study card
-     */
-    private static ItemStack studyItem(ArtifactTemplate template, BuriedFind find) {
-        List<String> lore = new ArrayList<>();
-        if (find.hasFieldSketch()) {
-            if (template != null && template.rarity() != null && !template.rarity().isBlank()) {
-                lore.add(ChatColor.GRAY + "Rarity: " + ChatColor.WHITE + template.rarity());
-            }
-        } else if (!find.isStudied()) {
-            lore.add(ChatColor.DARK_GRAY + "Not sketched.");
-            if (find.getState() == FindState.LOST) {
-                lore.add(ChatColor.DARK_GRAY + "The piece was lost before it could be examined.");
-            } else {
-                lore.add(ChatColor.DARK_GRAY + "Draw the piece and register the drawing at the cabinet.");
-            }
-            return named(Material.PAPER, ChatColor.WHITE + "Record", lore.toArray(String[]::new));
-        }
-        String notes = find.getStudyNotes();
-        if (notes == null || notes.isBlank()) {
-            notes = template == null ? null : template.studyNotes();
-        }
-        if (find.isStudied()) {
-            if (notes == null || notes.isBlank()) {
-                lore.add(ChatColor.DARK_GRAY + "No further notes were filed.");
-            } else {
-                wrap(lore, notes);
-            }
-        }
-        return named(Material.PAPER, ChatColor.AQUA + "Record", lore.toArray(String[]::new));
+        return named(Material.SPYGLASS, ChatColor.GOLD + "Condition", lore.toArray(String[]::new));
     }
 
     /**
@@ -207,41 +176,13 @@ public final class CampFindBoard implements InventoryHolder {
         List<String> lore = new ArrayList<>();
         if (find.getInterpretations().isEmpty()) {
             lore.add(ChatColor.DARK_GRAY + "No readings yet.");
-            ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
-            String hint = RecoveredFindItem.nextCabinetHint(template, find, catalogs);
-            if (hint != null) {
-                lore.add(hint);
-            }
             return named(Material.WRITABLE_BOOK, ChatColor.WHITE + "Readings", lore.toArray(String[]::new));
         }
         for (FindInterpretation reading : find.getInterpretations()) {
             lore.add(ChatColor.WHITE + RecoveredFindItem.readingPhrase(reading, catalogs));
             lore.add(ChatColor.GRAY + "  " + CampNames.of(null, reading.author()));
         }
-        return named(Material.WRITABLE_BOOK, ChatColor.GOLD + "Readings", lore.toArray(String[]::new));
-    }
-
-    /**
-     * @param lore lore being built
-     * @param text one study note
-     */
-    private static void wrap(List<String> lore, String text) {
-        StringBuilder line = new StringBuilder();
-        String prefix = "";
-        for (String word : text.split("\\s+")) {
-            if (line.length() > 0 && line.length() + word.length() + 1 > LINE_WIDTH) {
-                lore.add(ChatColor.WHITE + prefix + line);
-                line.setLength(0);
-                prefix = "  ";
-            }
-            if (line.length() > 0) {
-                line.append(' ');
-            }
-            line.append(word);
-        }
-        if (line.length() > 0) {
-            lore.add(ChatColor.WHITE + prefix + line);
-        }
+        return named(Material.WRITTEN_BOOK, ChatColor.GOLD + "Readings", lore.toArray(String[]::new));
     }
 
     /**
