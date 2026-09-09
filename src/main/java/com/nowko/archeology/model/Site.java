@@ -341,17 +341,15 @@ public class Site {
     }
 
     /**
-     * Study and interpretation continue after the cut closes: the camp is the archive, not the prism.
-     * The director and anyone with {@link SiteRole#mayCatalog()} on the roster may write.
+     * Study and interpretation continue after the camp is filed: the dossier is the archive,
+     * whether it is still a standing camp or a field book. The director and anyone with
+     * {@link SiteRole#mayCatalog()} on the roster may write.
      *
      * @param playerId cataloguer
      * @return whether this person may study a recovered piece and file readings
      */
     public boolean mayCatalog(UUID playerId) {
-        if (playerId == null || !isCampLocked()) {
-            return false;
-        }
-        if (status != SiteStatus.ESTABLISHED && status != SiteStatus.EXHAUSTED) {
+        if (playerId == null || !mayConsult()) {
             return false;
         }
         if (isDirector(playerId)) {
@@ -714,13 +712,22 @@ public class Site {
     }
 
     /**
-     * The camp survives the dig: an exhausted excavation keeps its blocks and its board so the
-     * project can still be read, and so nobody carts the sign away when the cut runs dry.
+     * The camp survives the dig until someone closes it: an exhausted excavation keeps its blocks
+     * and its board so the project can still be read on site.
      *
-     * @return true once a camp is planted and until the site is deleted
+     * @return true once a camp is planted and until the excavation is closed
      */
     public boolean isCampLocked() {
         return getStatus() == SiteStatus.ESTABLISHED || getStatus() == SiteStatus.EXHAUSTED;
+    }
+
+    /**
+     * @return whether the excavation record may still be opened from the camp or a field book
+     */
+    public boolean mayConsult() {
+        return status == SiteStatus.ESTABLISHED
+                || status == SiteStatus.EXHAUSTED
+                || status == SiteStatus.CLOSED;
     }
 
     /**
@@ -943,6 +950,33 @@ public class Site {
     }
 
     /**
+     * Finds that have left the cut, recovered or lost. Buried pieces keep this below the generated
+     * total, which is how an early camp close still shows that the excavation was unfinished.
+     *
+     * @return settled find count
+     */
+    public int settledFindCount() {
+        int settled = 0;
+        for (BuriedFind find : finds) {
+            if (find.getState() == FindState.RECOVERED || find.getState() == FindState.LOST) {
+                settled++;
+            }
+        }
+        return settled;
+    }
+
+    /**
+     * @return 0–100 share of generated finds that have left the cut; {@code 0} when none were generated
+     */
+    public int completionPercent() {
+        int total = finds.size();
+        if (total <= 0) {
+            return 0;
+        }
+        return Math.round(100f * settledFindCount() / total);
+    }
+
+    /**
      * Closes the project when the cut has nothing left to give. A site without generated finds
      * never closes this way, so a mis-generated ruin does not die on its first pick swing.
      *
@@ -953,6 +987,20 @@ public class Site {
             return false;
         }
         status = SiteStatus.EXHAUSTED;
+        return true;
+    }
+
+    /**
+     * Unlocks the camp while the project still has a dossier. Allowed on an active dig or after
+     * the cut is exhausted; blocks stay in the world as ordinary pieces.
+     *
+     * @return {@code true} when this call closed a standing camp
+     */
+    public boolean closeCamp() {
+        if (status != SiteStatus.ESTABLISHED && status != SiteStatus.EXHAUSTED) {
+            return false;
+        }
+        status = SiteStatus.CLOSED;
         return true;
     }
 

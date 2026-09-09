@@ -18,6 +18,7 @@ import com.nowko.archeology.sketch.CabinetCues;
 import com.nowko.archeology.sketch.SketchCabinet;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.DyeColor;
+import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
@@ -37,6 +38,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.inventory.PrepareItemCraftEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
@@ -55,8 +57,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Locks camp blocks, opens the excavation board from any planted camp piece, and finishes
- * board actions including the finds register, study, interpretation, and the director's report book.
+ * Locks camp blocks, opens the excavation board from any planted camp piece or from a closed
+ * field book, and finishes board actions including the finds register, study, interpretation,
+ * the director's report book, and closing the camp.
  */
 public class CampListener implements Listener {
     private final JavaPlugin plugin;
@@ -69,7 +72,9 @@ public class CampListener implements Listener {
     private final BrushItem brush;
     private final RecoveredFindItem recoveredItem;
     private final FindReportBook reportBook;
+    private final CampArchiveBook archiveBook;
     private final Map<UUID, UUID> inviteForSite = new ConcurrentHashMap<>();
+    private final Map<UUID, UUID> closeForSite = new ConcurrentHashMap<>();
 
     /**
      * @param plugin chat prompts must run on the main thread
@@ -103,6 +108,7 @@ public class CampListener implements Listener {
         this.brush = brush;
         this.recoveredItem = recoveredItem;
         this.reportBook = new FindReportBook(plugin);
+        this.archiveBook = new CampArchiveBook(plugin);
     }
 
     /**
@@ -235,12 +241,35 @@ public class CampListener implements Listener {
             openBoard(event.getPlayer(), site);
             return;
         }
+        if (tryOpenArchive(event.getPlayer(), event.getItem(), event)) {
+            return;
+        }
         if (establishItem.isEstablish(event.getItem())) {
             return;
         }
         if (establish.isRelocating(event.getPlayer())) {
             event.setCancelled(true);
             establish.tryFinishMove(event.getPlayer());
+        }
+    }
+
+    /**
+     * Vanilla copies of a field book drop the archive marker; put it back so the copy still
+     * opens the live excavation record.
+     *
+     * @param event crafting preview
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onCopyArchive(PrepareItemCraftEvent event) {
+        ItemStack result = event.getInventory().getResult();
+        if (result == null || result.getType() != Material.WRITTEN_BOOK) {
+            return;
+        }
+        for (ItemStack ingredient : event.getInventory().getMatrix()) {
+            if (archiveBook.isArchive(ingredient)) {
+                event.getInventory().setResult(archiveBook.stampCopy(ingredient, result));
+                return;
+            }
         }
     }
 
@@ -327,7 +356,7 @@ public class CampListener implements Listener {
             return;
         }
         Site site = sites.findById(board.siteId()).orElse(null);
-        if (site == null || !site.isCampLocked()) {
+        if (site == null || !site.mayConsult()) {
             player.closeInventory();
             return;
         }
@@ -341,8 +370,15 @@ public class CampListener implements Listener {
             return;
         }
         if (slot == CampBoard.SLOT_LIMITS) {
+            if (site.getStatus() == SiteStatus.CLOSED) {
+                return;
+            }
             player.closeInventory();
             outline.show(player, site);
+            return;
+        }
+        if (slot == CampBoard.SLOT_CLOSE && board.canClose()) {
+            beginClosePrompt(player, site);
             return;
         }
         if (!board.director()) {
@@ -351,12 +387,14 @@ public class CampListener implements Listener {
         if (slot == CampBoard.SLOT_RENAME) {
             player.closeInventory();
             inviteForSite.remove(player.getUniqueId());
+            closeForSite.remove(player.getUniqueId());
             establish.beginRename(player, site);
             return;
         }
         if (slot == CampBoard.SLOT_MOVE) {
             player.closeInventory();
             inviteForSite.remove(player.getUniqueId());
+            closeForSite.remove(player.getUniqueId());
             establish.beginRelocate(player, site);
             return;
         }
@@ -385,11 +423,11 @@ public class CampListener implements Listener {
             return;
         }
         Site site = sites.findById(staff.siteId()).orElse(null);
-        if (site == null || !site.isCampLocked()) {
+        if (site == null || !site.mayConsult()) {
             player.closeInventory();
             return;
         }
-        boolean director = site.isDirector(player.getUniqueId());
+        boolean director = staffing(player, site);
         int slot = event.getRawSlot();
         if (slot == CampStaffBoard.SLOT_BACK) {
             openBoard(player, site);
@@ -409,6 +447,7 @@ public class CampListener implements Listener {
             }
             player.closeInventory();
             establish.abortRename(player);
+            closeForSite.remove(player.getUniqueId());
             inviteForSite.put(player.getUniqueId(), site.getId());
             player.sendMessage("Type the player name in chat, or type cancel.");
         }
@@ -432,16 +471,16 @@ public class CampListener implements Listener {
             return;
         }
         Site site = sites.findById(file.siteId()).orElse(null);
-        if (site == null || !site.isCampLocked()) {
+        if (site == null || !site.mayConsult()) {
             player.closeInventory();
             return;
         }
         int slot = event.getRawSlot();
         if (slot == CampWorkerBoard.SLOT_BACK) {
-            openStaff(player, site, site.isDirector(player.getUniqueId()));
+            openStaff(player, site, staffing(player, site));
             return;
         }
-        if (!site.isDirector(player.getUniqueId())) {
+        if (!staffing(player, site)) {
             return;
         }
         UUID member = file.member();
@@ -474,7 +513,7 @@ public class CampListener implements Listener {
             return;
         }
         Site site = sites.findById(board.siteId()).orElse(null);
-        if (site == null || !site.isCampLocked()) {
+        if (site == null || !site.mayConsult()) {
             player.closeInventory();
             return;
         }
@@ -511,7 +550,7 @@ public class CampListener implements Listener {
             return;
         }
         Site site = sites.findById(file.siteId()).orElse(null);
-        if (site == null || !site.isCampLocked()) {
+        if (site == null || !site.mayConsult()) {
             player.closeInventory();
             return;
         }
@@ -539,7 +578,7 @@ public class CampListener implements Listener {
             return;
         }
         Site site = sites.findById(board.siteId()).orElse(null);
-        if (site == null || !site.isCampLocked()) {
+        if (site == null || !site.mayConsult()) {
             player.closeInventory();
             return;
         }
@@ -566,7 +605,7 @@ public class CampListener implements Listener {
         if (site.assignMissingFindNumbers()) {
             sites.save(site);
         }
-        new CampFindsBoard(site.getId(), site.isDirector(player.getUniqueId()), catalogs).open(player, site);
+        new CampFindsBoard(site.getId(), mayIssueReport(player, site), catalogs).open(player, site);
     }
 
     /**
@@ -641,11 +680,7 @@ public class CampListener implements Listener {
             return;
         }
         player.closeInventory();
-        ItemStack book = reportBook.create(player, site, catalogs);
-        var overflow = player.getInventory().addItem(book);
-        for (ItemStack extra : overflow.values()) {
-            player.getWorld().dropItemNaturally(player.getLocation(), extra);
-        }
+        giveStack(player, reportBook.create(player, site, catalogs));
         player.sendMessage("Issued a signed report for " + site.displayLabel() + ".");
     }
 
@@ -766,6 +801,11 @@ public class CampListener implements Listener {
             plugin.getServer().getScheduler().runTask(plugin, () -> handleInviteChat(player, raw));
             return;
         }
+        if (closeForSite.containsKey(player.getUniqueId())) {
+            event.setCancelled(true);
+            plugin.getServer().getScheduler().runTask(plugin, () -> handleCloseChat(player, raw));
+            return;
+        }
         if (!establish.isRenaming(player)) {
             return;
         }
@@ -842,8 +882,157 @@ public class CampListener implements Listener {
         if (player.getWorld() != null) {
             handPick.ensureJornada(site, player.getWorld());
         }
-        boolean director = site.isDirector(player.getUniqueId());
-        new CampBoard(site.getId(), director, catalogs).open(player, site);
+        new CampBoard(site.getId(), staffing(player, site), canCloseCamp(player, site), catalogs)
+                .open(player, site);
+    }
+
+    /**
+     * Closes the board and waits for {@code confirm} in chat. Incomplete cuts state their
+     * completion so the closer sees what they are abandoning.
+     *
+     * @param player director or server staff
+     * @param site standing camp
+     */
+    private void beginClosePrompt(Player player, Site site) {
+        player.closeInventory();
+        inviteForSite.remove(player.getUniqueId());
+        establish.abortRename(player);
+        closeForSite.put(player.getUniqueId(), site.getId());
+        int percent = site.completionPercent();
+        if (!site.getFinds().isEmpty() && percent < 100) {
+            player.sendMessage("This excavation is " + percent
+                    + "% complete. Type confirm to close the camp, or type cancel.");
+            return;
+        }
+        player.sendMessage("Type confirm to close the camp. The record will move to a field book. Type cancel to keep it.");
+    }
+
+    /**
+     * Finishes or aborts a camp close typed in chat.
+     *
+     * @param player director or server staff
+     * @param raw typed line
+     */
+    private void handleCloseChat(Player player, String raw) {
+        UUID siteId = closeForSite.remove(player.getUniqueId());
+        if (siteId == null) {
+            return;
+        }
+        if (raw.equalsIgnoreCase("cancel")) {
+            player.sendMessage("Close cancelled.");
+            return;
+        }
+        if (!raw.equalsIgnoreCase("confirm")) {
+            closeForSite.put(player.getUniqueId(), siteId);
+            player.sendMessage("Type confirm to close the camp, or type cancel.");
+            return;
+        }
+        Site site = sites.findById(siteId).orElse(null);
+        if (site == null || !canCloseCamp(player, site)) {
+            player.sendMessage("That excavation can no longer be closed.");
+            return;
+        }
+        closeCamp(player, site);
+    }
+
+    /**
+     * Unlocks the camp and gives the closer a field book that still opens this record.
+     *
+     * @param player director or server staff
+     * @param site standing camp
+     */
+    private void closeCamp(Player player, Site site) {
+        if (!canCloseCamp(player, site)) {
+            player.sendMessage("Only the director or server staff may close this excavation.");
+            return;
+        }
+        if (!site.closeCamp()) {
+            player.sendMessage("This excavation cannot be closed.");
+            return;
+        }
+        sites.save(site);
+        giveStack(player, archiveBook.create(player, site));
+        int percent = site.completionPercent();
+        if (!site.getFinds().isEmpty() && percent < 100) {
+            player.sendMessage("Closed " + site.displayLabel() + " at " + percent
+                    + "% complete. The record is in the field book.");
+        } else {
+            player.sendMessage("Closed " + site.displayLabel() + ". The record is in the field book.");
+        }
+        UUID directorId = site.getDirector();
+        if (directorId != null && !directorId.equals(player.getUniqueId())) {
+            Player director = plugin.getServer().getPlayer(directorId);
+            if (director != null) {
+                director.sendMessage("The camp at " + site.displayLabel()
+                        + " was closed. The record is in a field book.");
+            }
+        }
+    }
+
+    /**
+     * Right-clicking a field book opens the same boards the camp used to, read-only.
+     *
+     * @param player holder
+     * @param stack item in the used hand
+     * @param event interact to deny when this is an archive book
+     * @return whether this click was a field book
+     */
+    private boolean tryOpenArchive(Player player, ItemStack stack, PlayerInteractEvent event) {
+        if (!archiveBook.isArchive(stack)) {
+            return false;
+        }
+        denyUse(event);
+        UUID siteId = archiveBook.siteIdOf(stack);
+        Site site = siteId == null ? null : sites.findById(siteId).orElse(null);
+        if (site == null || !site.mayConsult()) {
+            player.sendMessage("That excavation record is missing.");
+            return true;
+        }
+        archiveBook.refresh(stack, site);
+        openBoard(player, site);
+        return true;
+    }
+
+    /**
+     * @param player viewer
+     * @param site excavation
+     * @return whether this person may still staff the live camp
+     */
+    private boolean staffing(Player player, Site site) {
+        return site.isCampLocked() && site.isDirector(player.getUniqueId());
+    }
+
+    /**
+     * @param player viewer
+     * @param site excavation
+     * @return whether Close is offered
+     */
+    private boolean canCloseCamp(Player player, Site site) {
+        if (!site.isCampLocked()) {
+            return false;
+        }
+        return site.isDirector(player.getUniqueId())
+                || player.hasPermission(catalogs.staffPermission());
+    }
+
+    /**
+     * @param player viewer
+     * @param site excavation
+     * @return whether the signed text report can be printed from the finds list
+     */
+    private boolean mayIssueReport(Player player, Site site) {
+        return site.getStatus() == SiteStatus.EXHAUSTED && site.isDirector(player.getUniqueId());
+    }
+
+    /**
+     * @param player recipient
+     * @param stack book or extra copy
+     */
+    private void giveStack(Player player, ItemStack stack) {
+        var overflow = player.getInventory().addItem(stack);
+        for (ItemStack extra : overflow.values()) {
+            player.getWorld().dropItemNaturally(player.getLocation(), extra);
+        }
     }
 
     /**

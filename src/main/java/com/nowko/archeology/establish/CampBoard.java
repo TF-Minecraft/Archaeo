@@ -14,6 +14,9 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.DyeColor;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.World;
+import org.bukkit.block.Biome;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
@@ -28,13 +31,14 @@ import java.util.UUID;
  * Chest GUI for an excavation camp: site card, finds register, staff access, and director camp tools.
  *
  * <pre>
- *           [ Site ]
+ *           [ Site ]                    [Close]
  *   [Finds] [Staff] [Dossier] [Limits]
  *   [Rename] [Pri]  [Sec]     [Move]
  * </pre>
  *
  * Navigation and director tools share columns 1, 3, 5 and 7 so the board stays centred
- * whether or not the bottom row is shown.
+ * whether or not the bottom row is shown. Close sits on the top-right, away from wool,
+ * move, and the nested-board Back corner. After the camp is filed, Limits becomes Location.
  */
 public final class CampBoard implements InventoryHolder {
     static final int SLOT_INFO = 4;
@@ -46,22 +50,27 @@ public final class CampBoard implements InventoryHolder {
     static final int SLOT_WOOL_PRIMARY = 21;
     static final int SLOT_WOOL_SECONDARY = 23;
     static final int SLOT_MOVE = 25;
+    /** Top-right of the chest, opposite the centred Site card. */
+    static final int SLOT_CLOSE = 8;
     /** Characters per lore line before a field note is broken. */
     private static final int LINE_WIDTH = 34;
 
     private final UUID siteId;
     private final boolean director;
+    private final boolean canClose;
     private final CatalogRegistry catalogs;
     private Inventory inventory;
 
     /**
      * @param siteId excavation
      * @param director whether the viewer may edit camp and staff
+     * @param canClose whether Close is shown (director or server staff, while the camp still stands)
      * @param catalogs strata labels and work-day size for the site card
      */
-    public CampBoard(UUID siteId, boolean director, CatalogRegistry catalogs) {
+    public CampBoard(UUID siteId, boolean director, boolean canClose, CatalogRegistry catalogs) {
         this.siteId = siteId;
         this.director = director;
+        this.canClose = canClose;
         this.catalogs = catalogs;
     }
 
@@ -77,6 +86,13 @@ public final class CampBoard implements InventoryHolder {
      */
     public boolean director() {
         return director;
+    }
+
+    /**
+     * @return whether Close is on this copy
+     */
+    public boolean canClose() {
+        return canClose;
     }
 
     /**
@@ -107,7 +123,7 @@ public final class CampBoard implements InventoryHolder {
         inventory.setItem(SLOT_DOCUMENTATION, findsItem(site));
         inventory.setItem(SLOT_PERSONAL, staffItem(site));
         inventory.setItem(SLOT_INFORMATION, dossierItem(site));
-        inventory.setItem(SLOT_LIMITS, limitsItem());
+        inventory.setItem(SLOT_LIMITS, site.getStatus() == SiteStatus.CLOSED ? locationItem(site) : limitsItem());
         if (director) {
             inventory.setItem(SLOT_RENAME, named(
                     Material.NAME_TAG,
@@ -130,6 +146,20 @@ public final class CampBoard implements InventoryHolder {
                     ChatColor.GRAY + CampWools.label(CampWools.parse(site.getCampWoolSecondary(), DyeColor.RED)),
                     ChatColor.DARK_GRAY + "Replaces the red-wool cells."));
         }
+        if (canClose) {
+            List<String> closeLore = new ArrayList<>();
+            closeLore.add(ChatColor.GRAY + "Type confirm in chat.");
+            if (site.getFinds().size() > 0 && site.completionPercent() < 100) {
+                closeLore.add(ChatColor.WHITE + String.valueOf(site.completionPercent())
+                        + ChatColor.GRAY + "% complete.");
+            }
+            closeLore.add(ChatColor.DARK_GRAY + "The camp unlocks. The record moves");
+            closeLore.add(ChatColor.DARK_GRAY + "to a field book.");
+            inventory.setItem(SLOT_CLOSE, named(
+                    Material.LECTERN,
+                    ChatColor.GOLD + "Close excavation",
+                    closeLore.toArray(String[]::new)));
+        }
         player.openInventory(inventory);
     }
 
@@ -143,14 +173,31 @@ public final class CampBoard implements InventoryHolder {
         lore.add(ChatColor.GRAY + "Name: " + ChatColor.WHITE + site.displayLabel());
         lore.add(ChatColor.GRAY + "Director: " + ChatColor.WHITE + CampNames.of(player, site.getDirector()));
         lore.add(ChatColor.GRAY + "Status: " + ChatColor.WHITE + statusLabel(site.getStatus()));
-        lore.add(ChatColor.GRAY + "Work day: " + ChatColor.WHITE
-                + site.getJornadaPickLeft() + " / " + catalogs.pick().jornadaActions());
+        if (site.getStatus() != SiteStatus.CLOSED) {
+            lore.add(ChatColor.GRAY + "Work day: " + ChatColor.WHITE
+                    + site.getJornadaPickLeft() + " / " + catalogs.pick().jornadaActions());
+        }
         lore.add(ChatColor.GRAY + "Progress: " + ChatColor.WHITE + progressBar(site));
+        if (site.getStatus() == SiteStatus.CLOSED) {
+            lore.add(ChatColor.GRAY + "Completion: " + ChatColor.WHITE + site.completionPercent() + "%");
+            if (site.getFinds().isEmpty()) {
+                lore.add(ChatColor.DARK_GRAY + "No finds were generated.");
+            } else {
+                lore.add(ChatColor.DARK_GRAY + (site.settledFindCount() + "/" + site.getFinds().size()
+                        + " finds settled."));
+            }
+        }
         lore.add("");
         addStratumLines(lore, site);
         if (site.getStatus() == SiteStatus.EXHAUSTED) {
             lore.add("");
             lore.add(ChatColor.DARK_GRAY + "The cut is closed; field work is over.");
+        } else if (site.getStatus() == SiteStatus.CLOSED) {
+            lore.add("");
+            lore.add(ChatColor.DARK_GRAY + "The camp is down; this book holds the record.");
+            if (site.getFinds().size() > 0 && site.completionPercent() < 100) {
+                lore.add(ChatColor.GOLD + "The cut was not finished.");
+            }
         }
         if (director) {
             lore.add("");
@@ -237,6 +284,99 @@ public final class CampBoard implements InventoryHolder {
                 ChatColor.GRAY + "through spoil heaps and walls.",
                 ChatColor.DARK_GRAY + "Only you see it, for "
                         + catalogs.pick().limits().seconds() + " seconds.");
+    }
+
+    /**
+     * After the camp is filed there is no prism to trace; this is where the cut was.
+     *
+     * @param site closed excavation
+     * @return location card
+     */
+    private ItemStack locationItem(Site site) {
+        return named(
+                Material.COMPASS,
+                ChatColor.WHITE + "Location",
+                ChatColor.GRAY + "Coordinates: " + ChatColor.WHITE + coordinates(site),
+                ChatColor.GRAY + "Biome: " + ChatColor.WHITE + biomeLabel(site),
+                ChatColor.DARK_GRAY + "Where the cut was.");
+    }
+
+    /**
+     * @param site excavation
+     * @return block coordinates of the dig-chunk centre at the stratum datum
+     */
+    private static String coordinates(Site site) {
+        return site.centerBlockX() + ", " + site.getSurfaceY() + ", " + site.centerBlockZ();
+    }
+
+    /**
+     * @param site excavation
+     * @return biome at the dig centre, or {@code unknown} if the world is not loaded
+     */
+    private static String biomeLabel(Site site) {
+        if (site.getWorldName() == null) {
+            return "unknown";
+        }
+        World world = Bukkit.getWorld(site.getWorldName());
+        if (world == null) {
+            return "unknown";
+        }
+        try {
+            Biome biome = world.getBiome(
+                    site.centerBlockX(),
+                    site.getSurfaceY(),
+                    site.centerBlockZ());
+            NamespacedKey key = biomeKey(biome);
+            if (key == null) {
+                return "unknown";
+            }
+            return titleCase(key.getKey().replace('_', ' '));
+        } catch (RuntimeException ignored) {
+            return "unknown";
+        }
+    }
+
+    /**
+     * @param biome chunk biome
+     * @return namespaced key, or {@code null}
+     */
+    @SuppressWarnings("deprecation")
+    private static NamespacedKey biomeKey(Biome biome) {
+        try {
+            Object value = biome.getClass().getMethod("getKeyOrNull").invoke(biome);
+            if (value instanceof NamespacedKey key) {
+                return key;
+            }
+        } catch (ReflectiveOperationException ignored) {
+            // Paper 1.21.10: RegistryAware helpers are absent
+        }
+        return biome.getKey();
+    }
+
+    /**
+     * @param raw biome id with spaces
+     * @return each word capitalised
+     */
+    private static String titleCase(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "unknown";
+        }
+        String[] words = raw.split(" ");
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < words.length; i++) {
+            String word = words[i];
+            if (word.isEmpty()) {
+                continue;
+            }
+            if (text.length() > 0) {
+                text.append(' ');
+            }
+            text.append(Character.toUpperCase(word.charAt(0)));
+            if (word.length() > 1) {
+                text.append(word.substring(1));
+            }
+        }
+        return text.toString();
     }
 
     /**
@@ -352,6 +492,7 @@ public final class CampBoard implements InventoryHolder {
             case HIDDEN -> "Hidden";
             case ESTABLISHED -> "Active";
             case EXHAUSTED -> "Finished";
+            case CLOSED -> "Closed";
         };
     }
 

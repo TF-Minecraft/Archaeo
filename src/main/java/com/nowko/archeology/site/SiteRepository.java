@@ -152,7 +152,7 @@ public class SiteRepository {
     }
 
     /**
-     * Ruin or live excavation whose prism contains this block (not yet exhausted).
+     * Ruin or live excavation whose prism contains this block (not yet exhausted or closed).
      * Unclaimed hidden ruins still occupy a prism so vanilla mining can smash finds.
      *
      * @param world world name
@@ -163,7 +163,8 @@ public class SiteRepository {
      */
     public Optional<Site> findPrism(String world, int x, int y, int z) {
         return findByChunk(world, x >> 4, z >> 4)
-                .filter(site -> site.getStatus() != SiteStatus.EXHAUSTED)
+                .filter(site -> site.getStatus() == SiteStatus.HIDDEN
+                        || site.getStatus() == SiteStatus.ESTABLISHED)
                 .filter(site -> site.isInPrism(x, y, z));
     }
 

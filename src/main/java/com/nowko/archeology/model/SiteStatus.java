@@ -8,6 +8,8 @@ public enum SiteStatus {
     HIDDEN,
     /** Camp planted; excavation in progress. */
     ESTABLISHED,
-    /** Finds recovered; site remains as a record. */
-    EXHAUSTED
+    /** Finds recovered; the camp still stands as the on-site archive. */
+    EXHAUSTED,
+    /** Camp taken down; the dossier remains for a field book. */
+    CLOSED
 }

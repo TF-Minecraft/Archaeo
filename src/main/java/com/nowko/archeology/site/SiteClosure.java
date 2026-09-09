@@ -2,8 +2,11 @@ package com.nowko.archeology.site;
 
 import com.nowko.archeology.model.Site;
 import org.bukkit.Bukkit;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -16,9 +19,10 @@ public final class SiteClosure {
     }
 
     /**
-     * Closes the excavation when no find can be recovered any more, persists it, and tells the
-     * staff that happens to be online. Field work stops on its own: {@code mayWork} and the
-     * established-prism lookups only answer for an active site.
+     * Closes the excavation when no find can be recovered any more, persists it, and tells
+     * whoever is standing on the dig chunk or its neighbours, plus staff who happen to be online.
+     * Field work stops on its own: {@code mayWork} and the established-prism lookups only answer
+     * for an active site.
      *
      * @param sites dossier store, written only when the status actually changed
      * @param site excavation that just settled a find, or {@code null}
@@ -34,25 +38,41 @@ public final class SiteClosure {
     }
 
     /**
-     * @param site excavation that just closed
+     * @param site excavation that just ran out of recoverable finds
      */
     private static void announce(Site site) {
-        String message = "Excavation " + site.displayLabel()
-                + " is exhausted: the cut holds nothing else to recover.";
-        tell(site.getDirector(), message);
-        for (UUID excavator : site.getExcavators()) {
-            if (!excavator.equals(site.getDirector())) {
-                tell(excavator, message);
+        String message = "The excavation at " + site.displayLabel()
+                + " is exhausted: nothing remains to recover.";
+        Set<UUID> told = new HashSet<>();
+        World world = site.getWorldName() == null ? null : Bukkit.getWorld(site.getWorldName());
+        if (world != null) {
+            int cx = site.getChunkX();
+            int cz = site.getChunkZ();
+            for (Player player : world.getPlayers()) {
+                if (player.getLocation().getWorld() != world) {
+                    continue;
+                }
+                int px = player.getLocation().getBlockX() >> 4;
+                int pz = player.getLocation().getBlockZ() >> 4;
+                if (Math.abs(px - cx) <= 1 && Math.abs(pz - cz) <= 1) {
+                    player.sendMessage(message);
+                    told.add(player.getUniqueId());
+                }
             }
+        }
+        tell(site.getDirector(), message, told);
+        for (UUID excavator : site.getExcavators()) {
+            tell(excavator, message, told);
         }
     }
 
     /**
      * @param playerId staff member, or {@code null}
      * @param message English line
+     * @param told people who already received it in the field
      */
-    private static void tell(UUID playerId, String message) {
-        if (playerId == null) {
+    private static void tell(UUID playerId, String message, Set<UUID> told) {
+        if (playerId == null || !told.add(playerId)) {
             return;
         }
         Player player = Bukkit.getPlayer(playerId);
