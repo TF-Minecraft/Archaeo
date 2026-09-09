@@ -18,6 +18,7 @@ import com.nowko.archeology.item.EstablishItem;
 import com.nowko.archeology.item.ItemMatcher;
 import com.nowko.archeology.item.ProspectItem;
 import com.nowko.archeology.item.RecoveredFindItem;
+import com.nowko.archeology.item.SketchSupplies;
 import com.nowko.archeology.item.TrackerItem;
 import com.nowko.archeology.prospect.ProspectListener;
 import com.nowko.archeology.prospect.ProspectService;
@@ -48,7 +49,9 @@ public class ArcheologyPlugin extends JavaPlugin {
     private PrismOutlineService outline;
     private PrismListener prismListener;
     private BrushItem brushItem;
+    private RecoveredFindItem recoveredFindItem;
     private RecoverService recover;
+    private SketchSupplies sketchSupplies;
     private SketchService sketch;
 
     /**
@@ -65,6 +68,7 @@ public class ArcheologyPlugin extends JavaPlugin {
         prospectItem = new ProspectItem(catalogs.items().prospect());
         establishItem = new EstablishItem(catalogs.items().establish());
         brushItem = new BrushItem(catalogs.items().brush());
+        sketchSupplies = new SketchSupplies(this, catalogs.items().sketchPaper(), catalogs.items().sketchPencil());
         digTools = new DigTools();
         bindItemMatcher(ItemMatcher.detect(this));
         tracker = new TrackerService(this, sites, trackerItem, catalogs.tracker());
@@ -77,7 +81,7 @@ public class ArcheologyPlugin extends JavaPlugin {
         handPick = new HandPickService(this, sites, catalogs, digTools, catalogs.pick());
         handPick.start();
         outline = new PrismOutlineService(this, catalogs);
-        RecoveredFindItem recoveredFindItem = new RecoveredFindItem(this);
+        recoveredFindItem = new RecoveredFindItem(this);
         getServer().getPluginManager().registerEvents(
                 new CampListener(
                         this,
@@ -105,7 +109,7 @@ public class ArcheologyPlugin extends JavaPlugin {
                 recoveredFindItem,
                 catalogs.recovery());
         getServer().getPluginManager().registerEvents(new RecoverListener(brushItem, recover), this);
-        sketch = new SketchService(this);
+        sketch = new SketchService(this, sketchSupplies, recoveredFindItem);
         sketch.start();
         getServer().getPluginManager().registerEvents(new SketchListener(sketch), this);
 
@@ -152,6 +156,9 @@ public class ArcheologyPlugin extends JavaPlugin {
         if (brushItem != null) {
             brushItem.setMatcher(bound);
         }
+        if (sketchSupplies != null) {
+            sketchSupplies.setMatcher(bound);
+        }
         if (digTools != null) {
             digTools.setMatcher(bound);
         }
@@ -189,10 +196,17 @@ public class ArcheologyPlugin extends JavaPlugin {
     }
 
     /**
-     * @return staff field-sketch prototype; the drawing lives on the {@code FILLED_MAP} item
+     * @return staff field-sketch; the drawing lives on the {@code FILLED_MAP} item
      */
     public SketchService sketch() {
         return sketch;
+    }
+
+    /**
+     * @return configured field sheet and pencil
+     */
+    public SketchSupplies sketchSupplies() {
+        return sketchSupplies;
     }
 
     /**

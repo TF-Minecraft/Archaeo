@@ -201,6 +201,57 @@ public class RecoveredFindItem {
     }
 
     /**
+     * @param stack candidate
+     * @return whether this stack is a recovered Archaeo piece
+     */
+    public boolean isRecovered(ItemStack stack) {
+        return findIdOf(stack) != null;
+    }
+
+    /**
+     * @param stack recovered piece
+     * @return site id, or {@code null}
+     */
+    public UUID siteIdOf(ItemStack stack) {
+        if (stack == null || stack.getType().isAir()) {
+            return null;
+        }
+        ItemMeta meta = stack.getItemMeta();
+        if (meta == null) {
+            return null;
+        }
+        var pdc = meta.getPersistentDataContainer();
+        if (!pdc.has(markerKey, PersistentDataType.BYTE)) {
+            return null;
+        }
+        String raw = pdc.get(siteIdKey, PersistentDataType.STRING);
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(raw);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * @param stack recovered piece
+     * @return catalog name on the tag, or {@code "recovered find"}
+     */
+    public String labelOf(ItemStack stack) {
+        if (stack == null || !stack.hasItemMeta()) {
+            return "recovered find";
+        }
+        ItemMeta meta = stack.getItemMeta();
+        if (meta == null || !meta.hasDisplayName()) {
+            return "recovered find";
+        }
+        String name = ChatColor.stripColor(meta.getDisplayName());
+        return name == null || name.isBlank() ? "recovered find" : name;
+    }
+
+    /**
      * @param stack stack to stamp
      * @param template catalog row
      * @param site excavation

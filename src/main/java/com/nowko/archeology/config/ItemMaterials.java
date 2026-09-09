@@ -15,6 +15,8 @@ import java.util.Map;
  * @param prospect {@code prospect.item}
  * @param establish {@code establish.item}
  * @param brush {@code excavation.brush.item}
+ * @param sketchPaper {@code sketch.paper}
+ * @param sketchPencil {@code sketch.pencil}
  * @param excavationProfiles {@code excavation.tools.<id>.items}
  */
 public record ItemMaterials(
@@ -22,6 +24,8 @@ public record ItemMaterials(
         ItemRef prospect,
         ItemRef establish,
         ItemRef brush,
+        ItemRef sketchPaper,
+        ItemRef sketchPencil,
         Map<String, List<ItemRef>> excavationProfiles
 ) {
     /**
@@ -37,6 +41,8 @@ public record ItemMaterials(
                 ItemRef.vanilla(Material.STONE_HOE),
                 ItemRef.vanilla(Material.STICK),
                 ItemRef.vanilla(Material.BRUSH),
+                ItemRef.vanilla(Material.PAPER),
+                ItemRef.vanilla(Material.FEATHER),
                 Collections.unmodifiableMap(profiles)
         );
     }

@@ -84,13 +84,25 @@ public class SketchListener implements Listener {
     }
 
     /**
-     * Right-click erases. Left-click starts the sign confirm. Vanilla use is cancelled.
+     * Right-click with sheet and pencil starts a sketch. While editing, right-click erases
+     * and left-click starts the sign confirm.
      *
      * @param event interact
      */
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onInteract(PlayerInteractEvent event) {
-        if (!sketches.editing(event.getPlayer())) {
+        Player player = event.getPlayer();
+        Action action = event.getAction();
+        if (!sketches.editing(player)
+                && (action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK)
+                && event.getHand() == EquipmentSlot.HAND
+                && sketches.tryStartFromHands(player)) {
+            event.setCancelled(true);
+            event.setUseInteractedBlock(Event.Result.DENY);
+            event.setUseItemInHand(Event.Result.DENY);
+            return;
+        }
+        if (!sketches.editing(player)) {
             return;
         }
         event.setCancelled(true);
@@ -99,13 +111,49 @@ public class SketchListener implements Listener {
         if (event.getHand() != EquipmentSlot.HAND) {
             return;
         }
-        Action action = event.getAction();
         if (action == Action.LEFT_CLICK_AIR || action == Action.LEFT_CLICK_BLOCK) {
-            sketches.askToSign(event.getPlayer());
+            sketches.askToSign(player);
             return;
         }
         if (action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK) {
-            sketches.erase(event.getPlayer());
+            sketches.erase(player);
+        }
+    }
+
+    /**
+     * Combines sheet+pencil or attaches a signed sketch to a recovered find in the player's bag.
+     *
+     * @param event click
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onCombine(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
+        if (event.getClickedInventory() == null) {
+            return;
+        }
+        InventoryType type = event.getClickedInventory().getType();
+        if (type != InventoryType.PLAYER && type != InventoryType.CRAFTING) {
+            return;
+        }
+        ItemStack[] cursorSlot = {
+                event.getCursor() == null ? new ItemStack(org.bukkit.Material.AIR) : event.getCursor().clone(),
+                event.getCurrentItem() == null ? new ItemStack(org.bukkit.Material.AIR) : event.getCurrentItem().clone()
+        };
+        if (sketches.tryAttachOnClick(player, cursorSlot[0], cursorSlot[1])) {
+            event.setCancelled(true);
+            sketches.applyBagClick(player, event.getClickedInventory(), event.getSlot(), cursorSlot[0], cursorSlot[1]);
+            return;
+        }
+        if (sketches.tryCraftOnClick(
+                player,
+                cursorSlot[0],
+                cursorSlot[1],
+                crafted -> cursorSlot[0] = crafted,
+                updated -> cursorSlot[1] = updated)) {
+            event.setCancelled(true);
+            sketches.applyBagClick(player, event.getClickedInventory(), event.getSlot(), cursorSlot[0], cursorSlot[1]);
         }
     }
 
@@ -263,6 +311,18 @@ public class SketchListener implements Listener {
     }
 
     /**
+     * Pack plugins may rewrite lore on open; stamp Archaeo how-to again.
+     *
+     * @param event inventory open
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onInventoryOpened(InventoryOpenEvent event) {
+        if (event.getPlayer() instanceof Player player) {
+            sketches.stampKitsLater(player);
+        }
+    }
+
+    /**
      * @param event placing a liquid
      */
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
@@ -361,6 +421,7 @@ public class SketchListener implements Listener {
             sketches.leave(player, true, player.getInventory().getItem(event.getPreviousSlot()));
         }
         sketches.syncHand(player, player.getInventory().getItem(event.getNewSlot()));
+        sketches.stampKitsLater(player);
     }
 
     /**
@@ -369,6 +430,7 @@ public class SketchListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onSwap(PlayerSwapHandItemsEvent event) {
         sketches.syncHandLater(event.getPlayer());
+        sketches.stampKitsLater(event.getPlayer());
     }
 
     /**
@@ -430,6 +492,7 @@ public class SketchListener implements Listener {
                 ? player.getInventory().getItem(event.getHotbarButton())
                 : null;
         sketches.syncHandLater(player, event.getCursor(), event.getCurrentItem(), hotbar);
+        sketches.stampKitsLater(player);
     }
 
     /**
@@ -456,6 +519,7 @@ public class SketchListener implements Listener {
     public void onInventoryClose(InventoryCloseEvent event) {
         if (event.getPlayer() instanceof Player player) {
             sketches.syncHandLater(player, event.getView().getCursor());
+            sketches.stampKitsLater(player);
         }
     }
 
@@ -467,6 +531,7 @@ public class SketchListener implements Listener {
         if (event.getEntity() instanceof Player player) {
             sketches.hydrate(event.getItem().getItemStack());
             sketches.syncHandLater(player);
+            sketches.stampKitsLater(player);
         }
     }
 
@@ -481,6 +546,7 @@ public class SketchListener implements Listener {
         }
         sketches.hydrate(player.getInventory().getItemInOffHand());
         sketches.syncHandLater(player);
+        sketches.stampKitsLater(player);
     }
 
     /**

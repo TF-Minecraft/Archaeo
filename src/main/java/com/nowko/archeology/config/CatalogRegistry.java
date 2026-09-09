@@ -504,6 +504,10 @@ public class CatalogRegistry {
                         "establish.item", "discovery.establish", "items.establish"),
                 parseItemId(fallback.brush(), itemsFile, config,
                         "excavation.brush.item", "recovery.item", "recovery.brush", "items.brush"),
+                parseItemId(fallback.sketchPaper(), itemsFile, config,
+                        "sketch.paper", "items.sketch-paper"),
+                parseItemId(fallback.sketchPencil(), itemsFile, config,
+                        "sketch.pencil", "items.sketch-pencil"),
                 loadExcavationItemLists(itemsFile, config, fallback)
         );
     }

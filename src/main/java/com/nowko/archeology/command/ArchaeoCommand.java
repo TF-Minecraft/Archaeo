@@ -50,7 +50,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             "give", "ruin", "workday", "find", "sketch", "reload");
     private static final List<String> RUIN_ACTIONS = List.of("create", "info");
     private static final List<String> GIVE_KINDS = List.of(
-            "tracker", "prospect", "establish", "tool", "brush");
+            "tracker", "prospect", "establish", "tool", "brush", "paper", "pencil");
     private static final List<String> WORKDAY_ACTIONS = List.of("reset");
     private static final List<String> FIND_ACTIONS = List.of("spawn");
 
@@ -186,6 +186,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             prism.setProtectDigSite(catalogs.establish().protectDigSite());
             brushItem.update(catalogs.items().brush());
             recover.setSettings(catalogs.recovery());
+            plugin.sketchSupplies().update(catalogs.items().sketchPaper(), catalogs.items().sketchPencil());
             sites.loadAll();
             sender.sendMessage("Reloaded Archaeo config, catalogs, and sites from disk.");
         } catch (RuntimeException exception) {
@@ -203,7 +204,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      */
     private boolean handleGive(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage("Usage: /archaeo give <tracker|prospect|establish|tool|brush> [player]");
+            sender.sendMessage("Usage: /archaeo give <tracker|prospect|establish|tool|brush|paper|pencil> [player]");
             sender.sendMessage("       /archaeo give tool <item> [player]");
             return true;
         }
@@ -243,8 +244,20 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     brushItem.create(),
                     "a field brush",
                     "You received a field brush. Right-click a fully exposed find to lift it.");
+            case "paper" -> giveStack(
+                    sender,
+                    target,
+                    plugin.sketchSupplies().createPaper(),
+                    "a field sheet",
+                    "You received a field sheet. Click it onto a field pencil to start a sketch.");
+            case "pencil" -> giveStack(
+                    sender,
+                    target,
+                    plugin.sketchSupplies().createPencil(),
+                    "a field pencil",
+                    "You received a field pencil. Click a field sheet onto it; the pencil is not used up.");
             default -> {
-                sender.sendMessage("Unknown item. Use: tracker, prospect, establish, tool, or brush.");
+                sender.sendMessage("Unknown item. Use: tracker, prospect, establish, tool, brush, paper, or pencil.");
                 yield true;
             }
         };
@@ -299,6 +312,10 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             String givenLabel,
             String receivedMessage
     ) {
+        if (stack == null || stack.getType().isAir()) {
+            sender.sendMessage("Could not create that item. Check pack plugins and config.yml.");
+            return true;
+        }
         target.getInventory().addItem(stack);
         sender.sendMessage("Gave " + givenLabel + " to " + target.getName() + ".");
         if (target != sender) {
@@ -686,7 +703,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private void sendUsage(CommandSender sender) {
         sender.sendMessage("Usage: /archaeo ruin create <low|medium|high|exceptional> [name]");
         sender.sendMessage("       /archaeo ruin info [name|#serial]");
-        sender.sendMessage("       /archaeo give tracker|prospect|establish|tool|brush [player]");
+        sender.sendMessage("       /archaeo give tracker|prospect|establish|tool|brush|paper|pencil [player]");
         sender.sendMessage("       /archaeo give tool <item> [player]");
         sender.sendMessage("       /archaeo workday reset [player|all]");
         sender.sendMessage("       /archaeo find spawn [artifact] [size]");

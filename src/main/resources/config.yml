@@ -175,3 +175,15 @@ excavation:
     hold-ticks: 40
     progress-bar: true
     max-cells-to-clean: 6
+
+# Field sketch. The sheet is consumed; the pencil is not.
+# Click the sheet onto the pencil (inventory), or hold the sheet and right-click
+# with the pencil in the other hand. Sign the map, then click it onto a recovered find.
+# Prefer a unique pack item. A vanilla id such as PAPER matches every paper of that type
+# and Archaeo overwrites its lore with these instructions (MMOItems may rewrite lore;
+# we stamp again when the item is held, picked up, or the inventory opens).
+sketch:
+  paper: PAPER
+  # paper: "itemsadder:archeo:field_sheet"
+  pencil: FEATHER
+  # pencil: "mmoitems:TOOL:ARCHAEO_PENCIL"
