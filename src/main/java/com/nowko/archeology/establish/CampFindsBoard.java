@@ -109,7 +109,7 @@ public final class CampFindsBoard implements InventoryHolder {
     private ItemStack rowItem(Site site, BuriedFind find) {
         ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
         Material icon = iconOf(template);
-        String name = template == null ? find.getArtifactId() : template.displayName();
+        String name = find.shownName(template == null ? null : template.displayName());
         String number = find.publicNumber(site.getSerial());
         List<String> lore = new ArrayList<>();
         lore.add(ChatColor.GOLD + (number == null ? "—" : number));

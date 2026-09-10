@@ -123,7 +123,7 @@ public final class FindReportBook {
      */
     private static String findPage(Player director, Site site, BuriedFind find, CatalogRegistry catalogs) {
         ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
-        String name = template == null ? find.getArtifactId() : template.displayName();
+        String name = find.shownName(template == null ? null : template.displayName());
         String number = find.publicNumber(site.getSerial());
         StringBuilder page = new StringBuilder();
         page.append(number == null ? "Find" : number).append('\n');

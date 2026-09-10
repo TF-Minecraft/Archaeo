@@ -18,6 +18,7 @@ import com.nowko.archeology.item.EstablishItem;
 import com.nowko.archeology.item.ItemMatcher;
 import com.nowko.archeology.item.ProspectItem;
 import com.nowko.archeology.item.RecoveredFindItem;
+import com.nowko.archeology.item.RecoveredFindListener;
 import com.nowko.archeology.item.SketchSupplies;
 import com.nowko.archeology.item.TrackerItem;
 import com.nowko.archeology.museum.MuseumListener;
@@ -88,6 +89,9 @@ public class ArcheologyPlugin extends JavaPlugin {
         handPick.start();
         outline = new PrismOutlineService(this, catalogs);
         recoveredFindItem = new RecoveredFindItem(this);
+        getServer().getPluginManager().registerEvents(
+                new RecoveredFindListener(this, sites, catalogs, recoveredFindItem),
+                this);
         getServer().getPluginManager().registerEvents(
                 new CampListener(
                         this,

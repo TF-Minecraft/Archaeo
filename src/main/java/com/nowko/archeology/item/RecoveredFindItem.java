@@ -309,9 +309,7 @@ public class RecoveredFindItem {
                 icon = match;
             }
         }
-        String name = template == null || template.displayName() == null || template.displayName().isBlank()
-                ? find.getArtifactId()
-                : template.displayName();
+        String name = find.shownName(template == null ? null : template.displayName());
         String grade = catalogs == null ? null : catalogs.pick().conservation().gradeLabel(find.getConservation());
         ItemStack stack = new ItemStack(icon);
         ItemMeta meta = stack.getItemMeta();
@@ -349,9 +347,7 @@ public class RecoveredFindItem {
         if (meta == null) {
             return;
         }
-        String name = template == null || template.displayName() == null || template.displayName().isBlank()
-                ? "recovered find"
-                : template.displayName();
+        String name = find.shownName(template == null ? null : template.displayName());
         meta.setDisplayName(ChatColor.WHITE + name);
         meta.setLore(lore(template, site, find, grade, fieldDamaged, catalogs));
         var pdc = meta.getPersistentDataContainer();

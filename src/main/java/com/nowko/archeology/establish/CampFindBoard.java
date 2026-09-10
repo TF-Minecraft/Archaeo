@@ -137,7 +137,7 @@ public final class CampFindBoard implements InventoryHolder {
      * @return identity icon
      */
     private ItemStack identityItem(ArtifactTemplate template, BuriedFind find, String number) {
-        String name = template == null ? find.getArtifactId() : template.displayName();
+        String name = find.shownName(template == null ? null : template.displayName());
         List<String> lore = new ArrayList<>();
         lore.add(ChatColor.GOLD + (number == null ? "—" : number));
         lore.add(ChatColor.AQUA + find.catalogStatusLabel());

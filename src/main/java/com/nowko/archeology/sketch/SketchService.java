@@ -1321,9 +1321,7 @@ public class SketchService {
             pdc.set(siteIdKey, PersistentDataType.STRING, site.getId().toString());
         }
         ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
-        String title = template == null || template.displayName() == null || template.displayName().isBlank()
-                ? "recovered find"
-                : template.displayName();
+        String title = find.shownName(template == null ? null : template.displayName());
         pdc.set(titleKey, PersistentDataType.STRING, title);
         if (site != null) {
             String label = find.publicNumber(site.getSerial());

@@ -513,6 +513,9 @@ public class SiteRepository {
             Map<String, Object> node = new java.util.LinkedHashMap<>();
             node.put("id", find.getId().toString());
             node.put("artifact-id", find.getArtifactId());
+            if (find.getGivenName() != null && !find.getGivenName().isBlank()) {
+                node.put("given-name", find.getGivenName());
+            }
             node.put("stratum", find.getStratumId());
             node.put("state", find.getState().name());
             node.put("buried-conservation", find.getBuriedConservation());
@@ -762,6 +765,9 @@ public class SiteRepository {
             BuriedFind find = new BuriedFind();
             find.setId(UUID.fromString(String.valueOf(map.get("id"))));
             find.setArtifactId(String.valueOf(map.get("artifact-id")));
+            if (map.get("given-name") != null) {
+                find.setGivenName(BuriedFind.sanitizeGivenName(String.valueOf(map.get("given-name"))));
+            }
             find.setStratumId(String.valueOf(map.get("stratum")));
             find.setState(FindState.valueOf(stringOr(map.get("state"), "HIDDEN")));
             addCells(map.get("cells"), find.getCells());

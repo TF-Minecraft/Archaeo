@@ -15,6 +15,8 @@ import java.util.UUID;
 public class BuriedFind {
     private UUID id;
     private String artifactId;
+    /** Player name from an anvil; catalog display name is used when this is blank. */
+    private String givenName;
     private String stratumId;
     private FindState state = FindState.HIDDEN;
     private int buriedConservation = 100;
@@ -56,6 +58,60 @@ public class BuriedFind {
     /** @param artifactId catalog artifact template id */
     public void setArtifactId(String artifactId) {
         this.artifactId = artifactId;
+    }
+
+    /**
+     * @return anvil name stored on the dossier, or {@code null} when the catalog name still applies
+     */
+    public String getGivenName() {
+        return givenName;
+    }
+
+    /**
+     * @param givenName anvil name, or {@code null}/blank to revert to the catalog
+     */
+    public void setGivenName(String givenName) {
+        if (givenName == null || givenName.isBlank()) {
+            this.givenName = null;
+            return;
+        }
+        this.givenName = givenName;
+    }
+
+    /**
+     * Strips colours and caps length so an anvil line can live in YAML and on boards.
+     *
+     * @param raw rename text from the anvil, or {@code null}
+     * @return stored name, or {@code null} when empty
+     */
+    public static String sanitizeGivenName(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String name = raw.replace('§', ' ').trim();
+        if (name.isEmpty()) {
+            return null;
+        }
+        if (name.length() > 40) {
+            name = name.substring(0, 40).trim();
+        }
+        return name.isEmpty() ? null : name;
+    }
+
+    /**
+     * Name on the piece, camp fiche, and report. An anvil rename wins; otherwise the catalog.
+     *
+     * @param catalogName {@link com.nowko.archeology.config.ArtifactTemplate#displayName()}, or {@code null}
+     * @return player-facing title
+     */
+    public String shownName(String catalogName) {
+        if (givenName != null && !givenName.isBlank()) {
+            return givenName;
+        }
+        if (catalogName != null && !catalogName.isBlank()) {
+            return catalogName;
+        }
+        return artifactId == null || artifactId.isBlank() ? "recovered find" : artifactId;
     }
 
     /** @return stratum id that contains this find */
