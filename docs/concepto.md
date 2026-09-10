@@ -197,9 +197,10 @@ interno y debe ser configurable. El nivel no tiene que ser una verdad matemátic
 del terreno: es una decisión de diseño y de lore que el staff puede usar para
 equilibrar el mapa.
 
-La cata **convierte una sospecha en yacimiento confirmado** y enseña las primeras
-características (interés, indicios). No es un trámite vacío ni el acto de
-reclamar: eso es **confirmar el kit de establecimiento**.
+La cata **convierte una sospecha en yacimiento confirmado**. El chat solo
+dice que se puede plantar un campamento; interés e indicios viven en el
+tablón del campamento. No es un trámite vacío ni el acto de reclamar: eso es
+**confirmar el kit de establecimiento**.
 
 Al **establecer** la excavación, la riqueza efectiva se fija en el dossier.
 
@@ -463,17 +464,13 @@ Confirmar colocación
 ```
 
 > Has establecido una excavación arqueológica.
+> Interactúa con el campamento para ver el registro del yacimiento.
 
-```
-Excavación #027
-Ruinas del valle
-Descubierta por: Alex
-Director (Archaeo): Alex
-```
-
-El que confirma el kit es el **director** inicial. Controla quién trabaja la
-excavación. **Permanencia:** no se borra ni se mueve a capricho. Staff puede
-intervenir.
+El que confirma el kit es el **director** inicial. Por defecto **un jugador
+dirige un solo campamento a la vez** (`establish.max-excavations`; `0` = sin
+tope). Al **cerrar** el campamento libera el cupo y puede reclamar otra ruina.
+Controla quién trabaja la excavación. **Permanencia:** no se borra ni se mueve
+a capricho. Staff puede intervenir.
 
 ### Tres piezas
 
@@ -1310,11 +1307,13 @@ cada celda sí la mata. La información perdida **no vuelve**.
 
 ### La jornada
 
-Presupuesto diario de ciclos de Hand Pick (config). No hay cooldown entre
+Presupuesto diario de ciclos de Hand Pick (`excavation.workday-actions`).
+`0` en config desactiva el cupo (cortes ilimitados). No hay cooldown entre
 golpes ni gasto extra por “cargar”.
 
-Cupo a 0: *La jornada de excavación ha terminado.* No se borra el mundo ni
-la conservación. Al día siguiente se recargan acciones.
+Cuando el presupuesto del día llega a cero: *La jornada de excavación ha
+terminado.* No se borra el mundo ni la conservación. Al día siguiente se
+recargan acciones.
 
 Sin acciones: no se retira relleno arqueológico (no se bypassea con pico
 vanilla). El campamento **no** gasta jornada.

@@ -24,7 +24,7 @@ public class BuriedFind {
     private UUID recoveredBy;
     private Instant recoveredAt;
     private boolean studied;
-    /** Whether the first lab step (clean / wash / dry) has been finished at the cabinet. */
+    /** Whether the first lab wipe has been finished at the cabinet. */
     private boolean labCleaned;
     /** Whether a signed field sketch has been filed at the cabinet. */
     private boolean fieldSketch;
@@ -226,7 +226,7 @@ public class BuriedFind {
     }
 
     /**
-     * @param labCleaned whether the piece has been cleaned, washed, or dried at the cabinet
+     * @param labCleaned whether the piece has been wiped at the cabinet
      */
     public void setLabCleaned(boolean labCleaned) {
         this.labCleaned = labCleaned;

@@ -10,13 +10,15 @@ import org.bukkit.Material;
  * @param invalidBlock client-only block for template cells that cannot be planted
  * @param ruinOutlineBlock client-only glass for the dig chunk perimeter
  * @param maxStaff people on one excavation roster, including the director; never above {@link #STAFF_BOARD_SLOTS}
+ * @param maxExcavations open camps one player may direct at once; {@code 0} means no cap
  */
 public record EstablishSettings(
         boolean enabled,
         boolean protectDigSite,
         Material invalidBlock,
         Material ruinOutlineBlock,
-        int maxStaff
+        int maxStaff,
+        int maxExcavations
 ) {
     /**
      * First two rows of the staff chest. {@code establish.max-staff} cannot exceed this: there is no
@@ -33,8 +35,16 @@ public record EstablishSettings(
                 true,
                 Material.RED_STAINED_GLASS,
                 Material.LIGHT_BLUE_STAINED_GLASS,
-                STAFF_BOARD_SLOTS
+                STAFF_BOARD_SLOTS,
+                1
         );
+    }
+
+    /**
+     * @return whether a player may direct as many camps as they can plant
+     */
+    public boolean unlimitedExcavations() {
+        return maxExcavations <= 0;
     }
 
     /**
@@ -49,5 +59,15 @@ public record EstablishSettings(
             return STAFF_BOARD_SLOTS;
         }
         return Math.min(requested, STAFF_BOARD_SLOTS);
+    }
+
+    /**
+     * Normalises {@code establish.max-excavations}. Negative YAML is treated as unlimited ({@code 0}).
+     *
+     * @param requested value from config
+     * @return {@code 0} for no cap, otherwise a positive count
+     */
+    public static int clampMaxExcavations(int requested) {
+        return Math.max(0, requested);
     }
 }

@@ -277,6 +277,26 @@ public class SiteRepository {
     }
 
     /**
+     * Counts camps this player still directs. Exhausted sites keep the camp, so they occupy a
+     * slot until someone closes them. Hidden ruins and closed dossiers do not count.
+     *
+     * @param playerId director to count
+     * @return number of locked camps they run
+     */
+    public int countDirectedCamps(UUID playerId) {
+        if (playerId == null) {
+            return 0;
+        }
+        int count = 0;
+        for (Site site : byId.values()) {
+            if (site.isCampLocked() && site.isDirector(playerId)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
      * Same as {@link #commit(Site)}. Kept so existing field code stays a one-line persist.
      *
      * @param site dossier to persist

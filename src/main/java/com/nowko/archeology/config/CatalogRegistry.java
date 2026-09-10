@@ -144,7 +144,7 @@ public class CatalogRegistry {
     }
 
     /**
-     * Lab profile for a catalog material. Unknown ids still get a dry {@code clean} so the cabinet wipe can run.
+     * Lab profile for a catalog material. Unknown ids still get a {@code clean} wipe so the cabinet can run.
      *
      * @param id material key from {@code artifacts.yml} / {@code materials.yml}
      * @return row, never {@code null}
@@ -161,7 +161,6 @@ public class CatalogRegistry {
                 key,
                 materialDisplayName(key),
                 1.0,
-                false,
                 List.of("clean"),
                 defaultCleanGlass(key),
                 defaultStains(key));
@@ -685,7 +684,7 @@ public class CatalogRegistry {
     }
 
     /**
-     * Reads establishment-kit rules, camp block, preview blocks, and staff cap.
+     * Reads establishment-kit rules, camp block, preview blocks, staff cap, and director camp cap.
      *
      * @param config root plugin config
      */
@@ -709,7 +708,9 @@ public class CatalogRegistry {
                         section.getString("ruin-outline-block"),
                         fallback.ruinOutlineBlock(),
                         "establish.ruin-outline-block"),
-                EstablishSettings.clampMaxStaff(section.getInt("max-staff", fallback.maxStaff()))
+                EstablishSettings.clampMaxStaff(section.getInt("max-staff", fallback.maxStaff())),
+                EstablishSettings.clampMaxExcavations(
+                        section.getInt("max-excavations", fallback.maxExcavations()))
         );
     }
 
@@ -725,7 +726,7 @@ public class CatalogRegistry {
         ConfigurationSection pickSection = config.getConfigurationSection("pick");
         pick = new PickSettings(
                 firstBool(excavation, pickSection, fallback.enabled(), "enabled"),
-                Math.max(1, firstInt(excavation, pickSection, fallback.jornadaActions(),
+                Math.max(0, firstInt(excavation, pickSection, fallback.jornadaActions(),
                         "workday-actions", "workday-allowed-actions", "jornada-actions")),
                 firstBool(excavation, pickSection, fallback.visualCues(), "visual-cues"),
                 firstBool(excavation, pickSection, fallback.findDust(), "find-particles", "find-dust"),
@@ -1481,7 +1482,6 @@ public class CatalogRegistry {
             if (section == null) {
                 continue;
             }
-            boolean wash = section.getBoolean("wash", false);
             List<String> steps = List.copyOf(section.getStringList("steps"));
             List<String> stains = section.getStringList("stains");
             if (stains.isEmpty()) {
@@ -1493,7 +1493,6 @@ public class CatalogRegistry {
                     id,
                     section.getString("display-name", id),
                     Math.max(0.05, Math.min(1.0, section.getDouble("survival", 1.0))),
-                    wash,
                     steps,
                     ConfigEnums.material(
                             plugin,

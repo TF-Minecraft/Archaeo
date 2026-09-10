@@ -1,7 +1,6 @@
 package com.nowko.archeology.prospect;
 
 import com.nowko.archeology.config.CatalogRegistry;
-import com.nowko.archeology.config.HintTemplate;
 import com.nowko.archeology.config.InterestSettings;
 import com.nowko.archeology.config.ProspectSettings;
 import com.nowko.archeology.item.ProspectItem;
@@ -129,7 +128,7 @@ public class ProspectService {
         }
         if (site.isProspectConfirmed(player.getUniqueId())) {
             armCooldown(player, 1500);
-            sendConfirmed(player, site);
+            sendConfirmed(player);
             return;
         }
         BlockCell cell = new BlockCell(block.getX(), block.getY(), block.getZ());
@@ -295,7 +294,7 @@ public class ProspectService {
                             + count + "/" + need + ")");
             case CONFIRMED -> {
                 player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, SoundCategory.PLAYERS, 0.7f, 1.2f);
-                sendConfirmed(player, site);
+                sendConfirmed(player);
             }
         }
         if (result != ProspectResult.CONFIRMED && result != ProspectResult.INSUFFICIENT) {
@@ -335,31 +334,12 @@ public class ProspectService {
     }
 
     /**
-     * Prints confirmation, approximate interest, and dossier hints.
+     * One confirmation line. Interest and field notes live on the camp board after planting.
      *
      * @param player scanner
-     * @param site confirmed ruin
      */
-    private void sendConfirmed(Player player, Site site) {
-        player.sendMessage("Archaeological site confirmed. A camp can be established later.");
-        if (site.getInterest() != null) {
-            InterestSettings interest = catalogs.interest(site.getInterest());
-            String label = interest == null ? site.getInterest().yamlKey() : interest.displayName();
-            player.sendMessage("Approximate interest: " + label + ".");
-        }
-        if (site.getHintIds().isEmpty()) {
-            player.sendMessage("No field hints were generated for this dossier.");
-            return;
-        }
-        player.sendMessage("Field notes:");
-        for (String hintId : site.getHintIds()) {
-            String text = catalogs.hints().stream()
-                    .filter(hint -> hint.id().equals(hintId))
-                    .map(HintTemplate::text)
-                    .findFirst()
-                    .orElse(hintId);
-            player.sendMessage("- " + text);
-        }
+    private void sendConfirmed(Player player) {
+        player.sendMessage("Archaeological site confirmed. A camp can be established.");
     }
 
     /**

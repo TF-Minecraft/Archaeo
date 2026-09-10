@@ -59,12 +59,15 @@ establish:
   # (the first two chest rows); there is no second page. Use a smaller number to run a tighter
   # crew. Values above 18 are ignored and treated as 18.
   max-staff: 18
+  # Open camps this player may direct at once (established or exhausted). Closing the camp
+  # frees a slot so they can claim another ruin. 0 = no cap.
+  max-excavations: 1
 
 # 4) Dig the prism, then brush exposed finds
 excavation:
   enabled: true
   visual-cues: true
-  # How many successful cuts per Minecraft day.
+  # How many successful cuts per Minecraft day. 0 = no work-day cap.
   workday-actions: 8
   conservation:
     # What the ground already took, rolled once per find when the site is generated.

@@ -174,8 +174,12 @@ public final class CampBoard implements InventoryHolder {
         lore.add(ChatColor.GRAY + "Director: " + ChatColor.WHITE + CampNames.of(player, site.getDirector()));
         lore.add(ChatColor.GRAY + "Status: " + ChatColor.WHITE + statusLabel(site.getStatus()));
         if (site.getStatus() != SiteStatus.CLOSED) {
-            lore.add(ChatColor.GRAY + "Work day: " + ChatColor.WHITE
-                    + site.getJornadaPickLeft() + " / " + catalogs.pick().jornadaActions());
+            if (catalogs.pick().unlimitedWorkday()) {
+                lore.add(ChatColor.GRAY + "Work day: " + ChatColor.WHITE + "unlimited");
+            } else {
+                lore.add(ChatColor.GRAY + "Work day: " + ChatColor.WHITE
+                        + site.getJornadaPickLeft() + " / " + catalogs.pick().jornadaActions());
+            }
         }
         lore.add(ChatColor.GRAY + "Progress: " + ChatColor.WHITE + progressBar(site));
         if (site.getStatus() == SiteStatus.CLOSED) {

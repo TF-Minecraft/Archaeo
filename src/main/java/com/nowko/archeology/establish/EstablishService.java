@@ -164,6 +164,11 @@ public class EstablishService {
                 hideHud(player);
                 continue;
             }
+            if (atDirectorCap(player)) {
+                clearPreview(player);
+                showHud(player, false, directorCapHint());
+                continue;
+            }
             Site site = nearestConfirmedHidden(player);
             if (site == null) {
                 clearPreview(player);
@@ -211,6 +216,10 @@ public class EstablishService {
         }
         if (isRelocating(player)) {
             tryFinishMove(player);
+            return;
+        }
+        if (atDirectorCap(player)) {
+            player.sendMessage(directorCapHint());
             return;
         }
         Site site = nearestConfirmedHidden(player);
@@ -578,6 +587,10 @@ public class EstablishService {
             player.sendMessage(placement.reason());
             return;
         }
+        if (!moving && atDirectorCap(player)) {
+            player.sendMessage(directorCapHint());
+            return;
+        }
         clearPreview(player);
         World world = player.getWorld();
         if (moving) {
@@ -639,9 +652,31 @@ public class EstablishService {
             player.sendMessage("Camp moved.");
         } else {
             player.sendMessage("You established an archaeological excavation.");
-            player.sendMessage(site.displayLabel());
-            player.sendMessage("Director: " + player.getName());
+            player.sendMessage("Interact with the camp to see the site record.");
         }
+    }
+
+    /**
+     * @param player kit holder
+     * @return whether they already direct as many open camps as the config allows
+     */
+    private boolean atDirectorCap(Player player) {
+        if (settings.unlimitedExcavations()) {
+            return false;
+        }
+        return sites.countDirectedCamps(player.getUniqueId()) >= settings.maxExcavations();
+    }
+
+    /**
+     * @return chat and HUD copy when a new camp would exceed {@code establish.max-excavations}
+     */
+    private String directorCapHint() {
+        int cap = settings.maxExcavations();
+        if (cap == 1) {
+            return "You already direct an excavation. Close it at the camp before establishing another.";
+        }
+        return "You already direct " + cap
+                + " excavations. Close one at its camp before establishing another.";
     }
 
     /**

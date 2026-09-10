@@ -6,7 +6,7 @@ import java.util.List;
  * Shared excavation rules from {@code excavation:}.
  *
  * @param enabled whether the cut clock runs
- * @param jornadaActions pick cycles restored each Minecraft day
+ * @param jornadaActions pick cycles restored each Minecraft day; {@code 0} means no daily cap
  * @param visualCues particles and subtitles that mirror clings for players without sound
  * @param findDust whether exposed find cells shed motes
  * @param findDustIntervalTicks ticks between leak bursts on an open find cell
@@ -44,5 +44,12 @@ public record PickSettings(
                 true,
                 List.of(ExcavationTool.hand(), ExcavationTool.light(), ExcavationTool.heavy())
         );
+    }
+
+    /**
+     * @return whether Hand Pick cuts do not spend a daily budget
+     */
+    public boolean unlimitedWorkday() {
+        return jornadaActions <= 0;
     }
 }

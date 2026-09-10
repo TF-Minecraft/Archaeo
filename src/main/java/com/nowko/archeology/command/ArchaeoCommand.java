@@ -381,6 +381,10 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      * @return {@code true} always (handled)
      */
     private boolean handleWorkdayReset(CommandSender sender, String[] args) {
+        if (catalogs.pick().unlimitedWorkday()) {
+            sender.sendMessage("Work-day actions are unlimited (excavation.workday-actions: 0). Nothing to reset.");
+            return true;
+        }
         if (args.length >= 3 && "all".equalsIgnoreCase(args[2])) {
             int count = 0;
             for (Site site : sites.all()) {

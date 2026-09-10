@@ -155,7 +155,7 @@ public class HandPickService {
             return;
         }
         ensureJornada(site, player.getWorld());
-        if (site.getJornadaPickLeft() < tool.jornadaCost()) {
+        if (!hasWorkday(site, tool.jornadaCost())) {
             warn(player, "The excavation work day is over.");
             return;
         }
@@ -280,9 +280,12 @@ public class HandPickService {
      *
      * @param site established site
      * @param world used for the current Minecraft day id
-     * @return actions after refill
+     * @return actions after refill, or {@code 0} when the work day is uncapped
      */
     public int refillJornada(Site site, World world) {
+        if (settings.unlimitedWorkday()) {
+            return 0;
+        }
         ensureJornada(site, world);
         site.setJornadaPickLeft(settings.jornadaActions());
         sites.save(site);
@@ -297,12 +300,42 @@ public class HandPickService {
      * @param world site world
      */
     public void ensureJornada(Site site, World world) {
+        if (settings.unlimitedWorkday()) {
+            return;
+        }
         long day = world.getFullTime() / 24000L;
         if (site.getJornadaWorldDay() != day) {
             site.setJornadaWorldDay(day);
             site.setJornadaPickLeft(settings.jornadaActions());
             sites.touch(site);
         }
+    }
+
+    /**
+     * @param site excavation
+     * @param cost actions this cut would spend
+     * @return whether the remaining budget covers {@code cost}
+     */
+    private boolean hasWorkday(Site site, int cost) {
+        return settings.unlimitedWorkday() || site.getJornadaPickLeft() >= cost;
+    }
+
+    /**
+     * Spends work-day actions unless the server has turned the daily cap off.
+     *
+     * @param site excavation
+     * @param cost actions this cut spends
+     * @return whether the cut may proceed
+     */
+    private boolean spendWorkday(Site site, int cost) {
+        if (settings.unlimitedWorkday()) {
+            return true;
+        }
+        if (site.getJornadaPickLeft() < cost) {
+            return false;
+        }
+        site.setJornadaPickLeft(site.getJornadaPickLeft() - cost);
+        return true;
     }
 
     /**
@@ -506,11 +539,10 @@ public class HandPickService {
         }
         ensureJornada(site, player.getWorld());
         int cost = cycle.tool.jornadaCost();
-        if (site.getJornadaPickLeft() < cost) {
+        if (!spendWorkday(site, cost)) {
             warn(player, "The excavation work day is over.");
             return;
         }
-        site.setJornadaPickLeft(site.getJornadaPickLeft() - cost);
         List<Block> lifted = LiftPlan.cells(site, block, cycle.tool, late);
         ItemStack tool = player.getInventory().getItemInMainHand();
         WorkerRecord log = site.staffLog(player.getUniqueId());
@@ -728,7 +760,8 @@ public class HandPickService {
         ensureJornada(site, player.getWorld());
         StratumBand band = site.stratumAt(target.getY());
         String layer = band == null ? "—" : band.getId();
-        String text = "STRATUM " + layer + "  ⛏ " + site.getJornadaPickLeft();
+        String pick = settings.unlimitedWorkday() ? "∞" : String.valueOf(site.getJornadaPickLeft());
+        String text = "STRATUM " + layer + "  ⛏ " + pick;
         BuriedFind aimed = site.findAt(new BlockCell(target.getX(), target.getY(), target.getZ())).orElse(null);
         if (aimed != null && aimed.getState() != FindState.HIDDEN && aimed.getState() != FindState.RECOVERED) {
             text += "  " + aimed.getConservation() + "%";
