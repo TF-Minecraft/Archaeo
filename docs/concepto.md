@@ -773,7 +773,7 @@ procesado por material y la conservación quedan planteados, no jugados.
 | **Procesado** | más adelante | Un gesto ligado al material (`materials.yml`): lavar cerámica, no mojar hierro. Desbloquea **hechos** que sesgan la mesa. No es rareza-premio ni la respuesta correcta. | La fila (`observables`). El lore, si la pieza sigue. |
 | **Clasificación** | sí | En la **mesa** del campamento: se pone la pieza; por cada pregunta, tres ofertas; se firma como máximo una. Estado *Catalogued* al firmar al menos un tipo. Detalle **§5**. | La fila (una lectura por tipo, autor, fecha). Si la pieza está a mano, se copia al lore. |
 | **Informe** | sí | Al agotar el yacimiento, el director saca un libro firmado (tantas copias como quiera). Las reimpresiones leen el registro **vivo**. | `WRITTEN_BOOK` de viaje. El canónico sigue siendo el YAML. |
-| **Conservar / exponer** | exponer sí | Shift+clic en un hallazgo Archaeo (marco, shelf, atril, armor stand) abre la ficha. Vacío o no-Archaeo no se toca. Conservar, más adelante. | — |
+| **Conservar / exponer** | exponer sí | Shift+clic en un hallazgo Archaeo en un soporte de `museum.displays` abre la ficha. Vacío o no-Archaeo no se toca. Conservar, más adelante. | — |
 
 Tres clases de información, para no mezclarlas:
 
@@ -931,7 +931,8 @@ El catálogo de lecturas de pieza (por tipo) está en **§5**. “Asentamiento�
 ### Museos
 
 No hay ficha de museo en disco. El jugador construye un edificio y coloca
-piezas en marcos, shelves, atriles o armor stands. **Shift + clic derecho**
+piezas en los soportes listados en `config.yml` (`museum.displays`: marcos,
+shelves, atriles, armor stands, y opcionalmente ItemsAdder). **Shift + clic derecho**
 sobre un hallazgo Archaeo abre la ficha del yacimiento (la misma consulta que
 el tablón). Hueco vacío u objeto vanilla: no hay lógica custom, Minecraft
 normal. El clic sin shift también es vanilla: colgar, rotar, sacar.
@@ -1574,7 +1575,7 @@ puede imprimir un informe firmado (libro escrito) tantas veces como quiera.
 
 ## 7. Museos — propuesta
 
-Un museo es roleplay: un edificio y soportes vanilla. Shift + clic en un
+Un museo es roleplay: un edificio y los soportes de `museum.displays`. Shift + clic en un
 hallazgo Archaeo abre la ficha. Vacío o un ítem que no es de Archaeo no
 cambia el clic. El archivo del yacimiento es lo que lo hace barato; no hay
 `museums/` en disco.

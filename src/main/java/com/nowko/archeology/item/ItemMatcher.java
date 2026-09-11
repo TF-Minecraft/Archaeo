@@ -1,6 +1,8 @@
 package com.nowko.archeology.item;
 
 import org.bukkit.Material;
+import org.bukkit.block.Block;
+import org.bukkit.entity.Entity;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -18,6 +20,11 @@ public final class ItemMatcher {
     private final Method iaNamespacedId;
     private final Method iaGetInstance;
     private final Method iaGetItemStack;
+    private final Method iaFurnitureByBlock;
+    private final Method iaFurnitureByEntity;
+    private final Method iaFurnitureId;
+    private final Method iaBlockByPlaced;
+    private final Method iaBlockId;
     private final Object miPlugin;
     private final Method miTypeName;
     private final Method miId;
@@ -29,6 +36,11 @@ public final class ItemMatcher {
      * @param iaNamespacedId ItemsAdder {@code getNamespacedID}
      * @param iaGetInstance ItemsAdder {@code CustomStack.getInstance}
      * @param iaGetItemStack ItemsAdder {@code CustomStack.getItemStack}
+     * @param iaFurnitureByBlock ItemsAdder {@code CustomFurniture.byAlreadySpawned(Block)}
+     * @param iaFurnitureByEntity ItemsAdder {@code CustomFurniture.byAlreadySpawned(Entity)}
+     * @param iaFurnitureId ItemsAdder furniture {@code getNamespacedID}
+     * @param iaBlockByPlaced ItemsAdder {@code CustomBlock.byAlreadyPlaced}
+     * @param iaBlockId ItemsAdder custom-block {@code getNamespacedID}
      * @param miPlugin MMOItems plugin singleton
      * @param miTypeName MMOItems {@code getTypeName}
      * @param miId MMOItems {@code getID}
@@ -40,6 +52,11 @@ public final class ItemMatcher {
             Method iaNamespacedId,
             Method iaGetInstance,
             Method iaGetItemStack,
+            Method iaFurnitureByBlock,
+            Method iaFurnitureByEntity,
+            Method iaFurnitureId,
+            Method iaBlockByPlaced,
+            Method iaBlockId,
             Object miPlugin,
             Method miTypeName,
             Method miId,
@@ -50,6 +67,11 @@ public final class ItemMatcher {
         this.iaNamespacedId = iaNamespacedId;
         this.iaGetInstance = iaGetInstance;
         this.iaGetItemStack = iaGetItemStack;
+        this.iaFurnitureByBlock = iaFurnitureByBlock;
+        this.iaFurnitureByEntity = iaFurnitureByEntity;
+        this.iaFurnitureId = iaFurnitureId;
+        this.iaBlockByPlaced = iaBlockByPlaced;
+        this.iaBlockId = iaBlockId;
         this.miPlugin = miPlugin;
         this.miTypeName = miTypeName;
         this.miId = miId;
@@ -60,7 +82,9 @@ public final class ItemMatcher {
      * @return matcher with no pack plugins bound
      */
     public static ItemMatcher vanillaOnly() {
-        return new ItemMatcher(null, null, null, null, null, null, null, null, null);
+        return new ItemMatcher(
+                null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null);
     }
 
     /**
@@ -74,6 +98,11 @@ public final class ItemMatcher {
         Method iaNamespacedId = null;
         Method iaGetInstance = null;
         Method iaGetItemStack = null;
+        Method iaFurnitureByBlock = null;
+        Method iaFurnitureByEntity = null;
+        Method iaFurnitureId = null;
+        Method iaBlockByPlaced = null;
+        Method iaBlockId = null;
         Object miPlugin = null;
         Method miTypeName = null;
         Method miId = null;
@@ -87,6 +116,21 @@ public final class ItemMatcher {
                 iaGetItemStack = customStack.getMethod("getItemStack");
             } catch (ClassNotFoundException | NoSuchMethodException exception) {
                 plugin.getLogger().log(Level.WARNING, "ItemsAdder is enabled but its API could not be bound.", exception);
+            }
+            try {
+                Class<?> furniture = Class.forName("dev.lone.itemsadder.api.CustomFurniture");
+                iaFurnitureByBlock = furniture.getMethod("byAlreadySpawned", Block.class);
+                iaFurnitureByEntity = furniture.getMethod("byAlreadySpawned", Entity.class);
+                iaFurnitureId = furniture.getMethod("getNamespacedID");
+            } catch (ClassNotFoundException | NoSuchMethodException exception) {
+                plugin.getLogger().warning("ItemsAdder furniture API is missing; placed cabinets cannot match pack furniture.");
+            }
+            try {
+                Class<?> customBlock = Class.forName("dev.lone.itemsadder.api.CustomBlock");
+                iaBlockByPlaced = customBlock.getMethod("byAlreadyPlaced", Block.class);
+                iaBlockId = customBlock.getMethod("getNamespacedID");
+            } catch (ClassNotFoundException | NoSuchMethodException ignored) {
+                // Custom blocks are optional.
             }
         }
         if (pluginEnabled(plugin, "MMOItems")) {
@@ -106,6 +150,11 @@ public final class ItemMatcher {
                 iaNamespacedId,
                 iaGetInstance,
                 iaGetItemStack,
+                iaFurnitureByBlock,
+                iaFurnitureByEntity,
+                iaFurnitureId,
+                iaBlockByPlaced,
+                iaBlockId,
                 miPlugin,
                 miTypeName,
                 miId,
@@ -123,6 +172,43 @@ public final class ItemMatcher {
             case ITEMSADDER -> matchesItemsAdder(stack, ref);
             case MMOITEMS -> matchesMmoItems(stack, ref);
         };
+    }
+
+    /**
+     * @param block clicked world block, or {@code null}
+     * @param ref configured cabinet
+     * @return whether this block is that vanilla type or ItemsAdder furniture/block
+     */
+    public boolean matchesPlaced(Block block, ItemRef ref) {
+        if (block == null || ref == null) {
+            return false;
+        }
+        return switch (ref.kind()) {
+            case VANILLA -> block.getType() == ref.vanillaMaterial();
+            case ITEMSADDER -> idEquals(itemsAdderPlacedId(block), ref.primary());
+            case MMOITEMS -> false;
+        };
+    }
+
+    /**
+     * @param entity clicked furniture entity, or {@code null}
+     * @param ref configured cabinet
+     * @return whether this entity is that ItemsAdder furniture
+     */
+    public boolean matchesEntity(Entity entity, ItemRef ref) {
+        if (entity == null || ref == null || ref.kind() != ItemRef.Kind.ITEMSADDER) {
+            return false;
+        }
+        return idEquals(itemsAdderEntityId(entity), ref.primary());
+    }
+
+    /**
+     * @param namespacedId ItemsAdder {@code namespace:id}, or {@code null}
+     * @param ref configured cabinet
+     * @return whether the id is that furniture
+     */
+    public boolean matchesNamespacedId(String namespacedId, ItemRef ref) {
+        return ref != null && ref.kind() == ItemRef.Kind.ITEMSADDER && idEquals(namespacedId, ref.primary());
     }
 
     /**
@@ -260,6 +346,57 @@ public final class ItemMatcher {
         } catch (ReflectiveOperationException ignored) {
             return null;
         }
+    }
+
+    /**
+     * @param block placed block
+     * @return ItemsAdder furniture or custom-block id, or {@code null}
+     */
+    private String itemsAdderPlacedId(Block block) {
+        String furniture = invokeNamespaced(iaFurnitureByBlock, iaFurnitureId, block);
+        if (furniture != null) {
+            return furniture;
+        }
+        return invokeNamespaced(iaBlockByPlaced, iaBlockId, block);
+    }
+
+    /**
+     * @param entity furniture entity
+     * @return namespaced id, or {@code null}
+     */
+    private String itemsAdderEntityId(Entity entity) {
+        return invokeNamespaced(iaFurnitureByEntity, iaFurnitureId, entity);
+    }
+
+    /**
+     * @param lookup static {@code byAlreadySpawned} / {@code byAlreadyPlaced}
+     * @param idMethod {@code getNamespacedID}
+     * @param argument block or entity
+     * @return id, or {@code null}
+     */
+    private String invokeNamespaced(Method lookup, Method idMethod, Object argument) {
+        if (lookup == null || idMethod == null || argument == null) {
+            return null;
+        }
+        try {
+            Object custom = lookup.invoke(null, argument);
+            if (custom == null) {
+                return null;
+            }
+            Object id = idMethod.invoke(custom);
+            return id == null ? null : String.valueOf(id).toLowerCase(Locale.ROOT);
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * @param left live id
+     * @param right configured id
+     * @return case-insensitive match
+     */
+    private static boolean idEquals(String left, String right) {
+        return left != null && right != null && left.equalsIgnoreCase(right);
     }
 
     /**

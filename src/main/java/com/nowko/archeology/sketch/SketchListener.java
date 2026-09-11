@@ -312,12 +312,19 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onEntity(PlayerInteractEntityEvent event) {
-        if (!sketches.editing(event.getPlayer())) {
+        Player player = event.getPlayer();
+        if (!sketches.editing(player)
+                && event.getHand() == EquipmentSlot.HAND
+                && sketches.tryOpenCabinet(player, null, event.getRightClicked(), null, player.isSneaking())) {
+            event.setCancelled(true);
+            return;
+        }
+        if (!sketches.editing(player)) {
             return;
         }
         event.setCancelled(true);
         if (event.getHand() == EquipmentSlot.HAND) {
-            sketches.erase(event.getPlayer());
+            sketches.erase(player);
         }
     }
 
@@ -326,7 +333,14 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onArmorStand(PlayerInteractAtEntityEvent event) {
-        if (sketches.editing(event.getPlayer())) {
+        Player player = event.getPlayer();
+        if (!sketches.editing(player)
+                && event.getHand() == EquipmentSlot.HAND
+                && sketches.tryOpenCabinet(player, null, event.getRightClicked(), null, player.isSneaking())) {
+            event.setCancelled(true);
+            return;
+        }
+        if (sketches.editing(player)) {
             event.setCancelled(true);
         }
     }

@@ -6,6 +6,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -116,6 +117,58 @@ public record ItemRef(Kind kind, String primary, String secondary) {
     }
 
     /**
+     * Parses a YAML list whose entries may be strings or one-key maps from unquoted colons.
+     *
+     * @param plugin logger for unknown tokens
+     * @param values {@code getList} result
+     * @return parsed refs, possibly empty
+     */
+    public static List<ItemRef> parseYamlList(JavaPlugin plugin, List<?> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        List<ItemRef> refs = new ArrayList<>();
+        for (Object value : values) {
+            parse(plugin, yamlToken(value)).ifPresent(refs::add);
+        }
+        return List.copyOf(refs);
+    }
+
+    /**
+     * Turns a YAML scalar or a one-key nested map back into {@code prefix:a:b}.
+     *
+     * @param value Bukkit {@code get} / list entry
+     * @return parseable token, or {@code null}
+     */
+    public static String yamlToken(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String text) {
+            return text.isBlank() ? null : text.trim();
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return String.valueOf(value);
+        }
+        if (value instanceof org.bukkit.configuration.ConfigurationSection section) {
+            return yamlToken(section.getValues(false));
+        }
+        if (value instanceof Map<?, ?> map) {
+            if (map.size() != 1) {
+                return null;
+            }
+            Map.Entry<?, ?> entry = map.entrySet().iterator().next();
+            String key = String.valueOf(entry.getKey()).trim();
+            String rest = yamlToken(entry.getValue());
+            if (rest == null || rest.isBlank()) {
+                return key.isBlank() ? null : key;
+            }
+            return key + ":" + rest;
+        }
+        return String.valueOf(value).trim();
+    }
+
+    /**
      * @param plugin logger for unknown tokens
      * @param raw YAML token
      * @param fallback used when {@code raw} is blank or invalid
@@ -148,10 +201,18 @@ public record ItemRef(Kind kind, String primary, String secondary) {
             if ("minecraft".equals(prefix)) {
                 return vanillaName(plugin, rest);
             }
+            Material namespaced = Material.matchMaterial(token);
+            if (namespaced != null) {
+                return Optional.of(vanilla(namespaced));
+            }
+            return itemsAdder(plugin, token, token);
         }
         String upper = token.toUpperCase(Locale.ROOT);
         if ("AIR".equals(upper) || "HAND".equals(upper) || "EMPTY".equals(upper) || "EMPTY_HAND".equals(upper)) {
             return Optional.of(air());
+        }
+        if ("ITEM_DISPLAY".equals(upper) || "SHELF".equals(upper)) {
+            return Optional.of(new ItemRef(Kind.VANILLA, upper, ""));
         }
         return vanillaName(plugin, token);
     }

@@ -45,6 +45,7 @@ public class CatalogRegistry {
     private PickSettings pick = PickSettings.defaults();
     private RecoverySettings recovery = RecoverySettings.defaults();
     private SketchSettings sketch = SketchSettings.defaults();
+    private MuseumSettings museum = MuseumSettings.defaults();
     private ToolWearSettings toolWear = ToolWearSettings.defaults();
     private ItemMaterials items = ItemMaterials.defaults();
     private String staffPermission = "archaeo.admin";
@@ -80,6 +81,7 @@ public class CatalogRegistry {
         loadToolWear(config);
         loadRecovery(config);
         loadSketch(config);
+        loadMuseum(config);
         loadStaffPermission(config);
         loadStrata(yaml("strata.yml"));
         loadArtifacts(yaml("artifacts.yml"));
@@ -434,6 +436,13 @@ public class CatalogRegistry {
      */
     public SketchSettings sketch() {
         return sketch;
+    }
+
+    /**
+     * @return world supports that open a find plaque on sneak-use
+     */
+    public MuseumSettings museum() {
+        return museum;
     }
 
     /**
@@ -1129,12 +1138,24 @@ public class CatalogRegistry {
         }
         sketch = new SketchSettings(
                 Math.max(0, section.getInt("pencil-uses", fallback.pencilUses())),
-                ConfigEnums.material(
-                        plugin,
-                        section.getString("cabinet"),
-                        fallback.cabinet(),
-                        "sketch.cabinet"),
+                ItemRef.parseOr(plugin, section.getString("cabinet"), fallback.cabinet()),
                 loadLab(section.getConfigurationSection("lab"), fallback.lab()));
+    }
+
+    /**
+     * Reads plaque supports from {@code museum.displays}. Missing key keeps packaged vanilla furniture.
+     *
+     * @param config root plugin config
+     */
+    private void loadMuseum(FileConfiguration config) {
+        MuseumSettings fallback = MuseumSettings.defaults();
+        ConfigurationSection section = config.getConfigurationSection("museum");
+        if (section == null || !section.contains("displays")) {
+            museum = fallback;
+            return;
+        }
+        List<ItemRef> displays = ItemRef.parseYamlList(plugin, section.getList("displays"));
+        museum = new MuseumSettings(List.copyOf(displays));
     }
 
     /**

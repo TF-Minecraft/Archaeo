@@ -4,6 +4,7 @@ import com.nowko.archeology.config.ArtifactTemplate;
 import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.config.SketchSettings;
 import com.nowko.archeology.establish.CampIdentifyBoard;
+import com.nowko.archeology.item.ItemMatcher;
 import com.nowko.archeology.item.RecoveredFindItem;
 import com.nowko.archeology.item.SketchSupplies;
 import com.nowko.archeology.model.BuriedFind;
@@ -24,6 +25,7 @@ import org.bukkit.block.Block;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlotGroup;
@@ -56,6 +58,7 @@ public class SketchService {
     private final SiteRepository sites;
     private final CatalogRegistry catalogs;
     private SketchSettings settings;
+    private ItemMatcher matcher = ItemMatcher.vanillaOnly();
     private final CabinetLab lab;
     private final NamespacedKey markerKey;
     private final NamespacedKey cellsKey;
@@ -121,6 +124,13 @@ public class SketchService {
     public void setSettings(SketchSettings settings) {
         this.settings = settings == null ? SketchSettings.defaults() : settings;
         this.lab.setSettings(this.settings);
+    }
+
+    /**
+     * @param matcher ItemsAdder furniture lookup
+     */
+    public void setMatcher(ItemMatcher matcher) {
+        this.matcher = matcher == null ? ItemMatcher.vanillaOnly() : matcher;
     }
 
     /**
@@ -272,7 +282,7 @@ public class SketchService {
      * @return whether this is the configured cabinet
      */
     public boolean isCabinet(Block block) {
-        return block != null && settings != null && block.getType() == settings.cabinet();
+        return settings != null && matcher.matchesPlaced(block, settings.cabinet());
     }
 
     /**
@@ -286,8 +296,37 @@ public class SketchService {
      * @return whether the cabinet handled the click
      */
     public boolean tryOpenCabinet(Player player, Block block, boolean sneaking) {
-        if (player == null || editing(player) || sneaking || !isCabinet(block)) {
+        return tryOpenCabinet(player, null, null, block, sneaking);
+    }
+
+    /**
+     * Same as {@link #tryOpenCabinet(Player, Block, boolean)} for ItemsAdder furniture clicks.
+     *
+     * @param player clicker
+     * @param namespacedId ItemsAdder furniture id, or {@code null}
+     * @param entity furniture entity, or {@code null}
+     * @param block block under the furniture, or {@code null}
+     * @param sneaking whether the player is sneaking
+     * @return whether the cabinet handled the click
+     */
+    public boolean tryOpenCabinet(
+            Player player,
+            String namespacedId,
+            Entity entity,
+            Block block,
+            boolean sneaking
+    ) {
+        if (player == null || editing(player) || sneaking || settings == null) {
             return false;
+        }
+        boolean cabinet = matcher.matchesNamespacedId(namespacedId, settings.cabinet())
+                || matcher.matchesEntity(entity, settings.cabinet())
+                || matcher.matchesPlaced(block, settings.cabinet());
+        if (!cabinet) {
+            return false;
+        }
+        if (block == null && entity != null) {
+            block = entity.getLocation().getBlock();
         }
         ItemStack hand = player.getInventory().getItemInMainHand();
         if (!recovered.isRecovered(hand)) {

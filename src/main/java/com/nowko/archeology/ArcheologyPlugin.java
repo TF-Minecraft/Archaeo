@@ -16,6 +16,7 @@ import com.nowko.archeology.excavation.RecoverService;
 import com.nowko.archeology.item.BrushItem;
 import com.nowko.archeology.item.EstablishItem;
 import com.nowko.archeology.item.ItemMatcher;
+import com.nowko.archeology.item.PackPluginHook;
 import com.nowko.archeology.item.ProspectItem;
 import com.nowko.archeology.item.RecoveredFindItem;
 import com.nowko.archeology.item.RecoveredFindListener;
@@ -55,6 +56,7 @@ public class ArcheologyPlugin extends JavaPlugin {
     private RecoverService recover;
     private SketchSupplies sketchSupplies;
     private SketchService sketch;
+    private MuseumListener museum;
 
     /**
      * Copies missing default YAML, loads catalogs and saved sites, starts the dossier flusher, and starts gameplay loops.
@@ -77,7 +79,6 @@ public class ArcheologyPlugin extends JavaPlugin {
                 catalogs.items().sketchPencil(),
                 catalogs.sketch().pencilUses());
         digTools = new DigTools();
-        bindItemMatcher(ItemMatcher.detect(this));
         tracker = new TrackerService(this, sites, trackerItem, catalogs.tracker());
         tracker.start();
         prospect = new ProspectService(this, catalogs, sites, prospectItem, catalogs.prospect());
@@ -122,9 +123,10 @@ public class ArcheologyPlugin extends JavaPlugin {
         sketch = new SketchService(this, sketchSupplies, recoveredFindItem, sites, catalogs, catalogs.sketch());
         sketch.start();
         getServer().getPluginManager().registerEvents(new SketchListener(sketch), this);
-        getServer().getPluginManager().registerEvents(
-                new MuseumListener(sites, catalogs, recoveredFindItem),
-                this);
+        museum = new MuseumListener(sites, catalogs, recoveredFindItem);
+        getServer().getPluginManager().registerEvents(museum, this);
+        bindItemMatcher(ItemMatcher.detect(this));
+        PackPluginHook.register(this);
 
         ArchaeoCommand command = new ArchaeoCommand(
                 this,
@@ -175,6 +177,12 @@ public class ArcheologyPlugin extends JavaPlugin {
         if (digTools != null) {
             digTools.setMatcher(bound);
         }
+        if (sketch != null) {
+            sketch.setMatcher(bound);
+        }
+        if (museum != null) {
+            museum.setMatcher(bound);
+        }
     }
 
     /**
@@ -216,6 +224,13 @@ public class ArcheologyPlugin extends JavaPlugin {
      */
     public SketchService sketch() {
         return sketch;
+    }
+
+    /**
+     * @return plaque opens from configured display furniture
+     */
+    public MuseumListener museum() {
+        return museum;
     }
 
     /**

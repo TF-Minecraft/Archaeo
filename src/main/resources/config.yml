@@ -9,6 +9,9 @@
 #   materials.yml         find-material labels (and later lab chains)
 #
 # Item ids: STONE_HOE | itemsadder:namespace:id | mmoitems:TYPE:id
+# ItemsAdder: namespace is the pack name (info.namespace in the YAML), not "furniture".
+# The item key under items: is the id. Example: itemsadder:archeo:archeology_cabinet
+# Quote pack ids so YAML keeps the colons as one string.
 # Any matching stack works (crafted, given, or from a pack). Pack items keep the pack look.
 # A vanilla id such as STICK matches every vanilla stick, not a custom pack stick.
 # Sketch paper/pencil: matching still uses that id, but Archaeo does not rewrite lore on
@@ -202,10 +205,11 @@ sketch:
   # pencil: "mmoitems:TOOL:ARCHAEO_PENCIL"
   # Sketches one pencil survives. 0 = never wears and has no durability bar.
   pencil-uses: 64
-  # Any block of this type is a cabinet. Right-click with a recovered piece in hand:
-  # uncleaned opens the lab wipe; cleaned without a drawing opens Register (furnace:
-  # top = drawing, fuel = the piece, result = Register); a filed drawing opens a
-  # reading. Empty hand does not open a window. Sneak for vanilla.
+  # Vanilla block, or ItemsAdder furniture: "itemsadder:namespace:id"
+  # (namespace from the pack YAML info.namespace; id from the items: key).
+  # Right-click with a recovered piece in hand: uncleaned opens the lab wipe;
+  # cleaned without a drawing opens Register; a filed drawing opens a reading.
+  # Empty hand does not open a window. Sneak for vanilla.
   cabinet: CARTOGRAPHY_TABLE
   # First lab step: open this inventory with the piece in hand. Pick a tool from the
   # rack and click each dirty pane. Stain colour, name, and
@@ -247,3 +251,17 @@ sketch:
         display-name: Mud
         glass: BROWN_STAINED_GLASS_PANE
         tool: air
+
+# Shift+right-click a recovered find on these supports to open its plaque.
+# Vanilla clicks without shift stay Minecraft (hang, rotate, take).
+# Quote pack ids: "itemsadder:tfmc:vitrine"
+museum:
+  displays:
+    - ITEM_FRAME
+    - GLOW_ITEM_FRAME
+    - ARMOR_STAND
+    - LECTERN
+    - SHELF
+    # - ITEM_DISPLAY
+    # - "itemsadder:tfmc:display_case"
+

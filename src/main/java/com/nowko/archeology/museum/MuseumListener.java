@@ -2,14 +2,19 @@ package com.nowko.archeology.museum;
 
 import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.establish.CampFindBoard;
+import com.nowko.archeology.item.ItemMatcher;
 import com.nowko.archeology.item.RecoveredFindItem;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.site.SiteRepository;
+import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Lectern;
 import org.bukkit.block.Shelf;
+import org.bukkit.entity.ArmorStand;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Pose;
@@ -21,14 +26,17 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
- * Opens the archive plaque from a recovered Archaeo piece sitting in vanilla display furniture.
+ * Opens the archive plaque from a recovered Archaeo piece sitting in a configured display.
  * Empty supports and vanilla items are ignored: sneak then still means Minecraft. Normal clicks
  * stay vanilla so exhibits can be hung, rotated, and taken.
  */
@@ -36,10 +44,11 @@ public final class MuseumListener implements Listener {
     private final SiteRepository sites;
     private final CatalogRegistry catalogs;
     private final RecoveredFindItem recovered;
+    private ItemMatcher matcher = ItemMatcher.vanillaOnly();
 
     /**
      * @param sites live excavation archive
-     * @param catalogs labels on the plaque
+     * @param catalogs labels on the plaque and {@code museum.displays}
      * @param recovered PDC tags that point a displayed stack at its dossier row
      */
     public MuseumListener(SiteRepository sites, CatalogRegistry catalogs, RecoveredFindItem recovered) {
@@ -49,8 +58,15 @@ public final class MuseumListener implements Listener {
     }
 
     /**
-     * Shelf slot or lectern book: sneak-use opens the plaque instead of inserting, swapping, or
-     * opening vanilla pages.
+     * @param matcher ItemsAdder furniture lookup
+     */
+    public void setMatcher(ItemMatcher matcher) {
+        this.matcher = matcher == null ? ItemMatcher.vanillaOnly() : matcher;
+    }
+
+    /**
+     * Shelf, lectern, or listed ItemsAdder furniture: sneak-use opens the plaque instead of
+     * inserting, swapping, or opening vanilla pages.
      *
      * @param event block use
      */
@@ -67,15 +83,11 @@ public final class MuseumListener implements Listener {
             return;
         }
         Block block = event.getClickedBlock();
-        if (block == null) {
+        if (block == null || !catalogs.museum().allowsSupport(null, null, block, matcher)) {
             return;
         }
-        BlockState state = block.getState();
-        if (!(state instanceof Lectern) && !(state instanceof Shelf)) {
-            return;
-        }
-        ItemStack displayed = displayedOnBlock(state, event.getClickedPosition());
-        if (!recovered.isRecovered(displayed)) {
+        ItemStack displayed = firstRecovered(displayedOnBlock(block.getState(), event.getClickedPosition()));
+        if (displayed == null) {
             return;
         }
         openPlaque(player, displayed);
@@ -83,26 +95,27 @@ public final class MuseumListener implements Listener {
     }
 
     /**
-     * Item frame (including glow frames): sneak-use reads the hung piece instead of rotating it.
+     * Item frame, glow frame, item display, or listed ItemsAdder furniture entity.
      *
      * @param event entity use
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onFrame(PlayerInteractEntityEvent event) {
+    public void onEntity(PlayerInteractEntityEvent event) {
         if (event.getHand() != EquipmentSlot.HAND) {
-            return;
-        }
-        if (!(event.getRightClicked() instanceof ItemFrame frame)) {
             return;
         }
         if (!sneaking(event.getPlayer())) {
             return;
         }
-        ItemStack hung = frame.getItem();
-        if (!recovered.isRecovered(hung)) {
+        Entity clicked = event.getRightClicked();
+        if (!catalogs.museum().allowsSupport(null, clicked, null, matcher)) {
             return;
         }
-        openPlaque(event.getPlayer(), hung);
+        ItemStack displayed = firstRecovered(displayedOnEntity(clicked));
+        if (displayed == null) {
+            return;
+        }
+        openPlaque(event.getPlayer(), displayed);
         event.setCancelled(true);
     }
 
@@ -119,6 +132,10 @@ public final class MuseumListener implements Listener {
         if (!sneaking(event.getPlayer())) {
             return;
         }
+        if (!catalogs.museum().allowsVanilla(Material.ARMOR_STAND)
+                && !catalogs.museum().allowsEntity(event.getRightClicked(), matcher)) {
+            return;
+        }
         ItemStack worn = event.getArmorStandItem();
         if (!recovered.isRecovered(worn)) {
             return;
@@ -128,25 +145,111 @@ public final class MuseumListener implements Listener {
     }
 
     /**
+     * ItemsAdder furniture click (from {@code FurnitureInteractEvent}).
+     *
+     * @param player clicker
+     * @param namespacedId furniture id, or {@code null}
+     * @param entity furniture entity, or {@code null}
+     * @param block block under the furniture, or {@code null}
+     * @param sneaking whether sneak is held
+     * @return whether the plaque opened
+     */
+    public boolean tryOpenFromSupport(
+            Player player,
+            String namespacedId,
+            Entity entity,
+            Block block,
+            boolean sneaking
+    ) {
+        if (player == null || !sneaking) {
+            return false;
+        }
+        if (!catalogs.museum().allowsSupport(namespacedId, entity, block, matcher)) {
+            return false;
+        }
+        List<ItemStack> stacks = new ArrayList<>();
+        stacks.addAll(displayedOnEntity(entity));
+        if (block != null) {
+            stacks.addAll(displayedOnBlock(block.getState(), null));
+        }
+        ItemStack displayed = firstRecovered(stacks);
+        if (displayed == null) {
+            return false;
+        }
+        openPlaque(player, displayed);
+        return true;
+    }
+
+    /**
      * Resolves the stack the player is pointing at on a lectern or shelf.
      *
      * @param state lectern or shelf
      * @param click relative click, {@code 0..1} per axis, or {@code null}
-     * @return displayed stack, or {@code null} when the slot is empty or unknown
+     * @return displayed stacks, possibly empty
      */
-    private static ItemStack displayedOnBlock(BlockState state, Vector click) {
+    private static List<ItemStack> displayedOnBlock(BlockState state, Vector click) {
+        List<ItemStack> stacks = new ArrayList<>();
         if (state instanceof Lectern lectern) {
-            return lectern.getInventory().getItem(0);
+            stacks.add(lectern.getInventory().getItem(0));
+            return stacks;
         }
         if (state instanceof Shelf shelf) {
             if (click == null) {
-                return null;
+                for (ItemStack stack : shelf.getInventory().getContents()) {
+                    stacks.add(stack);
+                }
+                return stacks;
             }
             int slot = shelf.getSlot(click);
-            if (slot < 0) {
-                return null;
+            if (slot >= 0) {
+                stacks.add(shelf.getInventory().getItem(slot));
             }
-            return shelf.getInventory().getItem(slot);
+            return stacks;
+        }
+        return stacks;
+    }
+
+    /**
+     * @param entity frame, display, armor stand, or furniture root
+     * @return stacks that entity is showing
+     */
+    private static List<ItemStack> displayedOnEntity(Entity entity) {
+        List<ItemStack> stacks = new ArrayList<>();
+        if (entity instanceof ItemFrame frame) {
+            stacks.add(frame.getItem());
+            return stacks;
+        }
+        if (entity instanceof ItemDisplay display) {
+            stacks.add(display.getItemStack());
+            return stacks;
+        }
+        if (entity instanceof ArmorStand stand) {
+            EntityEquipment equipment = stand.getEquipment();
+            if (equipment == null) {
+                return stacks;
+            }
+            stacks.add(equipment.getItemInMainHand());
+            stacks.add(equipment.getItemInOffHand());
+            stacks.add(equipment.getHelmet());
+            stacks.add(equipment.getChestplate());
+            stacks.add(equipment.getLeggings());
+            stacks.add(equipment.getBoots());
+        }
+        return stacks;
+    }
+
+    /**
+     * @param stacks candidates, may contain {@code null}
+     * @return first recovered find, or {@code null}
+     */
+    private ItemStack firstRecovered(List<ItemStack> stacks) {
+        if (stacks == null) {
+            return null;
+        }
+        for (ItemStack stack : stacks) {
+            if (recovered.isRecovered(stack)) {
+                return stack;
+            }
         }
         return null;
     }
