@@ -3,7 +3,7 @@ main: com.nowko.archeology.ArcheologyPlugin
 version: 1.0
 api-version: "1.21"
 author: nowko
-description: Persistent archaeology for a custom map.
+description: An archaeology plugin. Hidden ruins you track by ear, a camp beside the cut, and finds you can break as easily as recover.
 
 softdepend:
   - ItemsAdder

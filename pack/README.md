@@ -3,11 +3,15 @@
 Optional drop-ins to ship with the plugin. The jar still starts on vanilla items.
 Copy what you need onto the server and replace models, recipes, or ids.
 
+Player loop: [`GAMEPLAY.md`](GAMEPLAY.md).
+
 MMOItems tools in this pack use **vanilla materials**. There is no custom MMOItems
 resource pack yet; looks stay compass / hoe / stick / pickaxe until that is added.
 
 ```
 pack/
+  README.md
+  GAMEPLAY.md
   plugins/
     Archaeo/config.yml
     MMOItems/

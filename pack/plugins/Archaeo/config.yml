@@ -68,7 +68,7 @@ excavation:
   enabled: true
   visual-cues: true
   # How many successful cuts per Minecraft day. 0 = no work-day cap.
-  workday-actions: 8
+  workday-actions: 0
   conservation:
     # What the ground already took, rolled once per find when the site is generated.
     # Digging can only subtract from this, so a flawless dig does not make a flawless piece.
