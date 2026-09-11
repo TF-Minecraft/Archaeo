@@ -1,4 +1,4 @@
-# Archaeo purchase pack
+# Archaeo custom pack
 
 Optional drop-ins to ship with the plugin. The jar still starts on vanilla items.
 Copy what you need onto the server and replace models, recipes, or ids.

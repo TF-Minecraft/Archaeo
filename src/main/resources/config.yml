@@ -9,7 +9,7 @@
 #   materials.yml         find-material labels (and later lab chains)
 #
 # Item ids: STONE_HOE | itemsadder:namespace:id | mmoitems:TYPE:id
-# Purchase pack (MMOItems tools/station, ItemsAdder furniture, models) lives in pack/.
+# Custom pack (MMOItems tools/station, ItemsAdder furniture, models) lives in pack/.
 # ItemsAdder: namespace is the pack name (info.namespace in the YAML), not "furniture".
 # The item key under items: is the id. Example: itemsadder:archeo:archeology_cabinet
 # Quote pack ids so YAML keeps the colons as one string.
