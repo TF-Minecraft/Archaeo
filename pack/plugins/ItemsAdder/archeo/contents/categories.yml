@@ -1,0 +1,12 @@
+info:
+  namespace: archeo
+categories:
+  archeo:
+    enabled: true
+    icon: archeo:archeology_station
+    name: 'Archeology'
+    lore:
+      - '&7by Drefvelin and Nowko'
+    items:
+      - archeo:archeology_station
+      - archeo:archeology_cabinet

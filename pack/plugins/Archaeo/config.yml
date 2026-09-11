@@ -9,10 +9,6 @@
 #   materials.yml         find-material labels (and later lab chains)
 #
 # Item ids: STONE_HOE | itemsadder:namespace:id | mmoitems:TYPE:id
-# Purchase pack (MMOItems tools/station, ItemsAdder furniture, models) lives in pack/.
-# ItemsAdder: namespace is the pack name (info.namespace in the YAML), not "furniture".
-# The item key under items: is the id. Example: itemsadder:archeo:archeology_cabinet
-# Quote pack ids so YAML keeps the colons as one string.
 # Any matching stack works (crafted, given, or from a pack). Pack items keep the pack look.
 # A vanilla id such as STICK matches every vanilla stick, not a custom pack stick.
 # Sketch paper/pencil: matching still uses that id, but Archaeo does not rewrite lore on
@@ -23,7 +19,7 @@ permissions:
 
 # 1) Find a hidden ruin
 tracker:
-  item: RECOVERY_COMPASS
+  item: "mmoitems:TOOLS:ARCHAEO_TRACKER"
   # item: "mmoitems:TOOL:ARCHAEO_TRACKER"
   enabled: true
   # Hard cap in blocks. Each ruin also has detection-radius in interest.yml; the smaller one wins.
@@ -44,7 +40,7 @@ tracker:
 # (dirt, grass, sand, gravel, clay, mud). Stations, wool, stone, and other
 # furniture are left to vanilla.
 prospect:
-  item: STONE_HOE
+  item: "mmoitems:TOOLS:ARCHAEO_PROSPECT"
   enabled: true
   points-required: 4
   # 20 ticks = 1 second. Moving more than 2 blocks cancels.
@@ -53,7 +49,7 @@ prospect:
 
 # 3) Plant the camp on a neighbour chunk
 establish:
-  item: STICK
+  item: "mmoitems:TOOLS:ARCHAEO_ESTABLISH"
   enabled: true
   # Lock every present stratum band. false = vanilla mining still wounds the dossier.
   protect-dig-site: true
@@ -158,8 +154,8 @@ excavation:
     # Wooden pick / wooden shovel: on time or late, a short shaft.
     light:
       items:
-        - WOODEN_PICKAXE
-        - WOODEN_SHOVEL
+        - "mmoitems:TOOLS:HAND_PICK"
+        - "mmoitems:TOOLS:POINTING_TROWEL"
       lift-on-ready: 1
       lift-if-late: 2
       break-shape: down
@@ -167,16 +163,16 @@ excavation:
     # Stone pick / shovel: 3×3×2 around the aim (2 cubes on time, 4 if late).
     heavy:
       items:
-        - STONE_PICKAXE
-        - STONE_SHOVEL
+        - "mmoitems:TOOLS:MATTOCK"
+        - "mmoitems:TOOLS:GRAFTING_SPADE"
       lift-on-ready: 2
       lift-if-late: 4
       break-shape: around
       workday-cost: 1
     super-heavy:
       items:
-        - IRON_PICKAXE
-        - IRON_SHOVEL
+        - "mmoitems:TOOLS:BREAKER_PICK"
+        - "mmoitems:TOOLS:SPOIL_SHOVEL"
       lift-on-ready: 4
       lift-if-late: 8
       break-shape: random
@@ -202,16 +198,15 @@ excavation:
 sketch:
   paper: PAPER
   # paper: "itemsadder:archeo:field_sheet"
-  pencil: FEATHER
+  pencil: "mmoitems:TOOLS:ARCHAEO_PENCIL"
   # pencil: "mmoitems:TOOL:ARCHAEO_PENCIL"
   # Sketches one pencil survives. 0 = never wears and has no durability bar.
   pencil-uses: 64
-  # Vanilla block, or ItemsAdder furniture: "itemsadder:namespace:id"
-  # (namespace from the pack YAML info.namespace; id from the items: key).
-  # Right-click with a recovered piece in hand: uncleaned opens the lab wipe;
-  # cleaned without a drawing opens Register; a filed drawing opens a reading.
-  # Empty hand does not open a window. Sneak for vanilla.
-  cabinet: CARTOGRAPHY_TABLE
+  # Any block of this type is a cabinet. Right-click with a recovered piece in hand:
+  # uncleaned opens the lab wipe; cleaned without a drawing opens Register (furnace:
+  # top = drawing, fuel = the piece, result = Register); a filed drawing opens a
+  # reading. Empty hand does not open a window. Sneak for vanilla.
+  cabinet: "itemsadder:tfmc:archeology_cabinet"
   # First lab step: open this inventory with the piece in hand. Pick a tool from the
   # rack and click each dirty pane. Stain colour, name, and
   # matching tool live here. materials.yml only lists which stains a material may roll
