@@ -307,18 +307,13 @@ public class SketchListener implements Listener {
 
     /**
      * Right-click on an entity must not open, mount, or trade; it still erases.
+     * ItemsAdder cabinets open only from {@code FurnitureInteractEvent} in {@code PackPluginHook}.
      *
      * @param event entity use
      */
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onEntity(PlayerInteractEntityEvent event) {
         Player player = event.getPlayer();
-        if (!sketches.editing(player)
-                && event.getHand() == EquipmentSlot.HAND
-                && sketches.tryOpenCabinet(player, null, event.getRightClicked(), null, player.isSneaking())) {
-            event.setCancelled(true);
-            return;
-        }
         if (!sketches.editing(player)) {
             return;
         }
@@ -333,14 +328,7 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onArmorStand(PlayerInteractAtEntityEvent event) {
-        Player player = event.getPlayer();
-        if (!sketches.editing(player)
-                && event.getHand() == EquipmentSlot.HAND
-                && sketches.tryOpenCabinet(player, null, event.getRightClicked(), null, player.isSneaking())) {
-            event.setCancelled(true);
-            return;
-        }
-        if (sketches.editing(player)) {
+        if (sketches.editing(event.getPlayer())) {
             event.setCancelled(true);
         }
     }

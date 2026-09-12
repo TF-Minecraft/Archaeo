@@ -19,7 +19,8 @@ public final class PackPluginHook {
     }
 
     /**
-     * Opens the cabinet or a museum plaque when the player right-clicks ItemsAdder furniture.
+     * Sole entry for ItemsAdder furniture cabinets (and museum plaques). Bukkit block/entity
+     * interact handlers must not open the same cabinet, or cues fire twice on one click.
      *
      * @param plugin Archaeo
      */

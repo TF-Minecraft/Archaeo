@@ -5,6 +5,7 @@ import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.config.SketchSettings;
 import com.nowko.archeology.establish.CampIdentifyBoard;
 import com.nowko.archeology.item.ItemMatcher;
+import com.nowko.archeology.item.ItemRef;
 import com.nowko.archeology.item.RecoveredFindItem;
 import com.nowko.archeology.item.SketchSupplies;
 import com.nowko.archeology.model.BuriedFind;
@@ -289,6 +290,10 @@ public class SketchService {
      * Opens the matching cabinet window for the recovered piece in hand: clean, register
      * a drawing, or take a reading. Sneaking leaves vanilla alone so the table can still
      * be placed against. An empty hand does not open a cabinet window.
+     * <p>
+     * Bukkit block clicks only. ItemsAdder furniture is opened solely from
+     * {@link #tryOpenCabinet(Player, String, Entity, Block, boolean)} via
+     * {@code FurnitureInteractEvent}, so the same click does not send cues twice.
      *
      * @param player clicker
      * @param block clicked block
@@ -296,11 +301,15 @@ public class SketchService {
      * @return whether the cabinet handled the click
      */
     public boolean tryOpenCabinet(Player player, Block block, boolean sneaking) {
+        if (settings != null && settings.cabinet().kind() == ItemRef.Kind.ITEMSADDER) {
+            return false;
+        }
         return tryOpenCabinet(player, null, null, block, sneaking);
     }
 
     /**
-     * Same as {@link #tryOpenCabinet(Player, Block, boolean)} for ItemsAdder furniture clicks.
+     * ItemsAdder furniture path ({@code FurnitureInteractEvent}). Do not call this from
+     * Bukkit entity or block interact handlers: those would double-fire with the furniture event.
      *
      * @param player clicker
      * @param namespacedId ItemsAdder furniture id, or {@code null}
