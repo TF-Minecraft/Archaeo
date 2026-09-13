@@ -10,7 +10,7 @@ import java.util.Set;
  * @param sizeMin minimum connected cells
  * @param sizeMax maximum connected cells
  * @param material flavor tag
- * @param rarity flavor tag
+ * @param rarity spawn-flavour tier ({@code common}/{@code rare}/{@code epic}/{@code legendary})
  * @param relic whether this counts toward the relic budget
  * @param weight generation weight
  * @param strata stratum ids this template may spawn in

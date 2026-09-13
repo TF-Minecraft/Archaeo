@@ -1,5 +1,6 @@
 package com.nowko.archeology.establish;
 
+import com.nowko.archeology.config.ArtifactRarity;
 import com.nowko.archeology.config.ArtifactTemplate;
 import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.item.RecoveredFindItem;
@@ -147,7 +148,7 @@ public final class CampFindBoard implements InventoryHolder {
         }
         if (find.hasFieldSketch() && template != null
                 && template.rarity() != null && !template.rarity().isBlank()) {
-            lore.add(ChatColor.GRAY + "Rarity: " + ChatColor.WHITE + template.rarity());
+            lore.add(ArtifactRarity.fromConfig(template.rarity()).loreLine());
         }
         if (!museum) {
             String hint = RecoveredFindItem.nextCabinetHint(template, find, catalogs);

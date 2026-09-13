@@ -2,6 +2,7 @@
 # (unused in the default pack: every find is a liftable object).
 # profile = object | individual | animal (omit for object). That path picks the
 # station questions; species is signed there, not named here.
+# rarity = common | rare | epic | legendary (coloured on the piece after a field sketch).
 # study-notes are revealed at camp after the piece is studied; they do not show on lift.
 artifacts:
   coin:
@@ -33,7 +34,7 @@ artifacts:
     size-min: 2
     size-max: 3
     material: metal
-    rarity: uncommon
+    rarity: rare
     relic: false
     weight: 14
     strata: [II, III]
@@ -45,7 +46,7 @@ artifacts:
     size-min: 3
     size-max: 5
     material: metal
-    rarity: rare
+    rarity: epic
     relic: false
     weight: 6
     strata: [II, III, IV]
@@ -57,7 +58,7 @@ artifacts:
     size-min: 3
     size-max: 6
     material: ceramic
-    rarity: uncommon
+    rarity: rare
     relic: false
     weight: 10
     strata: [I, II, III]
@@ -70,7 +71,7 @@ artifacts:
     size-min: 8
     size-max: 15
     material: bone
-    rarity: rare
+    rarity: legendary
     relic: false
     weight: 4
     strata: [III, IV]
@@ -83,7 +84,7 @@ artifacts:
     size-min: 3
     size-max: 8
     material: bone
-    rarity: uncommon
+    rarity: rare
     relic: false
     weight: 10
     strata: [I, II, III]
@@ -107,7 +108,7 @@ artifacts:
     size-min: 1
     size-max: 2
     material: metal
-    rarity: uncommon
+    rarity: rare
     relic: false
     weight: 8
     strata: [II, III]
