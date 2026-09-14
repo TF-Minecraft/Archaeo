@@ -1,6 +1,8 @@
 package com.nowko.archeology.excavation;
 
 import com.nowko.archeology.config.CatalogRegistry;
+import com.nowko.archeology.config.CueSettings;
+import com.nowko.archeology.config.DigClass;
 import com.nowko.archeology.config.ExcavationTool;
 import com.nowko.archeology.config.PickSettings;
 import com.nowko.archeology.item.ToolWear;
@@ -41,10 +43,10 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Hand Pick: client mining is frozen. Cue beats follow vanilla {@link Block#getBreakSpeed}
- * (sampled with {@link VanillaBreakClock}), including speeds already on the live stack.
- * YAML {@code mining-speed} / {@code mining-speed-multiplier} override that sample only.
- * If sampled speed is still 0, leftover {@code chime-ticks} may beat instead.
+ * Hand Pick: client mining is frozen. Cue beats follow {@code cue-ticks} on the tool profile,
+ * scaled by {@code excavation.cues} pick/shovel fill affinity from the held dig-class.
+ * When {@code cue-ticks} is {@code 0}, the legacy vanilla {@link Block#getBreakSpeed} path remains
+ * (optional {@code mining-speed} / multiplier, then leftover {@code legacy-chime-ticks}).
  * Release on the ready chime lifts {@code lift-on-ready}; later also lifts extra cubes downward.
  */
 public class HandPickService {
@@ -166,9 +168,17 @@ public class HandPickService {
         }
         syncHeldTool(player);
         if (existing == null) {
+            ItemStack held = player.getInventory().getItemInMainHand();
             cycles.put(
                     player.getUniqueId(),
-                    new Cycle(block.getX(), block.getY(), block.getZ(), gameTick, HoldCuePlan.roll(), tool));
+                    new Cycle(
+                            block.getX(),
+                            block.getY(),
+                            block.getZ(),
+                            gameTick,
+                            HoldCuePlan.roll(),
+                            tool,
+                            tool.resolveDigClass(held)));
             return;
         }
         existing.lastActiveTick = gameTick;
@@ -451,7 +461,7 @@ public class HandPickService {
     }
 
     /**
-     * Adds this tick of vanilla mining progress, or a YAML chime when that speed is zero.
+     * Adds this tick of cue progress from {@code cue-ticks}, or the legacy vanilla sample.
      *
      * @param player miner
      * @param block unchanged cell
@@ -459,16 +469,28 @@ public class HandPickService {
      * @return whether the cycle already resolved (caller should skip remaining work)
      */
     private boolean advanceCues(Player player, Block block, Cycle cycle) {
+        if (cycle.tool.usesCueTicks()) {
+            int interval = settings.cues().intervalTicks(
+                    cycle.tool.cueTicks(),
+                    cycle.digClass,
+                    block.getType());
+            if (gameTick - cycle.lastStrikeTick < interval) {
+                return false;
+            }
+            cycle.lastStrikeTick = gameTick;
+            return onVanillaBreak(player, block, cycle);
+        }
         float step = VanillaBreakClock.tickProgress(
                 player,
                 block,
                 noVanillaMineKey,
                 cycle.tool.miningSpeed(),
                 cycle.tool.miningSpeedMultiplier());
+        float need = settings.cues().progressPerCue();
         if (step > 0f) {
             cycle.progress += step;
-            while (cycle.progress >= 1.0f) {
-                cycle.progress -= 1.0f;
+            while (cycle.progress >= need) {
+                cycle.progress -= need;
                 if (onVanillaBreak(player, block, cycle)) {
                     return true;
                 }
@@ -478,7 +500,8 @@ public class HandPickService {
         if (!cycle.tool.hasChimeFallback()) {
             return false;
         }
-        if (gameTick - cycle.lastStrikeTick < cycle.tool.chimeTicks()) {
+        int legacyInterval = Math.max(1, cycle.tool.chimeTicks() * CueSettings.STAGE_COST);
+        if (gameTick - cycle.lastStrikeTick < legacyInterval) {
             return false;
         }
         cycle.lastStrikeTick = gameTick;
@@ -829,6 +852,7 @@ public class HandPickService {
         private final int z;
         private final HoldCuePlan cues;
         private final ExcavationTool tool;
+        private final DigClass digClass;
         private int lastActiveTick;
         private int lastStrikeTick;
         private float progress;
@@ -842,8 +866,17 @@ public class HandPickService {
          * @param tick current service tick
          * @param cues cling / clang schedule for this hold
          * @param tool profile that started the hold
+         * @param digClass pick / shovel affinity for this hold
          */
-        private Cycle(int x, int y, int z, int tick, HoldCuePlan cues, ExcavationTool tool) {
+        private Cycle(
+                int x,
+                int y,
+                int z,
+                int tick,
+                HoldCuePlan cues,
+                ExcavationTool tool,
+                DigClass digClass
+        ) {
             this.x = x;
             this.y = y;
             this.z = z;
@@ -851,6 +884,7 @@ public class HandPickService {
             this.lastStrikeTick = tick;
             this.cues = cues;
             this.tool = tool;
+            this.digClass = digClass == null ? DigClass.NONE : digClass;
         }
 
         /**

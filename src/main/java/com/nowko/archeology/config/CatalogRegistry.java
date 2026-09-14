@@ -3,7 +3,11 @@ package com.nowko.archeology.config;
 import com.nowko.archeology.item.ItemRef;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.InterestLevel;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Tag;
 import org.bukkit.configuration.Configuration;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -15,13 +19,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
+import java.util.logging.Level;
 
 /**
  * Loads catalog YAML from the plugin jar (first run) and then from the data folder.
@@ -47,8 +54,11 @@ public class CatalogRegistry {
     private SketchSettings sketch = SketchSettings.defaults();
     private MuseumSettings museum = MuseumSettings.defaults();
     private ToolWearSettings toolWear = ToolWearSettings.defaults();
+    private AutoRuinSettings autoRuins = AutoRuinSettings.defaults();
     private ItemMaterials items = ItemMaterials.defaults();
     private String staffPermission = "archaeo.admin";
+    private Map<String, RarityStyle> rarities = defaultRarities();
+    private List<WeightRarityBand> rarityFromWeight = defaultRarityFromWeight();
 
     /**
      * @param plugin owner used for data folder and {@link JavaPlugin#saveResource}
@@ -82,7 +92,10 @@ public class CatalogRegistry {
         loadRecovery(config);
         loadSketch(config);
         loadMuseum(config);
+        loadAutoRuins(config);
         loadStaffPermission(config);
+        loadRarities(config);
+        loadRarityFromWeight(config);
         loadStrata(yaml("strata.yml"));
         loadArtifacts(yaml("artifacts.yml"));
         loadHints(yaml("hints.yml"));
@@ -143,6 +156,80 @@ public class CatalogRegistry {
             return material.displayName();
         }
         return Character.toUpperCase(id.charAt(0)) + id.substring(1);
+    }
+
+    /**
+     * Resolves the rarity id for a template: explicit {@code rarity:} wins; otherwise weight bands.
+     *
+     * @param template find template, or {@code null}
+     * @return rarity key such as {@code rare}
+     */
+    public String resolveRarityId(ArtifactTemplate template) {
+        if (template == null) {
+            return "common";
+        }
+        return resolveRarityId(template.rarity(), template.weight());
+    }
+
+    /**
+     * @param override optional {@code artifacts.yml} rarity token
+     * @param weight generation weight
+     * @return rarity key such as {@code rare}
+     */
+    public String resolveRarityId(String override, int weight) {
+        if (override != null && !override.isBlank()) {
+            String key = override.trim().toLowerCase(Locale.ROOT);
+            if ("uncommon".equals(key)) {
+                return "rare";
+            }
+            return key;
+        }
+        int w = Math.max(1, weight);
+        for (WeightRarityBand band : rarityFromWeight) {
+            if (w <= band.maxWeight()) {
+                return band.id();
+            }
+        }
+        return "common";
+    }
+
+    /**
+     * Coloured lore line for a template (hybrid rarity).
+     *
+     * @param template find template
+     * @return line such as {@code Rarity: RARE}
+     */
+    public String rarityLoreLine(ArtifactTemplate template) {
+        return rarityLoreLineForId(resolveRarityId(template));
+    }
+
+    /**
+     * Coloured lore line for an explicit rarity key. Blank falls back to {@code common}.
+     *
+     * @param raw rarity token, may be blank
+     * @return line such as {@code Rarity: RARE}
+     */
+    public String rarityLoreLine(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return rarityLoreLineForId("common");
+        }
+        return rarityLoreLineForId(resolveRarityId(raw, 1));
+    }
+
+    /**
+     * @param id resolved rarity key
+     * @return lore line
+     */
+    private String rarityLoreLineForId(String id) {
+        if (id == null || id.isBlank()) {
+            return rarities.getOrDefault("common", ArtifactRarity.COMMON.style()).loreLine();
+        }
+        String key = id.trim().toLowerCase(Locale.ROOT);
+        RarityStyle style = rarities.get(key);
+        if (style != null) {
+            return style.loreLine();
+        }
+        return ArtifactRarity.fromConfig(key).loreLine();
     }
 
     /**
@@ -446,6 +533,13 @@ public class CatalogRegistry {
     }
 
     /**
+     * @return trial auto-spawn knobs from {@code auto-ruins}
+     */
+    public AutoRuinSettings autoRuins() {
+        return autoRuins;
+    }
+
+    /**
      * @return durability the pick and the brush spend while working the cut
      */
     public ToolWearSettings toolWear() {
@@ -746,8 +840,104 @@ public class CatalogRegistry {
                 loadConservation(excavation, fallback.conservation()),
                 loadLimits(excavation, fallback.limits()),
                 firstBool(excavation, pickSection, fallback.neighborTraces(), "neighbor-traces"),
+                loadCues(excavation, fallback.cues()),
                 loadProfiles(excavation, pickSection, fallback)
         );
+    }
+
+    /**
+     * Reads {@code excavation.cues}: pick/shovel fill lists and match scales for {@code cue-ticks}.
+     *
+     * @param excavation {@code excavation:} or {@code null}
+     * @param fallback packaged affinity
+     * @return merged cue settings
+     */
+    private CueSettings loadCues(ConfigurationSection excavation, CueSettings fallback) {
+        ConfigurationSection root = excavation == null
+                ? null
+                : excavation.getConfigurationSection("cues");
+        if (root == null) {
+            return fallback;
+        }
+        Set<Material> pick = materialsFromList(
+                firstStringList(root, "hard-blocks", "pick-faster", "hard-faster"),
+                "excavation.cues.hard-blocks");
+        Set<Material> shovel = materialsFromList(
+                firstStringList(root, "soft-blocks", "shovel-faster", "soft-faster"),
+                "excavation.cues.soft-blocks");
+        double matched = firstDouble(root, fallback.matchedFactor(),
+                "on-match", "matched-factor", "faster-when-matched");
+        double mismatched = firstDouble(root, fallback.mismatchedFactor(),
+                "on-mismatch", "mismatched-factor", "slower-when-mismatched");
+        if (matched <= 0) {
+            matched = fallback.matchedFactor();
+        }
+        if (mismatched <= 0) {
+            mismatched = fallback.mismatchedFactor();
+        }
+        return new CueSettings(
+                CueSettings.copyOf(pick),
+                CueSettings.copyOf(shovel),
+                matched,
+                mismatched
+        );
+    }
+
+    /**
+     * Parses material names and {@code #namespace:tag} / {@code #tag} block tags into a set.
+     * An empty list means the caller should fall back to vanilla mineable tags at runtime.
+     *
+     * @param raw YAML string list
+     * @param path config path for warnings
+     * @return materials, possibly empty
+     */
+    private Set<Material> materialsFromList(List<String> raw, String path) {
+        if (raw == null || raw.isEmpty()) {
+            return Set.of();
+        }
+        EnumSet<Material> out = EnumSet.noneOf(Material.class);
+        for (String token : raw) {
+            if (token == null || token.isBlank()) {
+                continue;
+            }
+            String trimmed = token.trim();
+            if (trimmed.startsWith("#")) {
+                addTagMaterials(out, trimmed.substring(1).trim(), path + ":" + trimmed);
+                continue;
+            }
+            Material material = Material.matchMaterial(trimmed);
+            if (material == null || !material.isBlock()) {
+                plugin.getLogger().log(Level.WARNING, "Unknown block at " + path + ": " + trimmed);
+                continue;
+            }
+            out.add(material);
+        }
+        return out;
+    }
+
+    /**
+     * @param out destination
+     * @param tagToken {@code mineable/pickaxe} or {@code minecraft:mineable/pickaxe}
+     * @param path warning path
+     */
+    private void addTagMaterials(Set<Material> out, String tagToken, String path) {
+        if (tagToken == null || tagToken.isBlank()) {
+            return;
+        }
+        String key = tagToken.contains(":")
+                ? tagToken.toLowerCase(Locale.ROOT)
+                : "minecraft:" + tagToken.toLowerCase(Locale.ROOT);
+        NamespacedKey namespaced = NamespacedKey.fromString(key);
+        if (namespaced == null) {
+            plugin.getLogger().log(Level.WARNING, "Bad block tag at " + path + ": " + tagToken);
+            return;
+        }
+        Tag<Material> tag = Bukkit.getTag(Tag.REGISTRY_BLOCKS, namespaced, Material.class);
+        if (tag == null) {
+            plugin.getLogger().log(Level.WARNING, "Unknown block tag at " + path + ": " + tagToken);
+            return;
+        }
+        out.addAll(tag.getValues());
     }
 
     /**
@@ -950,6 +1140,8 @@ public class CatalogRegistry {
             return new ExcavationTool(
                     id,
                     materials,
+                    inherit.cueTicks(),
+                    inherit.digClass(),
                     inherit.chimeTicks(),
                     inherit.miningSpeed(),
                     inherit.miningSpeedMultiplier(),
@@ -962,11 +1154,18 @@ public class CatalogRegistry {
         }
         int cellsOnTime = Math.max(1, sectionInt(section, inherit.cellsOnTime(), "lift-on-ready", "blocks-on-time", "cells-on-time"));
         String shape = sectionString(section, "break-shape", "lift-shape", "late-extras", "late-shape", "extra-shape");
+        int cueTicks = readTempo(section);
         int chimeTicks = Math.max(0, sectionInt(section, inherit.chimeTicks(),
-                "chime-ticks", "beat-ticks", "strike-interval-ticks"));
+                "legacy-chime-ticks"));
+        DigClass digClass = DigClass.parse(section.getString("dig-class"));
+        if (digClass == null) {
+            digClass = inherit.digClass();
+        }
         return new ExcavationTool(
                 id,
                 materials,
+                cueTicks,
+                digClass,
                 chimeTicks,
                 sectionFloat(section, inherit.miningSpeed(), "mining-speed", "default-mining-speed"),
                 sectionFloat(section, inherit.miningSpeedMultiplier(), "mining-speed-multiplier", "break-speed-multiplier"),
@@ -976,6 +1175,46 @@ public class CatalogRegistry {
                 Math.max(1, sectionInt(section, inherit.jornadaCost(), "workday-cost", "jornada-cost")),
                 Math.max(1, sectionInt(section, inherit.readyWindowTicks(), "release-window-ticks", "ready-ticks", "ready-window-ticks"))
         );
+    }
+
+    /**
+     * Reads {@code tempo:} — {@code vanilla} / omit → {@code 0}; a number → Archaeo metronome ticks.
+     * Legacy {@code cue-ticks} is still accepted. Omitting tempo never inherits a packaged metronome.
+     *
+     * @param section tool profile
+     * @return cue ticks; {@code 0} means vanilla mining tempo
+     */
+    private static int readTempo(ConfigurationSection section) {
+        if (section == null) {
+            return 0;
+        }
+        if (section.contains("tempo")) {
+            Object raw = section.get("tempo");
+            if (raw instanceof Number number) {
+                return Math.max(0, number.intValue());
+            }
+            if (raw != null) {
+                String token = raw.toString().trim();
+                if (token.isEmpty()
+                        || token.equalsIgnoreCase("vanilla")
+                        || token.equalsIgnoreCase("default")
+                        || token.equalsIgnoreCase("auto")) {
+                    return 0;
+                }
+                try {
+                    return Math.max(0, Integer.parseInt(token));
+                } catch (NumberFormatException ignored) {
+                    return 0;
+                }
+            }
+        }
+        Integer legacy = sectionIntOrNull(
+                section,
+                "cue-ticks",
+                "chime-ticks",
+                "beat-ticks",
+                "strike-interval-ticks");
+        return legacy == null ? 0 : Math.max(0, legacy);
     }
 
     /**
@@ -1010,6 +1249,45 @@ public class CatalogRegistry {
         for (String key : keys) {
             if (second != null && second.contains(key)) {
                 return second.getBoolean(key);
+            }
+        }
+        return fallback;
+    }
+
+    /**
+     * First defined string list among {@code keys} on {@code section}.
+     *
+     * @param section YAML map, or {@code null}
+     * @param keys preference order
+     * @return list, or empty when none is present
+     */
+    private static List<String> firstStringList(ConfigurationSection section, String... keys) {
+        if (section == null || keys == null) {
+            return List.of();
+        }
+        for (String key : keys) {
+            if (section.contains(key)) {
+                return section.getStringList(key);
+            }
+        }
+        return List.of();
+    }
+
+    /**
+     * First defined double among {@code keys} on {@code section}.
+     *
+     * @param section YAML map, or {@code null}
+     * @param fallback when none is present
+     * @param keys preference order
+     * @return value
+     */
+    private static double firstDouble(ConfigurationSection section, double fallback, String... keys) {
+        if (section == null || keys == null) {
+            return fallback;
+        }
+        for (String key : keys) {
+            if (section.contains(key)) {
+                return section.getDouble(key);
             }
         }
         return fallback;
@@ -1159,6 +1437,45 @@ public class CatalogRegistry {
     }
 
     /**
+     * Reads trial auto-spawn density and fitness gates from {@code auto-ruins}.
+     *
+     * @param config root plugin config
+     */
+    private void loadAutoRuins(FileConfiguration config) {
+        AutoRuinSettings fallback = AutoRuinSettings.defaults();
+        ConfigurationSection section = config.getConfigurationSection("auto-ruins");
+        if (section == null) {
+            autoRuins = fallback;
+            return;
+        }
+        List<String> worlds = section.getStringList("worlds");
+        Map<InterestLevel, Integer> weights = new EnumMap<>(InterestLevel.class);
+        ConfigurationSection weightSection = section.getConfigurationSection("interest-weights");
+        for (InterestLevel level : InterestLevel.values()) {
+            int packaged = fallback.interestWeights().getOrDefault(level, 0);
+            int value = weightSection == null
+                    ? packaged
+                    : weightSection.getInt(level.yamlKey(), packaged);
+            weights.put(level, Math.max(0, value));
+        }
+        autoRuins = new AutoRuinSettings(
+                section.getBoolean("enabled", fallback.enabled()),
+                List.copyOf(worlds),
+                Math.max(0.0, Math.min(1.0, section.getDouble("chance-per-chunk", fallback.chancePerChunk()))),
+                Math.max(0, section.getInt("min-chunk-distance", fallback.minChunkDistance())),
+                Math.max(0, section.getInt("max-sites-per-world", fallback.maxSitesPerWorld())),
+                Math.max(0, section.getInt("exclude-spawn-chunks", fallback.excludeSpawnChunks())),
+                Math.max(0, section.getInt("max-relief-blocks", fallback.maxReliefBlocks())),
+                Math.max(0.0, Math.min(1.0, section.getDouble("min-soil-fraction", fallback.minSoilFraction()))),
+                Math.max(0.0, Math.min(1.0, section.getDouble("max-flooded-fraction", fallback.maxFloodedFraction()))),
+                Math.max(0, section.getInt("min-buried-cells", fallback.minBuriedCells())),
+                Map.copyOf(weights),
+                Math.max(1, section.getInt("evaluate-delay-ticks", fallback.evaluateDelayTicks())),
+                Math.max(1, section.getInt("max-evaluations-per-tick", fallback.maxEvaluationsPerTick())),
+                section.getBoolean("notify-staff", fallback.notifyStaff()));
+    }
+
+    /**
      * Reads the wipe field, rack tools, and stain catalogue from {@code sketch.lab}.
      *
      * @param section {@code sketch.lab}, or {@code null}
@@ -1273,6 +1590,112 @@ public class CatalogRegistry {
     }
 
     /**
+     * Reads {@code rarity:} display labels and colours. Missing keys keep the packaged tier style.
+     * Extra keys become valid {@code artifacts.yml} rarity tokens for lore only.
+     *
+     * @param config root plugin config
+     */
+    private void loadRarities(FileConfiguration config) {
+        Map<String, RarityStyle> loaded = defaultRarities();
+        ConfigurationSection root = config.getConfigurationSection("rarity");
+        if (root != null) {
+            for (String id : root.getKeys(false)) {
+                if (id == null || id.isBlank()) {
+                    continue;
+                }
+                String key = id.trim().toLowerCase(Locale.ROOT);
+                ConfigurationSection section = root.getConfigurationSection(id);
+                RarityStyle fallback = loaded.getOrDefault(key, new RarityStyle(key, key.toUpperCase(Locale.ROOT), ChatColor.WHITE));
+                if (section == null) {
+                    String colorName = root.getString(id);
+                    ChatColor color = parseChatColor(colorName, fallback.color());
+                    loaded.put(key, new RarityStyle(key, fallback.label(), color));
+                    continue;
+                }
+                String label = section.getString("label", fallback.label());
+                if (label == null || label.isBlank()) {
+                    label = fallback.label();
+                }
+                ChatColor color = parseChatColor(section.getString("color"), fallback.color());
+                loaded.put(key, new RarityStyle(key, label, color));
+            }
+        }
+        rarities = Map.copyOf(loaded);
+    }
+
+    /**
+     * Reads {@code rarity-from-weight:}: max weight per tier when an artifact omits {@code rarity:}.
+     * Lower max-weight bands are checked first (scarcer finds first).
+     *
+     * @param config root plugin config
+     */
+    private void loadRarityFromWeight(FileConfiguration config) {
+        ConfigurationSection root = config.getConfigurationSection("rarity-from-weight");
+        if (root == null || root.getKeys(false).isEmpty()) {
+            rarityFromWeight = defaultRarityFromWeight();
+            return;
+        }
+        List<WeightRarityBand> bands = new ArrayList<>();
+        for (String id : root.getKeys(false)) {
+            if (id == null || id.isBlank()) {
+                continue;
+            }
+            String key = id.trim().toLowerCase(Locale.ROOT);
+            int max = root.getInt(id, -1);
+            if (max < 1) {
+                plugin.getLogger().log(Level.WARNING, "Ignoring rarity-from-weight." + id + " (max weight must be >= 1)");
+                continue;
+            }
+            bands.add(new WeightRarityBand(key, max));
+        }
+        if (bands.isEmpty()) {
+            rarityFromWeight = defaultRarityFromWeight();
+            return;
+        }
+        bands.sort(Comparator.comparingInt(WeightRarityBand::maxWeight));
+        rarityFromWeight = List.copyOf(bands);
+    }
+
+    /**
+     * @return packaged weight bands (lower weight → rarer tier)
+     */
+    private static List<WeightRarityBand> defaultRarityFromWeight() {
+        return List.of(
+                new WeightRarityBand("legendary", 4),
+                new WeightRarityBand("epic", 7),
+                new WeightRarityBand("rare", 15),
+                new WeightRarityBand("common", 9999)
+        );
+    }
+
+    /**
+     * @return packaged styles for the four built-in tiers
+     */
+    private static Map<String, RarityStyle> defaultRarities() {
+        Map<String, RarityStyle> map = new LinkedHashMap<>();
+        for (ArtifactRarity rarity : ArtifactRarity.values()) {
+            map.put(rarity.id(), rarity.style());
+        }
+        return map;
+    }
+
+    /**
+     * @param raw Bukkit {@link ChatColor} name
+     * @param fallback when missing or unknown
+     * @return colour
+     */
+    private static ChatColor parseChatColor(String raw, ChatColor fallback) {
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            return ChatColor.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ignored) {
+            return fallback;
+        }
+    }
+
+    /**
      * Reads interest budgets from {@code interest.yml}, falling back to {@code config.yml}.
      *
      * @param interest parsed interest file
@@ -1357,7 +1780,7 @@ public class CatalogRegistry {
                     section.getInt("size-min", 1),
                     section.getInt("size-max", 1),
                     section.getString("material", "stone"),
-                    section.getString("rarity", "common"),
+                    section.getString("rarity"),
                     section.getBoolean("relic", false),
                     Math.max(1, section.getInt("weight", 1)),
                     new LinkedHashSet<>(section.getStringList("strata")),

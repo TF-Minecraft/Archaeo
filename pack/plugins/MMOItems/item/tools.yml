@@ -1,84 +1,88 @@
-HAND_PICK:
+ARCHEOLOGY_KNIFE:
+  base:
+    material: WOODEN_PICKAXE
+    name: <#8b6914>Knife
+    displayed-type: Archeology
+    custom-model-data: 2.0
+    disable-repairing: true
+    disable-enchanting: true
+    disable-smithing: true
+    disable-smelting: true
+    disable-crafting: true
+    block-break-speed: 1.0
+    lore:
+    - '§eHold Left Click §7fill to cut.'
+    - '§7Most §fdelicate§7. Late release stays tight.'
+ARCHEOLOGY_SPOON:
+  base:
+    material: WOODEN_SHOVEL
+    name: <#8b6914>Spoon
+    displayed-type: Archeology
+    custom-model-data: 2.0
+    disable-repairing: true
+    disable-enchanting: true
+    disable-smithing: true
+    disable-smelting: true
+    disable-crafting: true
+    block-break-speed: 1.0
+    lore:
+    - '§eHold Left Click §7fill to cut.'
+    - '§7Most §fdelicate§7. Late release stays tight.'
+ARCHEOLOGY_HANDPICK:
   base:
     material: WOODEN_PICKAXE
     name: <#c2b280>Hand Pick
     displayed-type: Archeology
-    #custom-model-data: 10.0
+    custom-model-data: 1.0
     disable-repairing: true
     disable-enchanting: true
     disable-smithing: true
     disable-smelting: true
     disable-crafting: true
+    block-break-speed: 1.5
     lore:
     - '§eHold Left Click §7fill to cut.'
-    - '§7Most §fdelicate§7. Late release stays tight.'
-POINTING_TROWEL:
+    - '§7§fWorking §7cut. Late opens a wider face.'
+ARCHEOLOGY_TROWEL:
   base:
     material: WOODEN_SHOVEL
-    name: <#c2b280>Pointing Trowel
+    name: <#c2b280>Trowel
     displayed-type: Archeology
-    #custom-model-data: 11.0
+    custom-model-data: 1.0
     disable-repairing: true
     disable-enchanting: true
     disable-smithing: true
     disable-smelting: true
     disable-crafting: true
-    lore:
-    - '§eHold Left Click §7fill to cut.'
-    - '§7Most §fdelicate§7. Late release stays tight.'
-MATTOCK:
-  base:
-    material: STONE_PICKAXE
-    name: <#8b6914>Mattock
-    displayed-type: Archeology
-    #custom-model-data: 12.0
-    disable-repairing: true
-    disable-enchanting: true
-    disable-smithing: true
-    disable-smelting: true
-    disable-crafting: true
+    block-break-speed: 1.5
     lore:
     - '§eHold Left Click §7fill to cut.'
     - '§7§fWorking §7cut. Late opens a wider face.'
-GRAFTING_SPADE:
-  base:
-    material: STONE_SHOVEL
-    name: <#8b6914>Grafting Spade
-    displayed-type: Archeology
-    #custom-model-data: 13.0
-    disable-repairing: true
-    disable-enchanting: true
-    disable-smithing: true
-    disable-smelting: true
-    disable-crafting: true
-    lore:
-    - '§eHold Left Click §7fill to cut.'
-    - '§7§fWorking §7cut. Late opens a wider face.'
-BREAKER_PICK:
+ARCHEOLOGY_PICK:
   base:
     material: IRON_PICKAXE
     name: <#7f7d80>Breaker Pick
     displayed-type: Archeology
-    #custom-model-data: 14.0
     disable-repairing: true
     disable-enchanting: true
     disable-smithing: true
     disable-smelting: true
     disable-crafting: true
+    block-break-speed: 2.0
     lore:
     - '§eHold Left Click §7fill to cut.'
     - '§7Most §fpowerful§7. Late strips a lot of fill.'
-SPOIL_SHOVEL:
+ARCHEOLOGY_SHOVEL:
   base:
     material: IRON_SHOVEL
     name: <#7f7d80>Spoil Shovel
     displayed-type: Archeology
-    #custom-model-data: 15.0
     disable-repairing: true
     disable-enchanting: true
     disable-smithing: true
     disable-smelting: true
     disable-crafting: true
+    block-break-speed: 2.0
     lore:
     - '§eHold Left Click §7fill to cut.'
     - '§7Most §fpowerful§7. Late strips a lot of fill.'

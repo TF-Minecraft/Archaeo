@@ -21,6 +21,33 @@
 permissions:
   staff: archaeo.admin
 
+# How rarity tiers appear on pieces (after a field sketch) and camp plaques.
+# id = YAML key. label = text shown. color = Bukkit ChatColor name (WHITE, AQUA, GOLD…).
+# You can add extra keys (e.g. mythic) and use them as artifacts.yml rarity: overrides.
+rarity:
+  common:
+    label: COMMON
+    color: WHITE
+  rare:
+    label: RARE
+    color: BLUE
+  epic:
+    label: EPIC
+    color: DARK_PURPLE
+  legendary:
+    label: LEGENDARY
+    color: GOLD
+
+# When an artifact omits rarity:, display tier comes from its weight (spawn chance).
+# Each key is a rarity id; the value is the inclusive max weight for that band.
+# Lower max-weight bands are checked first (scarcer finds → rarer label).
+# Explicit rarity: on an artifact always wins over these bands.
+rarity-from-weight:
+  legendary: 4
+  epic: 7
+  rare: 15
+  common: 9999
+
 # 1) Find a hidden ruin
 tracker:
   item: RECOVERY_COMPASS
@@ -128,38 +155,178 @@ excavation:
   find-particles-interval-ticks: 6
   # After a cut, chat + HUD on the empty cube: adjacent find cubes grouped by material (minesweeper).
   neighbor-traces: true
-  # Hold left-click on fill. Warning / ready sounds follow vanilla mining speed (tool vs block).
-  # Cracks stay frozen. First matching tool wins.
-  # How many cubes come out, and in what pattern. Both counts use the same break-shape.
-  # The aimed cube is always first. Extra cubes always share a face with the aim
-  # or with a cube already chosen this lift (no diagonal hops, no floating below).
-  #   down    — straight down (Y-1, Y-2, …)
-  #   around  — 3×3×2 grown face-to-face: cardinals, then diagonals, then the layer below
-  #   random  — same 3×3×2; each extra cube is a random face neighbour of the lift so far
-  # lift-on-ready / lift-if-late = how many of those cubes on a timely vs late release.
+  # Cling / Release tempo — choose per tool with tempo: (see tools below).
+  #
+  #   tempo: vanilla   OR omit the key
+  #     Uses Minecraft mining speed (tool material × block hardness × Efficiency / Haste,
+  #     plus any MMOItems block-break-speed already on the player). Soft dirt feels faster
+  #     than stone with the same pick; a shovel on sand is quicker than a pick on sand.
+  #     hard-blocks / soft-blocks / on-match / on-mismatch are IGNORED in this mode.
+  #     Each cling still waits for TWO vanilla break-units (fixed in code), so cues are
+  #     slower than breaking the block in survival.
+  #
+  #   tempo: <ticks>   e.g. tempo: 16
+  #     Fixed Archaeo metronome. 20 ticks = 1 second between cling beats BEFORE the same
+  #     double-stage cost (so tempo 16 ≈ 1.6 s per cling at on-match 1.0). Higher = slower.
+  #     Does NOT use vanilla or MMOItems mining speed. Instead, pick vs shovel (from the
+  #     held item, or dig-class:) is checked against hard-blocks / soft-blocks:
+  #       matching list  → interval × on-match     (< 1 = faster)
+  #       opposite list  → interval × on-mismatch  (> 1 = slower)
+  #       neither list   → tempo as written
+  #
+  # lift-on-ready / lift-if-late / break-shape are independent of tempo: they only decide
+  # how many cubes leave when you release on time or late.
+  cues:
+    # Stone-like fill → faster when tempo is numeric and the tool is a pick. Empty = #mineable/pickaxe.
+    hard-blocks:
+      # Overworld stone
+      - STONE
+      - GRANITE
+      - DIORITE
+      - ANDESITE
+      - DEEPSLATE
+      - TUFF
+      - CALCITE
+      - DRIPSTONE_BLOCK
+      - COBBLESTONE
+      - MOSSY_COBBLESTONE
+      - SMOOTH_STONE
+      # Sandstone family (deserts / beaches under sand)
+      - SANDSTONE
+      - RED_SANDSTONE
+      - SMOOTH_SANDSTONE
+      - SMOOTH_RED_SANDSTONE
+      - CUT_SANDSTONE
+      - CUT_RED_SANDSTONE
+      - CHISELED_SANDSTONE
+      - CHISELED_RED_SANDSTONE
+      # Ice sheets
+      - ICE
+      - PACKED_ICE
+      - BLUE_ICE
+      # Terracotta (badlands)
+      - TERRACOTTA
+      - WHITE_TERRACOTTA
+      - ORANGE_TERRACOTTA
+      - MAGENTA_TERRACOTTA
+      - LIGHT_BLUE_TERRACOTTA
+      - YELLOW_TERRACOTTA
+      - LIME_TERRACOTTA
+      - PINK_TERRACOTTA
+      - GRAY_TERRACOTTA
+      - LIGHT_GRAY_TERRACOTTA
+      - CYAN_TERRACOTTA
+      - PURPLE_TERRACOTTA
+      - BLUE_TERRACOTTA
+      - BROWN_TERRACOTTA
+      - GREEN_TERRACOTTA
+      - RED_TERRACOTTA
+      - BLACK_TERRACOTTA
+      # Packed mud / prismarine / coral (oceans, trails)
+      - PACKED_MUD
+      - PRISMARINE
+      - PRISMARINE_BRICKS
+      - DARK_PRISMARINE
+      - DEAD_TUBE_CORAL_BLOCK
+      - DEAD_BRAIN_CORAL_BLOCK
+      - DEAD_BUBBLE_CORAL_BLOCK
+      - DEAD_FIRE_CORAL_BLOCK
+      - DEAD_HORN_CORAL_BLOCK
+      - TUBE_CORAL_BLOCK
+      - BRAIN_CORAL_BLOCK
+      - BUBBLE_CORAL_BLOCK
+      - FIRE_CORAL_BLOCK
+      - HORN_CORAL_BLOCK
+      # Nether
+      - NETHERRACK
+      - BASALT
+      - SMOOTH_BASALT
+      - BLACKSTONE
+      - GILDED_BLACKSTONE
+      - MAGMA_BLOCK
+      - GLOWSTONE
+      - BONE_BLOCK
+      - ANCIENT_DEBRIS
+      # End
+      - END_STONE
+      - OBSIDIAN
+      - CRYING_OBSIDIAN
+      # Amethyst geodes
+      - AMETHYST_BLOCK
+      - BUDDING_AMETHYST
+      # Ores (overworld + deepslate + nether)
+      - COAL_ORE
+      - DEEPSLATE_COAL_ORE
+      - IRON_ORE
+      - DEEPSLATE_IRON_ORE
+      - COPPER_ORE
+      - DEEPSLATE_COPPER_ORE
+      - GOLD_ORE
+      - DEEPSLATE_GOLD_ORE
+      - REDSTONE_ORE
+      - DEEPSLATE_REDSTONE_ORE
+      - LAPIS_ORE
+      - DEEPSLATE_LAPIS_ORE
+      - DIAMOND_ORE
+      - DEEPSLATE_DIAMOND_ORE
+      - EMERALD_ORE
+      - DEEPSLATE_EMERALD_ORE
+      - NETHER_GOLD_ORE
+      - NETHER_QUARTZ_ORE
+      - RAW_IRON_BLOCK
+      - RAW_COPPER_BLOCK
+      - RAW_GOLD_BLOCK
+    # Soil-like fill → faster when tempo is numeric and the tool is a shovel. Empty = #mineable/shovel.
+    soft-blocks:
+      - DIRT
+      - GRASS_BLOCK
+      - PODZOL
+      - MYCELIUM
+      - COARSE_DIRT
+      - ROOTED_DIRT
+      - DIRT_PATH
+      - FARMLAND
+      - MUD
+      - MUDDY_MANGROVE_ROOTS
+      - CLAY
+      - SAND
+      - RED_SAND
+      - SUSPICIOUS_SAND
+      - GRAVEL
+      - SUSPICIOUS_GRAVEL
+      - SOUL_SAND
+      - SOUL_SOIL
+      - SNOW_BLOCK
+      - MOSS_BLOCK
+      - CRIMSON_NYLIUM
+      - WARPED_NYLIUM
+    # Only used when tempo is a number: multiply if pick/shovel matches hard/soft (< 1 = faster).
+    on-match: 0.7
+    # Only used when tempo is a number: multiply if pick/shovel is the wrong list (> 1 = slower).
+    on-mismatch: 1.35
+  # Hold left-click on fill. Cracks stay frozen. First matching tool profile wins.
+  # Pick vs shovel class is inferred from the held vanilla material (PICKAXE / SHOVEL tags),
+  # or force it with dig-class: pick | shovel | none.
   tools:
     # Bare hand: the aimed cube only, even if you miss the ready window.
     hand:
       items:
         - AIR
+      # No tempo key → vanilla mining clock (see cues: comments above).
+      dig-class: none
       lift-on-ready: 1
       lift-if-late: 1
       break-shape: down
       workday-cost: 1
-      # After the loud Release chime, this many ticks you can still let go and only
-      # lift lift-on-ready cubes. Holding longer is late (20 ticks = 1 second).
+      # After Release, this many ticks you can still let go on time (20 = 1 second).
       release-window-ticks: 20
-      # Optional. Omit = cue clock uses the held item as-is: vanilla tool speed
-      # (pico vs pala vs bloque) plus whatever MMOItems / ItemsAdder already
-      # applied to that stack or the player. These two only replace that sample;
-      # they do not rewrite the item in the inventory.
-      # mining-speed: 6                  # tool defaultMiningSpeed (iron pick 6, diamond 8)
-      # mining-speed-multiplier: 1.0     # scale the full sampled break speed (2.0 = twice as fast)
     # Wooden pick / wooden shovel: on time or late, a short shaft.
     light:
       items:
         - WOODEN_PICKAXE
         - WOODEN_SHOVEL
+      # Fixed metronome (not vanilla). Scaled by hard/soft lists + on-match / on-mismatch.
+      tempo: 16
       lift-on-ready: 1
       lift-if-late: 2
       break-shape: down
@@ -169,6 +336,7 @@ excavation:
       items:
         - STONE_PICKAXE
         - STONE_SHOVEL
+      tempo: 14
       lift-on-ready: 2
       lift-if-late: 4
       break-shape: around
@@ -177,6 +345,7 @@ excavation:
       items:
         - IRON_PICKAXE
         - IRON_SHOVEL
+      tempo: 12
       lift-on-ready: 4
       lift-if-late: 8
       break-shape: random
@@ -265,4 +434,40 @@ museum:
     - SHELF
     # - ITEM_DISPLAY
     # - "itemsadder:tfmc:display_case"
+
+# Trial: auto-register hidden ruins when chunks load (old or new terrain).
+# Each chunk is considered once and remembered under plugins/Archaeo/auto-ruins/evaluated/.
+# Staff get a chat line with rarity and a clickable [tp] to the ruin chunk.
+# Turn enabled off when you are done testing. Tune chance / distance / max for rarity.
+auto-ruins:
+  enabled: true
+  # Empty = every world. Example: [world]
+  worlds: []
+  # Deterministic share of evaluated chunks that attempt a spawn (~1/250 at 0.004).
+  chance-per-chunk: 0.004
+  # Chebyshev distance in chunks to any existing site.
+  min-chunk-distance: 16
+  # Hard cap per world; 0 = no cap.
+  max-sites-per-world: 60
+  # Skip this many chunks around world spawn.
+  exclude-spawn-chunks: 32
+  # p90−p10 of column ground Y; gentle slope OK, mountain flanks fail.
+  max-relief-blocks: 6
+  # Share of columns whose surface is shovel-mineable (dirt, sand, gravel…).
+  min-soil-fraction: 0.35
+  # Reject open water / seafloor: max share of columns with liquid above the ground.
+  # Beaches with a wet edge stay under ~0.15; mid-ocean is near 1.0.
+  max-flooded-fraction: 0.15
+  # Minimum buryable cells in always-present strata before create runs.
+  min-buried-cells: 32
+  interest-weights:
+    low: 50
+    medium: 35
+    high: 12
+    exceptional: 3
+  # Wait after chunk load so brand-new terrain can finish populate.
+  evaluate-delay-ticks: 20
+  # Full fitness checks per server tick (queue drain).
+  max-evaluations-per-tick: 1
+  notify-staff: true
 

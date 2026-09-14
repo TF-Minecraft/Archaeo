@@ -3,8 +3,9 @@ package com.nowko.archeology.excavation;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Per-hold cue schedule: 1–3 soft clings from the first prevented vanilla break, then one clang.
- * Rolled when the player starts holding. The range is fixed so Soon never becomes a HUD number.
+ * Per-hold cue schedule: 1–3 soft clings, then one clang (Release).
+ * Rolled when the player starts holding. Each beat is one cue-clock interval
+ * ({@code cue-ticks} or a legacy vanilla break sample).
  */
 public final class HoldCuePlan {
     private static final int CLING_MIN = 1;
@@ -29,9 +30,9 @@ public final class HoldCuePlan {
     }
 
     /**
-     * Consumes one simulated vanilla break ({@link org.bukkit.block.Block#getBreakSpeed} reaching 1.0).
+     * Consumes one cue-clock beat (one {@code cue-ticks} interval, or one legacy vanilla break).
      *
-     * @return which audible cue this break should play
+     * @return which audible cue this beat should play
      */
     public BreakCue nextCue() {
         vanillaBreaks++;

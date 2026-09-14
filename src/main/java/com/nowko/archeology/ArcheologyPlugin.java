@@ -25,6 +25,8 @@ import com.nowko.archeology.item.TrackerItem;
 import com.nowko.archeology.museum.MuseumListener;
 import com.nowko.archeology.prospect.ProspectListener;
 import com.nowko.archeology.prospect.ProspectService;
+import com.nowko.archeology.site.AutoRuinEvaluationLedger;
+import com.nowko.archeology.site.RuinAutoSpawner;
 import com.nowko.archeology.site.SiteGenerator;
 import com.nowko.archeology.site.SiteRepository;
 import com.nowko.archeology.sketch.SketchListener;
@@ -40,6 +42,8 @@ public class ArcheologyPlugin extends JavaPlugin {
     private CatalogRegistry catalogs;
     private SiteRepository sites;
     private SiteGenerator generator;
+    private AutoRuinEvaluationLedger autoRuinLedger;
+    private RuinAutoSpawner autoRuins;
     private TrackerItem trackerItem;
     private TrackerService tracker;
     private ProspectItem prospectItem;
@@ -69,6 +73,11 @@ public class ArcheologyPlugin extends JavaPlugin {
         sites.loadAll();
         sites.start();
         generator = new SiteGenerator(catalogs, sites);
+        autoRuinLedger = new AutoRuinEvaluationLedger(this);
+        autoRuins = new RuinAutoSpawner(
+                this, catalogs, sites, generator, autoRuinLedger, catalogs.autoRuins());
+        getServer().getPluginManager().registerEvents(autoRuins, this);
+        autoRuins.start();
         trackerItem = new TrackerItem(catalogs.items().tracker());
         prospectItem = new ProspectItem(catalogs.items().prospect());
         establishItem = new EstablishItem(catalogs.items().establish());
@@ -143,7 +152,8 @@ public class ArcheologyPlugin extends JavaPlugin {
                 findDust,
                 prismListener,
                 brushItem,
-                recover);
+                recover,
+                autoRuins);
         PluginCommand pluginCommand = getCommand("archaeo");
         if (pluginCommand != null) {
             pluginCommand.setExecutor(command);
@@ -190,6 +200,9 @@ public class ArcheologyPlugin extends JavaPlugin {
      */
     @Override
     public void onDisable() {
+        if (autoRuins != null) {
+            autoRuins.stop();
+        }
         if (tracker != null) {
             tracker.stop();
         }
@@ -259,6 +272,13 @@ public class ArcheologyPlugin extends JavaPlugin {
      */
     public SiteGenerator generator() {
         return generator;
+    }
+
+    /**
+     * @return trial chunk auto-spawner
+     */
+    public RuinAutoSpawner autoRuins() {
+        return autoRuins;
     }
 
     /**

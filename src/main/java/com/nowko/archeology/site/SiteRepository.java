@@ -24,6 +24,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -284,16 +285,24 @@ public class SiteRepository {
      * @return number of locked camps they run
      */
     public int countDirectedCamps(UUID playerId) {
+        return findDirectedCamps(playerId).size();
+    }
+
+    /**
+     * Locked camps this player still directs (established or exhausted). Ordered by serial so
+     * staff lists and teleports stay stable.
+     *
+     * @param playerId director to match
+     * @return directed camps, never {@code null}
+     */
+    public List<Site> findDirectedCamps(UUID playerId) {
         if (playerId == null) {
-            return 0;
+            return List.of();
         }
-        int count = 0;
-        for (Site site : byId.values()) {
-            if (site.isCampLocked() && site.isDirector(playerId)) {
-                count++;
-            }
-        }
-        return count;
+        return byId.values().stream()
+                .filter(site -> site.isCampLocked() && site.isDirector(playerId))
+                .sorted(Comparator.comparingInt(Site::getSerial))
+                .toList();
     }
 
     /**
@@ -303,6 +312,42 @@ public class SiteRepository {
      */
     public void save(Site site) {
         commit(site);
+    }
+
+    /**
+     * Drops a site from memory and moves its YAML under {@code sites/.trash/} so a bad auto-spawn
+     * (empty find list) does not leave a hollow ruin on the map.
+     *
+     * @param site dossier to remove
+     */
+    public void delete(Site site) {
+        if (site == null || site.getId() == null) {
+            return;
+        }
+        UUID id = site.getId();
+        byId.remove(id);
+        dirty.remove(id);
+        File file = new File(sitesFolder, id + ".yml");
+        if (!file.exists()) {
+            return;
+        }
+        File trash = new File(sitesFolder, ".trash");
+        if (!trash.exists() && !trash.mkdirs()) {
+            plugin.getLogger().warning("Could not create " + trash.getPath());
+            if (!file.delete()) {
+                plugin.getLogger().warning("Could not delete " + file.getName());
+            }
+            return;
+        }
+        File destination = new File(trash, id + ".yml");
+        try {
+            Files.move(file.toPath(), destination.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException exception) {
+            plugin.getLogger().log(Level.WARNING, "Could not trash " + file.getName(), exception);
+            if (!file.delete()) {
+                plugin.getLogger().warning("Could not delete " + file.getName());
+            }
+        }
     }
 
     /**

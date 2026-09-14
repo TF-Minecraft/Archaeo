@@ -18,7 +18,8 @@ public final class GroundDatum {
 
     /**
      * Samples all 256 columns and returns the median terrain Y. Water, leaves, snow layers,
-     * and replaceable plants are skipped so a pond or tree does not lift or drop the whole site.
+     * replaceable plants, logs, bamboo, and giant mushroom blocks are skipped so a pond or
+     * tree does not lift or drop the whole site.
      *
      * @param chunk loaded archaeological chunk
      * @return median ground Y
@@ -53,6 +54,8 @@ public final class GroundDatum {
 
     /**
      * Walks down from the motion-blocking surface until a solid ground block is found.
+     * Tree trunks, bamboo, and giant mushroom flesh are skipped the same way leaves are, so a
+     * forest canopy does not lift the datum or the auto-ruin relief reading.
      *
      * @param world world
      * @param x block X
@@ -83,7 +86,21 @@ public final class GroundDatum {
         if (Tag.LEAVES.isTagged(type) || Tag.REPLACEABLE.isTagged(type)) {
             return false;
         }
+        if (Tag.LOGS.isTagged(type)) {
+            return false;
+        }
         if (type == Material.SNOW || type == Material.POWDER_SNOW) {
+            return false;
+        }
+        if (type == Material.BAMBOO || type == Material.BAMBOO_SAPLING) {
+            return false;
+        }
+        if (type == Material.MUSHROOM_STEM
+                || type == Material.BROWN_MUSHROOM_BLOCK
+                || type == Material.RED_MUSHROOM_BLOCK) {
+            return false;
+        }
+        if (type == Material.MANGROVE_ROOTS || type == Material.MUDDY_MANGROVE_ROOTS) {
             return false;
         }
         return type.isSolid();

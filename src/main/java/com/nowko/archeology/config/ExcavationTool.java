@@ -7,16 +7,17 @@ import java.util.List;
 
 /**
  * One named excavation profile from {@code excavation.tools}.
- * Cue tempo is {@code getBreakSpeed} of the live stack (vanilla tool stats and any
- * MMOItems / ItemsAdder values already on that item or player). {@code mining-speed} /
- * {@code mining-speed-multiplier} replace that sample only. {@code chime-ticks} is a
- * last-resort beat if that speed is still {@code 0}.
+ * Tempo is {@code tempo:} — {@code vanilla} (or omit) uses {@code getBreakSpeed};
+ * a whole number is ticks between cling / Release before the fixed stage cost.
+ * Hard/soft fill lists under {@code excavation.cues} only scale the numeric tempo.
  *
  * @param id YAML key such as {@code hand}, {@code light}, or {@code heavy}
  * @param materials stacks that use this profile (vanilla, ItemsAdder, or MMOItems)
- * @param chimeTicks leftover YAML {@code chime-ticks}; {@code 0} never uses the metronome
- * @param miningSpeed YAML {@code mining-speed}: tool default mining speed for the clock sample; {@code null} keeps the stack
- * @param miningSpeedMultiplier YAML {@code mining-speed-multiplier}: extra scale on {@code getBreakSpeed}; {@code null} means {@code 1}
+ * @param cueTicks ticks between cling / Release; {@code 0} means vanilla mining tempo
+ * @param digClass forced dig-class for every item in this profile, or {@code null} to infer from the held material
+ * @param chimeTicks legacy fallback beat when tempo is vanilla and the sample is {@code 0}
+ * @param miningSpeed legacy YAML {@code mining-speed} for the vanilla sample only
+ * @param miningSpeedMultiplier legacy YAML {@code mining-speed-multiplier} on the vanilla sample
  * @param cellsOnTime YAML {@code lift-on-ready}: cubes lifted on the ready chime
  * @param cellsOnLate YAML {@code lift-if-late}: cubes lifted if the player holds past ready
  * @param breakShape YAML {@code break-shape}: same pattern for on-time and late lifts
@@ -26,6 +27,8 @@ import java.util.List;
 public record ExcavationTool(
         String id,
         List<ItemRef> materials,
+        int cueTicks,
+        DigClass digClass,
         int chimeTicks,
         Float miningSpeed,
         Float miningSpeedMultiplier,
@@ -48,6 +51,7 @@ public record ExcavationTool(
         return switch (id) {
             case "light" -> light();
             case "heavy" -> heavy();
+            case "super-heavy" -> superHeavy();
             default -> hand();
         };
     }
@@ -61,6 +65,8 @@ public record ExcavationTool(
         return new ExcavationTool(
                 "hand",
                 List.of(ItemRef.air()),
+                0,
+                DigClass.NONE,
                 0,
                 null,
                 null,
@@ -84,6 +90,8 @@ public record ExcavationTool(
                         ItemRef.vanilla(Material.WOODEN_PICKAXE),
                         ItemRef.vanilla(Material.WOODEN_SHOVEL)
                 ),
+                0,
+                null,
                 0,
                 null,
                 null,
@@ -119,6 +127,8 @@ public record ExcavationTool(
                 ),
                 0,
                 null,
+                0,
+                null,
                 null,
                 2,
                 4,
@@ -129,9 +139,54 @@ public record ExcavationTool(
     }
 
     /**
+     * Iron pick and shovel: wider late lifts.
+     *
+     * @return packaged {@code super-heavy} profile
+     */
+    public static ExcavationTool superHeavy() {
+        return new ExcavationTool(
+                "super-heavy",
+                List.of(
+                        ItemRef.vanilla(Material.IRON_PICKAXE),
+                        ItemRef.vanilla(Material.IRON_SHOVEL)
+                ),
+                0,
+                null,
+                0,
+                null,
+                null,
+                4,
+                8,
+                BreakShape.RANDOM,
+                1,
+                20
+        );
+    }
+
+    /**
+     * @return whether the Archaeo metronome owns the cue clock
+     */
+    public boolean usesCueTicks() {
+        return cueTicks > 0;
+    }
+
+    /**
      * @return whether a YAML beat should run when vanilla mining speed is zero
      */
     public boolean hasChimeFallback() {
         return chimeTicks > 0;
+    }
+
+    /**
+     * Dig-class for affinity: profile override, else inferred from the live stack.
+     *
+     * @param held main-hand stack
+     * @return class used against {@link CueSettings} block lists
+     */
+    public DigClass resolveDigClass(org.bukkit.inventory.ItemStack held) {
+        if (digClass != null) {
+            return digClass;
+        }
+        return DigClass.of(held);
     }
 }

@@ -52,58 +52,60 @@ recipes:
         - 'vanilla{type=FEATHER,amount=1}'
         - 'vanilla{type=COPPER_INGOT,amount=1}'
         - 'vanilla{type=STICK,amount=1}'
-    hand-pick:
+    archeology-knife:
         output:
             type: TOOLS
-            id: HAND_PICK
+            id: ARCHEOLOGY_KNIFE
             amount: 1
         crafting-time: 5
         ingredients:
-        - 'vanilla{type=STICK,amount=4}'
-    pointing-trowel:
+        - 'vanilla{type=STICK,amount=1}'
+        - 'vanilla{type=IRON_INGOT,amount=1}'
+    archeology-spoon:
         output:
             type: TOOLS
-            id: POINTING_TROWEL
+            id: ARCHEOLOGY_SPOON
             amount: 1
         crafting-time: 5
         ingredients:
-        - 'vanilla{type=STICK,amount=4}'
-    mattock:
+        - 'vanilla{type=STICK,amount=1}'
+        - 'vanilla{type=IRON_INGOT,amount=1}'
+    archeology-handpick:
         output:
             type: TOOLS
-            id: MATTOCK
+            id: ARCHEOLOGY_HANDPICK
             amount: 1
         crafting-time: 5
         ingredients:
-        - 'vanilla{type=COBBLESTONE,amount=3}'
         - 'vanilla{type=STICK,amount=2}'
-    grafting-spade:
-        output:
-            type: TOOLS
-            id: GRAFTING_SPADE
-            amount: 1
-        crafting-time: 5
-        ingredients:
-        - 'vanilla{type=COBBLESTONE,amount=2}'
-        - 'vanilla{type=STICK,amount=2}'
-    breaker-pick:
-        output:
-            type: TOOLS
-            id: BREAKER_PICK
-            amount: 1
-        crafting-time: 5
-        ingredients:
-        - 'vanilla{type=IRON_INGOT,amount=3}'
-        - 'vanilla{type=STICK,amount=2}'
-    spoil-shovel:
-        output:
-            type: TOOLS
-            id: SPOIL_SHOVEL
-            amount: 1
-        crafting-time: 5
-        ingredients:
         - 'vanilla{type=IRON_INGOT,amount=2}'
+    archeology-trowel:
+        output:
+            type: TOOLS
+            id: ARCHEOLOGY_TROWEL
+            amount: 1
+        crafting-time: 5
+        ingredients:
         - 'vanilla{type=STICK,amount=2}'
+        - 'vanilla{type=IRON_INGOT,amount=2}'
+    archeology-pick:
+        output:
+            type: TOOLS
+            id: ARCHEOLOGY_PICK
+            amount: 1
+        crafting-time: 5
+        ingredients:
+        - 'vanilla{type=STICK,amount=3}'
+        - 'vanilla{type=IRON_INGOT,amount=3}'
+    archeology-shovel:
+        output:
+            type: TOOLS
+            id: ARCHEOLOGY_SHOVEL
+            amount: 1
+        crafting-time: 5
+        ingredients:
+        - 'vanilla{type=STICK,amount=3}'
+        - 'vanilla{type=IRON_INGOT,amount=3}'
     archeology-cabinet:
         output: "itemsadder{id=archeology_cabinet}"
         crafting-time: 2

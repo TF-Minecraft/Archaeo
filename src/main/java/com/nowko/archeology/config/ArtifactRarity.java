@@ -5,8 +5,8 @@ import org.bukkit.ChatColor;
 import java.util.Locale;
 
 /**
- * Spawn-flavour tier for a find template. Colours the rarity line on pieces and camp plaques
- * so rarer catalogue rows read at a glance.
+ * Built-in spawn-flavour tiers used when {@code config.yml} {@code rarity:} omits a key.
+ * Colours and labels can be overridden there; {@link #loreLine()} shows the tier in uppercase.
  */
 public enum ArtifactRarity {
     /** Everyday scatter; white. */
@@ -65,11 +65,20 @@ public enum ArtifactRarity {
     }
 
     /**
-     * One lore line: grey label plus the coloured tier id.
+     * Packaged style: uppercase enum name and built-in colour.
      *
-     * @return line such as {@code Rarity: rare} with colours applied
+     * @return style used when config does not override this id
+     */
+    public RarityStyle style() {
+        return new RarityStyle(id(), name(), color);
+    }
+
+    /**
+     * One lore line: grey label plus the coloured tier in uppercase.
+     *
+     * @return line such as {@code Rarity: RARE} with colours applied
      */
     public String loreLine() {
-        return ChatColor.GRAY + "Rarity: " + color + id();
+        return style().loreLine();
     }
 }

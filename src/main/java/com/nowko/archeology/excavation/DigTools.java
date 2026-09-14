@@ -5,6 +5,7 @@ import com.nowko.archeology.config.PickSettings;
 import com.nowko.archeology.item.ItemMatcher;
 import com.nowko.archeology.item.ItemRef;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.inventory.ItemStack;
@@ -136,7 +137,9 @@ public class DigTools {
     }
 
     /**
-     * Clears an older Archaeo mine-lock on a whitelist tool so {@code getBreakSpeed} can be sampled.
+     * Strips a legacy Archaeo mine-lock that was once written onto the stack itself.
+     * The live lock now lives on the player attribute; pack stats such as MMOItems
+     * {@code block-break-speed} must stay on the item so cue tempo can follow them.
      *
      * @param stack main-hand stack, or {@code null}
      */
@@ -145,31 +148,43 @@ public class DigTools {
             return;
         }
         ItemMeta meta = stack.getItemMeta();
-        if (meta == null || !needsSpeedRepair(meta)) {
+        if (meta == null) {
             return;
         }
+        boolean changed = false;
         Collection<AttributeModifier> modifiers = meta.getAttributeModifiers(Attribute.BLOCK_BREAK_SPEED);
         if (modifiers != null) {
             for (AttributeModifier modifier : new ArrayList<>(modifiers)) {
+                if (!isLegacyArchaeoMineLock(modifier)) {
+                    continue;
+                }
                 meta.removeAttributeModifier(Attribute.BLOCK_BREAK_SPEED, modifier);
+                changed = true;
             }
         }
-        ItemMeta vanilla = new ItemStack(stack.getType()).getItemMeta();
-        if (vanilla != null) {
-            meta.setTool(vanilla.getTool());
+        // Old builds zeroed ToolComponent on the stack; restore material defaults only then.
+        // Do not rewrite a healthy ToolComponent — pack tools often share WOODEN_PICKAXE
+        // as base material and keep their own defaultMiningSpeed.
+        if (meta.getTool().getDefaultMiningSpeed() <= 0f) {
+            ItemMeta vanilla = new ItemStack(stack.getType()).getItemMeta();
+            if (vanilla != null) {
+                meta.setTool(vanilla.getTool());
+                changed = true;
+            }
         }
-        stack.setItemMeta(meta);
+        if (changed) {
+            stack.setItemMeta(meta);
+        }
     }
 
     /**
-     * @param meta item meta
-     * @return whether an older zero-speed lock is still on this stack
+     * @param modifier attribute modifier on a held tool
+     * @return whether this is the old item-level {@code archaeo:no_vanilla_mine} lock
      */
-    private static boolean needsSpeedRepair(ItemMeta meta) {
-        Collection<AttributeModifier> modifiers = meta.getAttributeModifiers(Attribute.BLOCK_BREAK_SPEED);
-        if (modifiers != null && !modifiers.isEmpty()) {
-            return true;
-        }
-        return meta.getTool().getDefaultMiningSpeed() <= 0f;
+    private static boolean isLegacyArchaeoMineLock(AttributeModifier modifier) {
+        NamespacedKey key = modifier.getKey();
+        return key != null
+                && "archaeo".equals(key.getNamespace())
+                && "no_vanilla_mine".equals(key.getKey());
     }
 }

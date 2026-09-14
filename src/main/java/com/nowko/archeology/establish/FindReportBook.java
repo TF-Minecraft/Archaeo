@@ -1,6 +1,5 @@
 package com.nowko.archeology.establish;
 
-import com.nowko.archeology.config.ArtifactRarity;
 import com.nowko.archeology.config.ArtifactTemplate;
 import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.config.HintTemplate;
@@ -136,8 +135,8 @@ public final class FindReportBook {
             page.append("Recovered by ").append(CampNames.of(director, find.getRecoveredBy())).append('\n');
         }
         if (find.isStudied()) {
-            if (template != null && template.rarity() != null && !template.rarity().isBlank()) {
-                page.append(ArtifactRarity.fromConfig(template.rarity()).loreLine()).append('\n');
+            if (template != null) {
+                page.append(catalogs.rarityLoreLine(template)).append('\n');
             }
             String notes = find.getStudyNotes();
             if (notes == null || notes.isBlank()) {

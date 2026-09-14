@@ -1,6 +1,5 @@
 package com.nowko.archeology.item;
 
-import com.nowko.archeology.config.ArtifactRarity;
 import com.nowko.archeology.config.ArtifactTemplate;
 import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.config.InterpretationTemplate;
@@ -420,9 +419,8 @@ public class RecoveredFindItem {
             }
             lore.add(condition);
         }
-        if (find.hasFieldSketch() && template != null
-                && template.rarity() != null && !template.rarity().isBlank()) {
-            lore.add(ArtifactRarity.fromConfig(template.rarity()).loreLine());
+        if (find.hasFieldSketch() && template != null) {
+            lore.add(catalogs.rarityLoreLine(template));
         }
         lore.add(ChatColor.AQUA + find.catalogStatusLabel());
         String hint = nextCabinetHint(template, find, catalogs);

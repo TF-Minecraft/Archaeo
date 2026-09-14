@@ -14,6 +14,7 @@ import java.util.List;
  * @param conservation buried-condition roll and the bands used to describe a piece
  * @param limits temporary prism outline shown from the camp board
  * @param neighborTraces whether lifting fill reports adjacent find cubes by material
+ * @param cues Archaeo metronome affinity (pick / shovel block lists and scales)
  * @param profiles named tools from {@code excavation.tools}
  */
 public record PickSettings(
@@ -26,6 +27,7 @@ public record PickSettings(
         ConservationSettings conservation,
         LimitsSettings limits,
         boolean neighborTraces,
+        CueSettings cues,
         List<ExcavationTool> profiles
 ) {
     /**
@@ -42,6 +44,7 @@ public record PickSettings(
                 ConservationSettings.defaults(),
                 LimitsSettings.defaults(),
                 true,
+                CueSettings.defaults(),
                 List.of(ExcavationTool.hand(), ExcavationTool.light(), ExcavationTool.heavy())
         );
     }

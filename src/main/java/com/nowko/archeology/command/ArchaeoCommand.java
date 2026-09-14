@@ -3,6 +3,7 @@ package com.nowko.archeology.command;
 import com.nowko.archeology.ArcheologyPlugin;
 import com.nowko.archeology.config.ArtifactTemplate;
 import com.nowko.archeology.config.CatalogRegistry;
+import com.nowko.archeology.establish.CampNames;
 import com.nowko.archeology.establish.EstablishService;
 import com.nowko.archeology.excavation.FindDustService;
 import com.nowko.archeology.excavation.HandPickService;
@@ -19,12 +20,20 @@ import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.SiteStatus;
 import com.nowko.archeology.model.StratumBand;
 import com.nowko.archeology.prospect.ProspectService;
+import com.nowko.archeology.site.RuinAutoSpawner;
 import com.nowko.archeology.site.SiteGenerator;
 import com.nowko.archeology.site.SiteRepository;
 import com.nowko.archeology.tracker.TrackerService;
+import net.md_5.bungee.api.chat.ClickEvent;
+import net.md_5.bungee.api.chat.HoverEvent;
+import net.md_5.bungee.api.chat.TextComponent;
+import net.md_5.bungee.api.chat.hover.content.Text;
 import org.bukkit.Bukkit;
 import com.nowko.archeology.excavation.PrismFill;
 import org.bukkit.Chunk;
+import org.bukkit.Location;
+import org.bukkit.OfflinePlayer;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.command.Command;
@@ -39,6 +48,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -48,7 +58,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private static final List<String> INTERESTS = List.of("low", "medium", "high", "exceptional");
     private static final List<String> ROOT = List.of(
             "give", "ruin", "workday", "find", "sketch", "reload");
-    private static final List<String> RUIN_ACTIONS = List.of("create", "info");
+    private static final List<String> RUIN_ACTIONS = List.of("create", "info", "camps", "tp");
     private static final List<String> GIVE_KINDS = List.of(
             "tracker", "prospect", "establish", "tool", "brush", "paper", "pencil");
     private static final List<String> WORKDAY_ACTIONS = List.of("reset");
@@ -69,6 +79,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private final PrismListener prism;
     private final BrushItem brushItem;
     private final RecoverService recover;
+    private final RuinAutoSpawner autoRuins;
 
     /**
      * @param plugin owner used to re-bind ItemsAdder / MMOItems on reload
@@ -86,6 +97,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      * @param prism prism fill lock, updated on reload
      * @param brushItem factory for {@code give brush}
      * @param recover field-brush loop, updated on reload
+     * @param autoRuins trial chunk auto-spawner, updated on reload
      */
     public ArchaeoCommand(
             ArcheologyPlugin plugin,
@@ -102,7 +114,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             FindDustService findDust,
             PrismListener prism,
             BrushItem brushItem,
-            RecoverService recover
+            RecoverService recover,
+            RuinAutoSpawner autoRuins
     ) {
         this.plugin = plugin;
         this.catalogs = catalogs;
@@ -119,6 +132,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         this.prism = prism;
         this.brushItem = brushItem;
         this.recover = recover;
+        this.autoRuins = autoRuins;
     }
 
     /**
@@ -161,6 +175,12 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         if ("info".equalsIgnoreCase(args[1])) {
             return handleInfo(sender, args);
         }
+        if ("tp".equalsIgnoreCase(args[1])) {
+            return handleRuinTp(sender, args);
+        }
+        if ("camps".equalsIgnoreCase(args[1])) {
+            return handleCamps(sender, args);
+        }
         sendUsage(sender);
         return true;
     }
@@ -193,6 +213,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     catalogs.items().sketchPencil(),
                     catalogs.sketch().pencilUses());
             plugin.sketch().setSettings(catalogs.sketch());
+            if (autoRuins != null) {
+                autoRuins.setSettings(catalogs.autoRuins());
+            }
             sites.loadAll();
             sender.sendMessage("Reloaded Archaeo config, catalogs, and sites from disk.");
         } catch (RuntimeException exception) {
@@ -602,6 +625,214 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
+     * Staff teleport to the centre of a ruin chunk (surface datum). Used by auto-ruin {@code [tp]} links.
+     *
+     * @param sender must be a player
+     * @param args {@code ruin tp <name|#serial>}
+     * @return {@code true} always (handled)
+     */
+    private boolean handleRuinTp(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("Ruin tp must be used in-game.");
+            return true;
+        }
+        if (args.length < 3) {
+            sender.sendMessage("Usage: /archaeo ruin tp <name|#serial>");
+            return true;
+        }
+        String query = Arrays.stream(args).skip(2).collect(Collectors.joining(" "));
+        Optional<Site> resolved = resolveQuery(sender, query);
+        if (resolved.isEmpty()) {
+            return true;
+        }
+        Site site = resolved.get();
+        World world = Bukkit.getWorld(site.getWorldName());
+        if (world == null) {
+            sender.sendMessage("World \"" + site.getWorldName() + "\" is not loaded.");
+            return true;
+        }
+        int blockX = (site.getChunkX() << 4) + 8;
+        int blockZ = (site.getChunkZ() << 4) + 8;
+        world.getChunkAt(site.getChunkX(), site.getChunkZ()).load();
+        int y = site.getSurfaceY() + 1;
+        player.teleport(new Location(world, blockX + 0.5, y, blockZ + 0.5));
+        sender.sendMessage("Teleported to " + site.displayLabel()
+                + " · chunk " + site.getChunkX() + "," + site.getChunkZ()
+                + " (" + site.getWorldName() + ").");
+        return true;
+    }
+
+    /**
+     * Lists locked camps a player still directs, and teleports staff to one when chosen.
+     * One camp teleports immediately; several print a clickable list (or take {@code #serial}).
+     *
+     * @param sender staff issuer
+     * @param args {@code ruin camps [player] [#serial]}
+     * @return {@code true} always (handled)
+     */
+    private boolean handleCamps(CommandSender sender, String[] args) {
+        OfflinePlayer director;
+        Optional<Integer> serial = Optional.empty();
+        if (args.length == 2) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage("Console must name a player: /archaeo ruin camps <player> [#serial]");
+                return true;
+            }
+            director = player;
+        } else if (args.length == 3) {
+            Optional<Integer> onlySerial = parseSerial(args[2]);
+            if (onlySerial.isPresent()) {
+                if (!(sender instanceof Player)) {
+                    sender.sendMessage("Console must name a player before a serial: /archaeo ruin camps <player> #serial");
+                    return true;
+                }
+                return teleportToCamp(sender, (Player) sender, onlySerial.get(), null);
+            }
+            director = CampNames.known(args[2]);
+            if (director == null) {
+                sender.sendMessage("Unknown player: " + args[2]);
+                return true;
+            }
+        } else {
+            director = CampNames.known(args[2]);
+            if (director == null) {
+                sender.sendMessage("Unknown player: " + args[2]);
+                return true;
+            }
+            serial = parseSerial(Arrays.stream(args).skip(3).collect(Collectors.joining(" ")));
+            if (serial.isEmpty()) {
+                sender.sendMessage("Usage: /archaeo ruin camps [player] [#serial]");
+                return true;
+            }
+        }
+        UUID directorId = director.getUniqueId();
+        if (serial.isPresent()) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage("Only a player can teleport to a camp.");
+                return true;
+            }
+            return teleportToCamp(sender, player, serial.get(), directorId);
+        }
+        List<Site> camps = sites.findDirectedCamps(directorId);
+        String who = CampNames.of(sender instanceof Player player ? player : null, directorId);
+        if (camps.isEmpty()) {
+            sender.sendMessage(who + " does not direct any open camp.");
+            return true;
+        }
+        if (camps.size() == 1 && sender instanceof Player player) {
+            Site only = camps.getFirst();
+            sendCampLine(sender, only, false);
+            return teleportPlayerToCamp(sender, player, only);
+        }
+        sender.sendMessage(who + " directs " + camps.size() + " camp" + (camps.size() == 1 ? "" : "s") + ":");
+        for (Site camp : camps) {
+            sendCampLine(sender, camp, sender instanceof Player);
+        }
+        if (camps.size() > 1 && sender instanceof Player) {
+            sender.sendMessage("Click [tp] or run /archaeo ruin camps "
+                    + (args.length >= 3 ? args[2] + " " : "")
+                    + "#serial");
+        }
+        return true;
+    }
+
+    /**
+     * Teleports the issuer to a directed camp after checking the optional director filter.
+     *
+     * @param sender who receives errors
+     * @param traveler player to move
+     * @param serial site serial
+     * @param expectedDirector required director, or {@code null} to accept any locked camp
+     * @return {@code true} always
+     */
+    private boolean teleportToCamp(
+            CommandSender sender,
+            Player traveler,
+            int serial,
+            UUID expectedDirector
+    ) {
+        Optional<Site> resolved = sites.findBySerial(serial);
+        if (resolved.isEmpty()) {
+            sender.sendMessage("No site with serial #" + serial + ".");
+            return true;
+        }
+        Site site = resolved.get();
+        if (!site.isCampLocked() || site.getCampX() == null) {
+            sender.sendMessage(site.displayLabel() + " has no standing camp to teleport to.");
+            return true;
+        }
+        if (expectedDirector != null && !site.isDirector(expectedDirector)) {
+            sender.sendMessage(site.displayLabel() + " is not directed by that player.");
+            return true;
+        }
+        return teleportPlayerToCamp(sender, traveler, site);
+    }
+
+    /**
+     * Moves {@code traveler} to the camp table block of {@code site}.
+     *
+     * @param sender who receives confirmations
+     * @param traveler player to move
+     * @param site locked camp
+     * @return {@code true} always
+     */
+    private boolean teleportPlayerToCamp(CommandSender sender, Player traveler, Site site) {
+        World world = Bukkit.getWorld(site.getWorldName());
+        if (world == null) {
+            sender.sendMessage("World not loaded: " + site.getWorldName());
+            return true;
+        }
+        if (site.getCampX() == null || site.getCampY() == null || site.getCampZ() == null) {
+            sender.sendMessage(site.displayLabel() + " has no camp coordinates.");
+            return true;
+        }
+        Location destination = new Location(
+                world,
+                site.getCampX() + 0.5,
+                site.getCampY() + 1.0,
+                site.getCampZ() + 0.5);
+        traveler.teleport(destination);
+        sender.sendMessage("Teleported to " + site.displayLabel()
+                + " · camp " + site.getCampX() + "," + site.getCampY() + "," + site.getCampZ()
+                + " (" + site.getWorldName() + ").");
+        if (traveler != sender) {
+            traveler.sendMessage("Staff moved you to camp " + site.displayLabel() + ".");
+        }
+        return true;
+    }
+
+    /**
+     * Prints one directed-camp summary, optionally with a clickable teleport token.
+     *
+     * @param sender who receives the line
+     * @param site locked camp
+     * @param clickable whether to attach a {@code [tp]} run-command
+     */
+    private void sendCampLine(CommandSender sender, Site site, boolean clickable) {
+        String coords = site.getCampX() == null
+                ? "unknown"
+                : site.getCampX() + "," + site.getCampY() + "," + site.getCampZ();
+        String body = site.displayLabel()
+                + " · " + site.getStatus().name().toLowerCase(Locale.ROOT)
+                + " · " + site.getWorldName()
+                + " · camp " + coords;
+        if (!clickable || !(sender instanceof Player player)) {
+            sender.sendMessage("  " + body);
+            return;
+        }
+        TextComponent prefix = new TextComponent("  " + body + " ");
+        TextComponent tp = new TextComponent("[tp]");
+        tp.setColor(net.md_5.bungee.api.ChatColor.AQUA);
+        tp.setClickEvent(new ClickEvent(
+                ClickEvent.Action.RUN_COMMAND,
+                "/archaeo ruin camps #" + site.getSerial()));
+        tp.setHoverEvent(new HoverEvent(
+                HoverEvent.Action.SHOW_TEXT,
+                new Text("Teleport to this camp")));
+        player.spigot().sendMessage(prefix, tp);
+    }
+
+    /**
      * Resolves a staff query to one site, or sends an error and returns empty.
      *
      * @param sender who will receive ambiguity errors
@@ -713,6 +944,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private void sendUsage(CommandSender sender) {
         sender.sendMessage("Usage: /archaeo ruin create <low|medium|high|exceptional> [name]");
         sender.sendMessage("       /archaeo ruin info [name|#serial]");
+        sender.sendMessage("       /archaeo ruin tp <name|#serial>");
+        sender.sendMessage("       /archaeo ruin camps [player] [#serial]");
         sender.sendMessage("       /archaeo give tracker|prospect|establish|tool|brush|paper|pencil [player]");
         sender.sendMessage("       /archaeo give tool <item> [player]");
         sender.sendMessage("       /archaeo workday reset [player|all]");
@@ -833,6 +1066,52 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                 }
             }
             return names;
+        }
+        if (args.length >= 3 && "tp".equalsIgnoreCase(args[1])) {
+            String typed = Arrays.stream(args).skip(2).collect(Collectors.joining(" "));
+            List<String> names = new ArrayList<>(sites.namesStartingWith(typed));
+            if (args.length == 3) {
+                String token = args[2].toLowerCase(Locale.ROOT);
+                for (Site site : sites.all()) {
+                    String serial = "#" + site.getSerial();
+                    if (serial.startsWith(token) || String.valueOf(site.getSerial()).startsWith(token)) {
+                        names.add(serial);
+                    }
+                }
+            }
+            return names;
+        }
+        if (args.length >= 3 && "camps".equalsIgnoreCase(args[1])) {
+            if (args.length == 3) {
+                List<String> suggestions = new ArrayList<>(onlineNamesStartingWith(args[2]));
+                String token = args[2].toLowerCase(Locale.ROOT);
+                for (Site site : sites.all()) {
+                    if (!site.isCampLocked()) {
+                        continue;
+                    }
+                    String serial = "#" + site.getSerial();
+                    if (serial.startsWith(token) || String.valueOf(site.getSerial()).startsWith(token)) {
+                        suggestions.add(serial);
+                    }
+                }
+                return suggestions;
+            }
+            if (args.length == 4) {
+                OfflinePlayer director = CampNames.known(args[2]);
+                if (director == null) {
+                    return List.of();
+                }
+                String token = args[3].toLowerCase(Locale.ROOT);
+                List<String> serials = new ArrayList<>();
+                for (Site site : sites.findDirectedCamps(director.getUniqueId())) {
+                    String serial = "#" + site.getSerial();
+                    if (serial.startsWith(token) || String.valueOf(site.getSerial()).startsWith(token)) {
+                        serials.add(serial);
+                    }
+                }
+                return serials;
+            }
+            return List.of();
         }
         return List.of();
     }
