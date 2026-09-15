@@ -1458,21 +1458,49 @@ public class CatalogRegistry {
                     : weightSection.getInt(level.yamlKey(), packaged);
             weights.put(level, Math.max(0, value));
         }
+        Set<String> excludedBiomes = section.contains("excluded-biomes")
+                ? AutoRuinSettings.normalizeBiomeList(section.getStringList("excluded-biomes"), Set.of())
+                : fallback.excludedBiomes();
         autoRuins = new AutoRuinSettings(
                 section.getBoolean("enabled", fallback.enabled()),
                 List.copyOf(worlds),
-                Math.max(0.0, Math.min(1.0, section.getDouble("chance-per-chunk", fallback.chancePerChunk()))),
+                Math.max(0.0, Math.min(1.0, readUnitInterval(section, "chance-per-chunk", fallback.chancePerChunk()))),
                 Math.max(0, section.getInt("min-chunk-distance", fallback.minChunkDistance())),
                 Math.max(0, section.getInt("max-sites-per-world", fallback.maxSitesPerWorld())),
                 Math.max(0, section.getInt("exclude-spawn-chunks", fallback.excludeSpawnChunks())),
                 Math.max(0, section.getInt("max-relief-blocks", fallback.maxReliefBlocks())),
-                Math.max(0.0, Math.min(1.0, section.getDouble("min-soil-fraction", fallback.minSoilFraction()))),
-                Math.max(0.0, Math.min(1.0, section.getDouble("max-flooded-fraction", fallback.maxFloodedFraction()))),
-                Math.max(0, section.getInt("min-buried-cells", fallback.minBuriedCells())),
+                Math.max(0.0, Math.min(1.0, readUnitInterval(section, "min-soil-fraction", fallback.minSoilFraction()))),
+                excludedBiomes,
                 Map.copyOf(weights),
                 Math.max(1, section.getInt("evaluate-delay-ticks", fallback.evaluateDelayTicks())),
                 Math.max(1, section.getInt("max-evaluations-per-tick", fallback.maxEvaluationsPerTick())),
                 section.getBoolean("notify-staff", fallback.notifyStaff()));
+    }
+
+    /**
+     * Reads a 0–1 style double, accepting {@code 0.1} or locale-style {@code 0,1} strings.
+     *
+     * @param section config block
+     * @param key YAML key
+     * @param fallback packaged default
+     * @return parsed value, or {@code fallback} when missing/invalid
+     */
+    private static double readUnitInterval(ConfigurationSection section, String key, double fallback) {
+        if (!section.contains(key)) {
+            return fallback;
+        }
+        if (section.isDouble(key) || section.isInt(key) || section.isLong(key)) {
+            return section.getDouble(key);
+        }
+        String raw = section.getString(key);
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            return Double.parseDouble(raw.trim().replace(',', '.'));
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
     }
 
     /**

@@ -58,7 +58,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private static final List<String> INTERESTS = List.of("low", "medium", "high", "exceptional");
     private static final List<String> ROOT = List.of(
             "give", "ruin", "workday", "find", "sketch", "reload");
-    private static final List<String> RUIN_ACTIONS = List.of("create", "info", "camps", "tp");
+    private static final List<String> RUIN_ACTIONS = List.of("create", "info", "camps", "tp", "auto");
+    private static final List<String> RUIN_AUTO_ACTIONS = List.of("status", "reset");
     private static final List<String> GIVE_KINDS = List.of(
             "tracker", "prospect", "establish", "tool", "brush", "paper", "pencil");
     private static final List<String> WORKDAY_ACTIONS = List.of("reset");
@@ -181,6 +182,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         if ("camps".equalsIgnoreCase(args[1])) {
             return handleCamps(sender, args);
         }
+        if ("auto".equalsIgnoreCase(args[1])) {
+            return handleRuinAuto(sender, args);
+        }
         sendUsage(sender);
         return true;
     }
@@ -218,6 +222,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             }
             sites.loadAll();
             sender.sendMessage("Reloaded Archaeo config, catalogs, and sites from disk.");
+            if (autoRuins != null) {
+                sender.sendMessage(autoRuins.statusLine());
+            }
         } catch (RuntimeException exception) {
             sender.sendMessage("Reload failed: " + exception.getMessage());
         }
@@ -663,6 +670,37 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
+     * Trial auto-spawn diagnostics: status line, or wipe the per-chunk evaluation ledger.
+     *
+     * @param sender staff issuer
+     * @param args {@code ruin auto status|reset}
+     * @return {@code true} always (handled)
+     */
+    private boolean handleRuinAuto(CommandSender sender, String[] args) {
+        if (autoRuins == null) {
+            sender.sendMessage("Auto-ruins are not available on this server.");
+            return true;
+        }
+        if (args.length < 3) {
+            sender.sendMessage("Usage: /archaeo ruin auto status|reset");
+            return true;
+        }
+        String action = args[2].toLowerCase(Locale.ROOT);
+        if ("status".equals(action)) {
+            sender.sendMessage(autoRuins.statusLine());
+            return true;
+        }
+        if ("reset".equals(action)) {
+            autoRuins.clearEvaluated("staff /archaeo ruin auto reset");
+            sender.sendMessage("Cleared auto-ruin evaluation ledger. Re-enter chunks (or fly again) to re-roll.");
+            sender.sendMessage(autoRuins.statusLine());
+            return true;
+        }
+        sender.sendMessage("Usage: /archaeo ruin auto status|reset");
+        return true;
+    }
+
+    /**
      * Lists locked camps a player still directs, and teleports staff to one when chosen.
      * One camp teleports immediately; several print a clickable list (or take {@code #serial}).
      *
@@ -946,6 +984,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("       /archaeo ruin info [name|#serial]");
         sender.sendMessage("       /archaeo ruin tp <name|#serial>");
         sender.sendMessage("       /archaeo ruin camps [player] [#serial]");
+        sender.sendMessage("       /archaeo ruin auto status|reset");
         sender.sendMessage("       /archaeo give tracker|prospect|establish|tool|brush|paper|pencil [player]");
         sender.sendMessage("       /archaeo give tool <item> [player]");
         sender.sendMessage("       /archaeo workday reset [player|all]");
@@ -1043,6 +1082,11 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         if (args.length == 2) {
             return RUIN_ACTIONS.stream()
                     .filter(value -> value.startsWith(args[1].toLowerCase(Locale.ROOT)))
+                    .toList();
+        }
+        if (args.length == 3 && "auto".equalsIgnoreCase(args[1])) {
+            return RUIN_AUTO_ACTIONS.stream()
+                    .filter(value -> value.startsWith(args[2].toLowerCase(Locale.ROOT)))
                     .toList();
         }
         if (args.length >= 3 && "create".equalsIgnoreCase(args[1])) {

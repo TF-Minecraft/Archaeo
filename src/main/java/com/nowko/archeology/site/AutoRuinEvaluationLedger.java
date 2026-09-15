@@ -17,6 +17,10 @@ import java.util.logging.Level;
  *
  * <p>Storage is one 32×32-chunk region bitset (128 bytes) under
  * {@code plugins/Archaeo/auto-ruins/evaluated/<world>/r.<rx>.<rz>.bin}.
+ *
+ * <p>Deleting that folder while the server is running used to do nothing useful: RAM still held
+ * the bits and the flush timer recreated the files. Flush now treats a vanished folder as an
+ * external reset and clears memory instead of rewriting it.
  */
 public class AutoRuinEvaluationLedger {
     private static final int REGION = 32;
@@ -28,6 +32,8 @@ public class AutoRuinEvaluationLedger {
     /** world name → region key → evaluated chunks in that region */
     private final Map<String, Map<Long, BitSet>> worlds = new ConcurrentHashMap<>();
     private final Map<String, Map<Long, Boolean>> dirty = new ConcurrentHashMap<>();
+    /** True after we have seen or written {@link #root}; used to detect admin folder deletes. */
+    private boolean sawDiskRoot;
 
     /**
      * @param plugin data-folder owner and logger
@@ -38,14 +44,16 @@ public class AutoRuinEvaluationLedger {
     }
 
     /**
-     * Loads every region file already on disk into memory.
+     * Loads every region file already on disk into memory (replacing any previous RAM state).
      */
     public void load() {
         worlds.clear();
         dirty.clear();
+        sawDiskRoot = false;
         if (!Files.isDirectory(root)) {
             return;
         }
+        sawDiskRoot = true;
         try (var worldsStream = Files.list(root)) {
             worldsStream.filter(Files::isDirectory).forEach(this::loadWorldFolder);
         } catch (IOException exception) {
@@ -55,8 +63,18 @@ public class AutoRuinEvaluationLedger {
 
     /**
      * Writes every dirty region bitset. Called on disable and by the flush timer.
+     * If an admin deleted {@code auto-ruins/evaluated/} while the server was up, clears RAM
+     * instead of recreating the folder from the old in-memory mask.
      */
     public void flush() {
+        if (sawDiskRoot && !Files.isDirectory(root)) {
+            plugin.getLogger().info(
+                    "Auto-ruin evaluation folder was removed; clearing in-memory ledger (not rewriting).");
+            worlds.clear();
+            dirty.clear();
+            sawDiskRoot = false;
+            return;
+        }
         for (Map.Entry<String, Map<Long, Boolean>> worldEntry : dirty.entrySet()) {
             String worldName = worldEntry.getKey();
             Map<Long, BitSet> regions = worlds.get(worldName);
@@ -102,6 +120,71 @@ public class AutoRuinEvaluationLedger {
         dirty
                 .computeIfAbsent(key, ignored -> new ConcurrentHashMap<>())
                 .put(regionKey(chunkX, chunkZ), Boolean.TRUE);
+    }
+
+    /**
+     * Drops every evaluated bit (memory and {@code auto-ruins/evaluated/} on disk).
+     * Call this when spawn lottery knobs change so already-explored chunks can be reconsidered.
+     */
+    public void clearAll() {
+        worlds.clear();
+        dirty.clear();
+        sawDiskRoot = false;
+        if (!Files.isDirectory(root)) {
+            return;
+        }
+        try {
+            try (var worldsStream = Files.list(root)) {
+                worldsStream.forEach(path -> {
+                    try {
+                        deleteRecursive(path);
+                    } catch (IOException exception) {
+                        plugin.getLogger().log(Level.WARNING, "Could not delete " + path, exception);
+                    }
+                });
+            }
+        } catch (IOException exception) {
+            plugin.getLogger().log(Level.WARNING, "Could not clear auto-ruin evaluation ledger", exception);
+        }
+    }
+
+    /**
+     * @return how many region bitset files are currently loaded in memory
+     */
+    public int loadedRegionCount() {
+        int total = 0;
+        for (Map<Long, BitSet> regions : worlds.values()) {
+            total += regions.size();
+        }
+        return total;
+    }
+
+    /**
+     * @return approximate number of chunks marked evaluated across all loaded regions
+     */
+    public int evaluatedChunkCount() {
+        int total = 0;
+        for (Map<Long, BitSet> regions : worlds.values()) {
+            for (BitSet bits : regions.values()) {
+                total += bits.cardinality();
+            }
+        }
+        return total;
+    }
+
+    /**
+     * @param path file or directory under the ledger root
+     * @throws IOException when a delete fails
+     */
+    private static void deleteRecursive(Path path) throws IOException {
+        if (Files.isDirectory(path)) {
+            try (var children = Files.list(path)) {
+                for (Path child : children.toList()) {
+                    deleteRecursive(child);
+                }
+            }
+        }
+        Files.deleteIfExists(path);
     }
 
     /**
@@ -151,6 +234,7 @@ public class AutoRuinEvaluationLedger {
             Files.createDirectories(folder);
             Path file = folder.resolve("r." + rx + "." + rz + ".bin");
             Files.write(file, toBytes(bits));
+            sawDiskRoot = true;
         } catch (IOException exception) {
             plugin.getLogger().log(Level.WARNING,
                     "Could not write auto-ruin ledger for " + worldName + " region " + rx + "," + rz,

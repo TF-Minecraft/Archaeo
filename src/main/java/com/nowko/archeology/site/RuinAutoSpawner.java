@@ -20,6 +20,10 @@ import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Locale;
 import java.util.Map;
@@ -33,6 +37,9 @@ import java.util.logging.Level;
  * Trial auto-spawn on chunk load: each chunk is considered at most once by Archaeo, whether the
  * terrain is brand new or was generated months before the plugin was installed.
  * Queues work so fitness checks never pile up in one tick; staff get a chat line with a [tp] link.
+ *
+ * <p>Changing {@code chance-per-chunk} (or {@code /archaeo ruin auto reset}) wipes the ledger so
+ * chunks can retry at the new threshold. A normal reload only updates settings and keeps the queue.
  */
 public class RuinAutoSpawner implements Listener {
     private final JavaPlugin plugin;
@@ -40,6 +47,7 @@ public class RuinAutoSpawner implements Listener {
     private final SiteRepository sites;
     private final SiteGenerator generator;
     private final AutoRuinEvaluationLedger ledger;
+    private final Path policyFile;
     private AutoRuinSettings settings;
     private final Queue<Pending> queue = new ArrayDeque<>();
     /** Chunks waiting in the queue or on a delayed schedule, so reloads do not enqueue twice. */
@@ -68,27 +76,122 @@ public class RuinAutoSpawner implements Listener {
         this.sites = sites;
         this.generator = generator;
         this.ledger = ledger;
+        this.policyFile = plugin.getDataFolder().toPath().resolve("auto-ruins").resolve("evaluation-policy.txt");
         this.settings = settings == null ? AutoRuinSettings.defaults() : settings;
     }
 
     /**
+     * Applies latest {@code auto-ruins} values. Clears the evaluation ledger only when
+     * {@code chance-per-chunk} actually changed; a plain reload must not drop the pending queue
+     * (loaded chunks will not fire {@code ChunkLoadEvent} again until they unload).
+     *
      * @param settings latest values after reload
      */
     public void setSettings(AutoRuinSettings settings) {
-        this.settings = settings == null ? AutoRuinSettings.defaults() : settings;
+        AutoRuinSettings next = settings == null ? AutoRuinSettings.defaults() : settings;
+        boolean chanceChanged = Double.compare(this.settings.chancePerChunk(), next.chancePerChunk()) != 0;
+        this.settings = next;
+        if (chanceChanged) {
+            clearEvaluated("chance-per-chunk changed to " + next.chancePerChunk());
+        }
+        writePolicyChance(next.chancePerChunk());
+    }
+
+    /**
+     * Replaces RAM with whatever is under {@code auto-ruins/evaluated/} now, then re-marks sites.
+     * Does not clear the pending queue: callers that need a full wipe should use {@link #clearEvaluated}.
+     */
+    public void resyncLedgerFromDisk() {
+        ledger.load();
+        seedExistingSites();
     }
 
     /**
      * Loads the evaluation ledger, seeds it from existing sites, and starts the drain/flush loops.
+     * Wipes the ledger only when a stored policy chance disagrees with config — never on first run
+     * merely because {@code evaluation-policy.txt} is missing (that was wiping progress every boot).
      */
     public void start() {
         stop();
         ledger.load();
+        Double stored = readPolicyChance();
+        double live = settings.chancePerChunk();
+        if (stored != null && Double.compare(stored, live) != 0) {
+            clearEvaluated("stored chance " + stored + " ≠ config " + live);
+        } else {
+            seedExistingSites();
+        }
+        writePolicyChance(live);
+        task = plugin.getServer().getScheduler().runTaskTimer(plugin, this::drain, 1L, 1L);
+        flushTask = plugin.getServer().getScheduler().runTaskTimer(plugin, ledger::flush, 100L, 100L);
+    }
+
+    /**
+     * Staff wipe of {@code auto-ruins/evaluated/} so the next chunk loads re-run the lottery.
+     * Existing ruin dossiers stay; their chunks are re-marked so duplicates are not attempted.
+     *
+     * @param reason short log / chat explanation
+     */
+    public void clearEvaluated(String reason) {
+        queue.clear();
+        inflight.clear();
+        ledger.clearAll();
+        seedExistingSites();
+        writePolicyChance(settings.chancePerChunk());
+        plugin.getLogger().info("Auto-ruin evaluation ledger cleared (" + reason + ").");
+    }
+
+    /**
+     * @return one-line staff summary of whether auto-spawn can still see new chunks
+     */
+    public String statusLine() {
+        return "auto-ruins enabled=" + settings.enabled()
+                + " chance=" + settings.chancePerChunk()
+                + " queue=" + queue.size()
+                + " inflight=" + inflight.size()
+                + " evaluatedChunks≈" + ledger.evaluatedChunkCount()
+                + " regions=" + ledger.loadedRegionCount()
+                + " sites=" + sites.all().size();
+    }
+
+    /**
+     * Marks every known site chunk so auto-spawn never tries to place a second ruin there.
+     */
+    private void seedExistingSites() {
         for (Site site : sites.all()) {
             ledger.markEvaluated(site.getWorldName(), site.getChunkX(), site.getChunkZ());
         }
-        task = plugin.getServer().getScheduler().runTaskTimer(plugin, this::drain, 1L, 1L);
-        flushTask = plugin.getServer().getScheduler().runTaskTimer(plugin, ledger::flush, 100L, 100L);
+    }
+
+    /**
+     * @return last chance written under {@code auto-ruins/evaluation-policy.txt}, or {@code null}
+     */
+    private Double readPolicyChance() {
+        if (!Files.isRegularFile(policyFile)) {
+            return null;
+        }
+        try {
+            String raw = Files.readString(policyFile, StandardCharsets.UTF_8).trim();
+            if (raw.isEmpty()) {
+                return null;
+            }
+            return Double.parseDouble(raw.replace(',', '.'));
+        } catch (IOException | NumberFormatException exception) {
+            plugin.getLogger().log(Level.WARNING, "Could not read " + policyFile, exception);
+            return null;
+        }
+    }
+
+    /**
+     * @param chance live {@code chance-per-chunk} to persist for the next boot/reload compare
+     */
+    private void writePolicyChance(double chance) {
+        try {
+            Files.createDirectories(policyFile.getParent());
+            Files.writeString(policyFile, Double.toString(chance) + "\n", StandardCharsets.UTF_8);
+        } catch (IOException exception) {
+            plugin.getLogger().log(Level.WARNING, "Could not write " + policyFile, exception);
+        }
     }
 
     /**
@@ -210,17 +313,14 @@ public class RuinAutoSpawner implements Listener {
             }
 
             Chunk chunk = world.getChunkAt(pending.chunkX(), pending.chunkZ());
-            ChunkRuinFitness.Sample sample = ChunkRuinFitness.sample(chunk, catalogs);
+            if (ChunkRuinFitness.isExcludedWaterBiome(chunk, settings.excludedBiomes())) {
+                return;
+            }
+            ChunkRuinFitness.Sample sample = ChunkRuinFitness.sample(chunk);
             if (sample.reliefBlocks() > settings.maxReliefBlocks()) {
                 return;
             }
             if (sample.soilFraction() + 1e-9 < settings.minSoilFraction()) {
-                return;
-            }
-            if (sample.floodedFraction() - 1e-9 > settings.maxFloodedFraction()) {
-                return;
-            }
-            if (sample.buriedCells() < settings.minBuriedCells()) {
                 return;
             }
 
@@ -393,7 +493,7 @@ public class RuinAutoSpawner implements Listener {
         String rarity = interest == null ? site.getInterest().yamlKey() : interest.displayName();
         String line = String.format(
                 Locale.ROOT,
-                "[Archaeo] Auto-ruin %s · rarity %s · chunk %d,%d (%s) · finds %d · relief %d · soil %.0f%% · flooded %.0f%% · buried %d",
+                "[Archaeo] Auto-ruin %s · rarity %s · chunk %d,%d (%s) · finds %d · relief %d · soil %.0f%%",
                 site.displayLabel(),
                 rarity,
                 site.getChunkX(),
@@ -401,9 +501,7 @@ public class RuinAutoSpawner implements Listener {
                 site.getWorldName(),
                 site.getFinds().size(),
                 sample.reliefBlocks(),
-                sample.soilFraction() * 100.0,
-                sample.floodedFraction() * 100.0,
-                sample.buriedCells());
+                sample.soilFraction() * 100.0);
         plugin.getLogger().info(line);
         if (!settings.notifyStaff()) {
             return;

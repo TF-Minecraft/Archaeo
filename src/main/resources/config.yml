@@ -439,11 +439,16 @@ museum:
 # Each chunk is considered once and remembered under plugins/Archaeo/auto-ruins/evaluated/.
 # Staff get a chat line with rarity and a clickable [tp] to the ruin chunk.
 # Turn enabled off when you are done testing. Tune chance / distance / max for rarity.
+# Use a dot for chance (0.1), not a comma.
+# Manual wipe without changing chance: /archaeo ruin auto reset (then re-enter chunks).
 auto-ruins:
   enabled: true
   # Empty = every world. Example: [world]
   worlds: []
-  # Deterministic share of evaluated chunks that attempt a spawn (~1/250 at 0.004).
+  # Deterministic share of chunks that attempt a spawn (~1/250 at 0.004).
+  # WARNING: changing this value (then /archaeo reload or restart) CLEARS the evaluation
+  # ledger so the whole map can re-roll at the new rate. Existing ruin sites are kept;
+  # only the “already considered” mask is wiped. Other auto-ruins keys do not trigger that.
   chance-per-chunk: 0.004
   # Chebyshev distance in chunks to any existing site.
   min-chunk-distance: 16
@@ -451,15 +456,25 @@ auto-ruins:
   max-sites-per-world: 60
   # Skip this many chunks around world spawn.
   exclude-spawn-chunks: 32
-  # p90−p10 of column ground Y; gentle slope OK, mountain flanks fail.
+  # p90−p10 of a sparse 4×4 surface-height grid (only a few blocks below the heightmap).
   max-relief-blocks: 6
-  # Share of columns whose surface is shovel-mineable (dirt, sand, gravel…).
+  # Share of those surface samples whose top ground is shovel-mineable (dirt, sand, gravel…).
   min-soil-fraction: 0.35
-  # Reject open water / seafloor: max share of columns with liquid above the ground.
-  # Beaches with a wet edge stay under ~0.15; mid-ocean is near 1.0.
-  max-flooded-fraction: 0.15
-  # Minimum buryable cells in always-present strata before create runs.
-  min-buried-cells: 32
+  # Biome path keys that reject a chunk (centre + four corners at sea level).
+  # Use minecraft:ocean or ocean. Empty list = no biome gate. Beaches are not listed on purpose.
+  excluded-biomes:
+    - ocean
+    - deep_ocean
+    - warm_ocean
+    - lukewarm_ocean
+    - deep_lukewarm_ocean
+    - cold_ocean
+    - deep_cold_ocean
+    - frozen_ocean
+    - deep_frozen_ocean
+    - deep_warm_ocean
+    - river
+    - frozen_river
   interest-weights:
     low: 50
     medium: 35

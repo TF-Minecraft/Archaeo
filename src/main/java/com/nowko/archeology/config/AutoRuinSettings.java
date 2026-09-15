@@ -3,13 +3,15 @@ package com.nowko.archeology.config;
 import com.nowko.archeology.model.InterestLevel;
 
 import java.util.EnumMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Trial auto-spawn of hidden ruins when chunks load ({@code auto-ruins} in {@code config.yml}).
  * Each chunk is considered at most once (persisted), including terrain generated before the plugin existed.
- * Density knobs keep the map sparse; surface and burial checks keep bad terrain out.
+ * Density knobs keep the map sparse; surface checks keep bad terrain out.
  *
  * @param enabled whether loaded chunks may receive an auto ruin
  * @param worlds world names that participate; empty means every world
@@ -17,10 +19,9 @@ import java.util.Map;
  * @param minChunkDistance minimum Chebyshev distance in chunks to any existing site
  * @param maxSitesPerWorld hard cap per world; {@code 0} disables the cap
  * @param excludeSpawnChunks Chebyshev radius in chunks around world spawn that never auto-spawns
- * @param maxReliefBlocks allowed {@code p90 − p10} of column ground Y (gentle slope OK, mountains not)
- * @param minSoilFraction share of columns whose ground block is shovel-mineable soil
- * @param maxFloodedFraction share of columns that may have liquid above the ground (rejects open ocean)
- * @param minBuriedCells minimum cells that could hide a find before {@code createManagedRuin} runs
+ * @param maxReliefBlocks allowed {@code p90 − p10} of a sparse surface-height grid
+ * @param minSoilFraction minimum share of sparse surface samples with shovel-mineable ground
+ * @param excludedBiomes biome path keys that reject a chunk (oceans/rivers by default); empty disables the gate
  * @param interestWeights relative weights for rolling {@link InterestLevel}
  * @param evaluateDelayTicks ticks to wait after chunk load so populate can finish on new terrain
  * @param maxEvaluationsPerTick how many full fitness checks may run in one server tick
@@ -35,13 +36,33 @@ public record AutoRuinSettings(
         int excludeSpawnChunks,
         int maxReliefBlocks,
         double minSoilFraction,
-        double maxFloodedFraction,
-        int minBuriedCells,
+        Set<String> excludedBiomes,
         Map<InterestLevel, Integer> interestWeights,
         int evaluateDelayTicks,
         int maxEvaluationsPerTick,
         boolean notifyStaff
 ) {
+    /**
+     * Packaged ocean and river biome ids. Beaches and shores are intentionally omitted.
+     *
+     * @return default excluded biome path keys
+     */
+    public static Set<String> defaultExcludedBiomes() {
+        return Set.of(
+                "ocean",
+                "deep_ocean",
+                "warm_ocean",
+                "lukewarm_ocean",
+                "deep_lukewarm_ocean",
+                "cold_ocean",
+                "deep_cold_ocean",
+                "frozen_ocean",
+                "deep_frozen_ocean",
+                "deep_warm_ocean",
+                "river",
+                "frozen_river");
+    }
+
     /**
      * @return packaged trial defaults matching {@code config.yml}
      */
@@ -60,11 +81,47 @@ public record AutoRuinSettings(
                 32,
                 6,
                 0.35,
-                0.15,
-                32,
+                defaultExcludedBiomes(),
                 Map.copyOf(weights),
                 20,
                 1,
                 true);
+    }
+
+    /**
+     * Normalizes a YAML biome id to the path key used by Bukkit ({@code ocean}, not {@code minecraft:ocean}).
+     *
+     * @param raw config entry
+     * @return lowercase path key, or {@code null} if blank
+     */
+    public static String normalizeBiomeId(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String trimmed = raw.trim().toLowerCase();
+        int colon = trimmed.indexOf(':');
+        if (colon >= 0) {
+            trimmed = trimmed.substring(colon + 1);
+        }
+        return trimmed.isBlank() ? null : trimmed;
+    }
+
+    /**
+     * @param raw YAML list, or {@code null}
+     * @param fallback used when the list is missing
+     * @return normalized unique biome keys in config order
+     */
+    public static Set<String> normalizeBiomeList(List<String> raw, Set<String> fallback) {
+        if (raw == null) {
+            return fallback;
+        }
+        Set<String> normalized = new LinkedHashSet<>();
+        for (String entry : raw) {
+            String id = normalizeBiomeId(entry);
+            if (id != null) {
+                normalized.add(id);
+            }
+        }
+        return Set.copyOf(normalized);
     }
 }
