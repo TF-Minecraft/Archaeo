@@ -3,6 +3,7 @@ package com.nowko.archeology.excavation;
 import com.nowko.archeology.config.ArtifactTemplate;
 import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.config.RecoverySettings;
+import com.nowko.archeology.events.FindRecoveredEvent;
 import com.nowko.archeology.item.BrushItem;
 import com.nowko.archeology.item.RecoveredFindItem;
 import com.nowko.archeology.item.ToolWear;
@@ -368,6 +369,7 @@ public class RecoverService {
         dropped.setVelocity(new Vector(0, 0.12, 0));
         world.playSound(dropAt, Sound.ITEM_BRUSH_BRUSHING_GENERIC, SoundCategory.BLOCKS, 1f, 1.35f);
         world.spawnParticle(Particle.CLOUD, dropAt, 12, 0.25, 0.2, 0.25, 0.02);
+        Bukkit.getPluginManager().callEvent(new FindRecoveredEvent(player, stack.clone()));
         StringBuilder quality = new StringBuilder(" · ").append(conservation).append('%');
         if (!grade.isBlank()) {
             quality.append(" · ").append(grade.toLowerCase(Locale.ROOT));
