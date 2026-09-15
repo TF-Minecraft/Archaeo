@@ -6,7 +6,7 @@
 
   <groupId>com.nowko</groupId>
   <artifactId>archeology-plugin</artifactId>
-  <version>1.0</version>
+  <version>1.0.1</version>
   <name>archeology-plugin</name>
 
   <properties>
