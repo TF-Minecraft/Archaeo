@@ -36,7 +36,10 @@ import java.util.logging.Level;
 /**
  * Trial auto-spawn on chunk load: each chunk is considered at most once by Archaeo, whether the
  * terrain is brand new or was generated months before the plugin was installed.
- * Queues work so fitness checks never pile up in one tick; staff get a chat line with a [tp] link.
+ * A small {@code max-pending} window caps delayed/queued work so exploration cannot build a huge
+ * backlog of chunks that unload before they are decided. Each drain tick drops unloaded queue
+ * entries without marking them (they may retry on a later load) and then runs fitness only on
+ * chunks that are still loaded. Staff get a chat line with a [tp] link.
  *
  * <p>Changing {@code chance-per-chunk} (or {@code /archaeo ruin auto reset}) wipes the ledger so
  * chunks can retry at the new threshold. A normal reload only updates settings and keeps the queue.
@@ -147,8 +150,8 @@ public class RuinAutoSpawner implements Listener {
     public String statusLine() {
         return "auto-ruins enabled=" + settings.enabled()
                 + " chance=" + settings.chancePerChunk()
+                + " pending=" + inflight.size() + "/" + Math.max(1, settings.maxPending())
                 + " queue=" + queue.size()
-                + " inflight=" + inflight.size()
                 + " evaluatedChunks≈" + ledger.evaluatedChunkCount()
                 + " regions=" + ledger.loadedRegionCount()
                 + " sites=" + sites.all().size();
@@ -212,7 +215,9 @@ public class RuinAutoSpawner implements Listener {
     }
 
     /**
-     * Enqueues a chunk the first time Archaeo sees it loaded, after a short delay for populate.
+     * Accepts a chunk into the pending window the first time Archaeo sees it loaded, after a short
+     * delay for populate. When {@code max-pending} is full, the load is ignored (not burned) so a
+     * later load can retry once a slot frees.
      *
      * @param event any chunk load; Minecraft's {@code isNewChunk} is intentionally ignored
      */
@@ -234,6 +239,10 @@ public class RuinAutoSpawner implements Listener {
         int chunkZ = chunk.getZ();
         String worldName = world.getName();
         if (ledger.isEvaluated(worldName, chunkX, chunkZ)) {
+            return;
+        }
+        int maxPending = Math.max(1, settings.maxPending());
+        if (inflight.size() >= maxPending) {
             return;
         }
         String key = key(worldName, chunkX, chunkZ);
@@ -261,7 +270,8 @@ public class RuinAutoSpawner implements Listener {
     }
 
     /**
-     * Runs up to {@code max-evaluations-per-tick} full attempts from the queue.
+     * Drops queue entries whose chunks are no longer loaded (without marking them evaluated), then
+     * runs up to {@code max-evaluations-per-tick} full attempts on chunks that are still present.
      */
     private void drain() {
         if (!settings.enabled()) {
@@ -269,13 +279,60 @@ public class RuinAutoSpawner implements Listener {
             inflight.clear();
             return;
         }
+        dropUnloadedFromQueue();
         int budget = Math.max(1, settings.maxEvaluationsPerTick());
-        for (int i = 0; i < budget && !queue.isEmpty(); i++) {
+        for (int i = 0; i < budget; i++) {
+            Pending pending = pollLoadedPending();
+            if (pending == null) {
+                return;
+            }
+            evaluate(pending);
+        }
+    }
+
+    /**
+     * Removes pending work for chunks that unloaded before their turn. Does not mark the ledger so
+     * a later load may retry. Cheap while {@code max-pending} keeps the queue tiny.
+     */
+    private void dropUnloadedFromQueue() {
+        int size = queue.size();
+        for (int i = 0; i < size; i++) {
             Pending pending = queue.poll();
-            if (pending != null) {
-                evaluate(pending);
+            if (pending == null) {
+                return;
+            }
+            if (isChunkLoaded(pending)) {
+                queue.offer(pending);
+            } else {
+                inflight.remove(key(pending.worldName(), pending.chunkX(), pending.chunkZ()));
             }
         }
+    }
+
+    /**
+     * @return next queued chunk that is still loaded, or {@code null} when none remain
+     */
+    private Pending pollLoadedPending() {
+        while (!queue.isEmpty()) {
+            Pending pending = queue.poll();
+            if (pending == null) {
+                return null;
+            }
+            if (isChunkLoaded(pending)) {
+                return pending;
+            }
+            inflight.remove(key(pending.worldName(), pending.chunkX(), pending.chunkZ()));
+        }
+        return null;
+    }
+
+    /**
+     * @param pending queued coordinates
+     * @return whether that chunk is currently loaded in its world
+     */
+    private boolean isChunkLoaded(Pending pending) {
+        World world = plugin.getServer().getWorld(pending.worldName());
+        return world != null && world.isChunkLoaded(pending.chunkX(), pending.chunkZ());
     }
 
     /**

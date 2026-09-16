@@ -482,7 +482,11 @@ auto-ruins:
     exceptional: 3
   # Wait after chunk load so brand-new terrain can finish populate.
   evaluate-delay-ticks: 20
-  # Full fitness checks per server tick (queue drain).
+  # Cap on chunks waiting to be decided (delay + queue). When full, further ChunkLoad events
+  # are ignored until a slot frees; those chunks are not burned and may retry on a later load.
+  # Keeps work bounded regardless of map size or how many players explore.
+  max-pending: 4
+  # Full fitness checks per server tick (only on chunks that are still loaded).
   max-evaluations-per-tick: 1
   notify-staff: true
 

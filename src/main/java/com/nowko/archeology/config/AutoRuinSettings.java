@@ -24,6 +24,7 @@ import java.util.Set;
  * @param excludedBiomes biome path keys that reject a chunk (oceans/rivers by default); empty disables the gate
  * @param interestWeights relative weights for rolling {@link InterestLevel}
  * @param evaluateDelayTicks ticks to wait after chunk load so populate can finish on new terrain
+ * @param maxPending maximum chunks waiting (delayed or queued); further loads are skipped until a slot frees
  * @param maxEvaluationsPerTick how many full fitness checks may run in one server tick
  * @param notifyStaff whether online staff receive a chat line with a clickable teleport on each spawn
  */
@@ -39,6 +40,7 @@ public record AutoRuinSettings(
         Set<String> excludedBiomes,
         Map<InterestLevel, Integer> interestWeights,
         int evaluateDelayTicks,
+        int maxPending,
         int maxEvaluationsPerTick,
         boolean notifyStaff
 ) {
@@ -84,6 +86,7 @@ public record AutoRuinSettings(
                 defaultExcludedBiomes(),
                 Map.copyOf(weights),
                 20,
+                4,
                 1,
                 true);
     }
