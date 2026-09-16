@@ -1474,6 +1474,7 @@ public class CatalogRegistry {
                 Map.copyOf(weights),
                 Math.max(1, section.getInt("evaluate-delay-ticks", fallback.evaluateDelayTicks())),
                 Math.max(1, section.getInt("max-pending", fallback.maxPending())),
+                Math.max(1, section.getInt("max-unload-purge-per-tick", fallback.maxUnloadPurgePerTick())),
                 Math.max(1, section.getInt("max-evaluations-per-tick", fallback.maxEvaluationsPerTick())),
                 section.getBoolean("notify-staff", fallback.notifyStaff()));
     }

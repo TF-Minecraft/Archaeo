@@ -482,11 +482,30 @@ auto-ruins:
     exceptional: 3
   # Wait after chunk load so brand-new terrain can finish populate.
   evaluate-delay-ticks: 20
-  # Cap on chunks waiting to be decided (delay + queue). When full, further ChunkLoad events
-  # are ignored until a slot frees; those chunks are not burned and may retry on a later load.
-  # Keeps work bounded regardless of map size or how many players explore.
+  # --- Pending window (why this exists) ---
+  # Players can load chunks much faster than Archaeo can decide them (see max-evaluations-per-tick).
+  # Without a cap, the queue grows to tens of thousands while people fly. By the time a queued
+  # chunk is next, it is often already unloaded: fitness needs block data, so that entry cannot
+  # spawn a ruin and would only waste a drain tick. max-pending keeps only a small “still worth
+  # trying” window (prefer 2–8). Loads beyond the cap are skipped, not burned — they may retry
+  # the next time that chunk loads and a slot is free. Large values are allowed if you insist,
+  # but then keep max-unload-purge-per-tick sensible (below).
   max-pending: 4
-  # Full fitness checks per server tick (only on chunks that are still loaded).
+  # --- Unload purge (why this exists) ---
+  # Even inside the pending window, a chunk can unload before its turn (player moved on). Each
+  # drain tick we peek a limited number of queue entries: if still loaded, keep them; if not,
+  # drop them without marking evaluated so a later visit can retry. That stops the queue filling
+  # with dead work that never raises evaluatedChunks and never creates ruins. This value is how
+  # many such peeks happen per tick — not “how many ruins”. Keep it modest (e.g. 16–64) so a
+  # huge max-pending cannot scan the whole queue in one tick and hitch TPS.
+  max-unload-purge-per-tick: 32
+  # --- Evaluations per tick (why this exists) ---
+  # How many full decide-attempts run each server tick on chunks that are still loaded (lottery,
+  # spacing, biome/soil/relief, then maybe createManagedRuin). This is the real throughput knob:
+  # 1 ≈ 20 chunks decided per second at 20 TPS. Higher = ruins appear sooner when people explore,
+  # but each attempt can touch many blocks — keep 1 on busy servers; try 2–4 only if status shows
+  # pending stuck full and TPS stays healthy. Unrelated to how many ruins spawn (that is chance +
+  # filters); it only how fast the pending window is consumed.
   max-evaluations-per-tick: 1
   notify-staff: true
 

@@ -25,9 +25,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
@@ -38,8 +38,9 @@ import java.util.logging.Level;
  * terrain is brand new or was generated months before the plugin was installed.
  * A small {@code max-pending} window caps delayed/queued work so exploration cannot build a huge
  * backlog of chunks that unload before they are decided. Each drain tick drops unloaded queue
- * entries without marking them (they may retry on a later load) and then runs fitness only on
- * chunks that are still loaded. Staff get a chat line with a [tp] link.
+ * entries without marking them (budgeted by {@code max-unload-purge-per-tick} so a large pending
+ * cap cannot scan the whole queue in one tick) and then runs fitness only on chunks that are still
+ * loaded. Staff get a chat line with a [tp] link.
  *
  * <p>Changing {@code chance-per-chunk} (or {@code /archaeo ruin auto reset}) wipes the ledger so
  * chunks can retry at the new threshold. A normal reload only updates settings and keeps the queue.
@@ -52,7 +53,7 @@ public class RuinAutoSpawner implements Listener {
     private final AutoRuinEvaluationLedger ledger;
     private final Path policyFile;
     private AutoRuinSettings settings;
-    private final Queue<Pending> queue = new ArrayDeque<>();
+    private final Deque<Pending> queue = new ArrayDeque<>();
     /** Chunks waiting in the queue or on a delayed schedule, so reloads do not enqueue twice. */
     private final Set<String> inflight = ConcurrentHashMap.newKeySet();
     private BukkitTask task;
@@ -270,8 +271,8 @@ public class RuinAutoSpawner implements Listener {
     }
 
     /**
-     * Drops queue entries whose chunks are no longer loaded (without marking them evaluated), then
-     * runs up to {@code max-evaluations-per-tick} full attempts on chunks that are still present.
+     * Drops unloaded queue entries (budgeted) then runs up to {@code max-evaluations-per-tick}
+     * full attempts on chunks that are still present.
      */
     private void drain() {
         if (!settings.enabled()) {
@@ -279,10 +280,11 @@ public class RuinAutoSpawner implements Listener {
             inflight.clear();
             return;
         }
-        dropUnloadedFromQueue();
-        int budget = Math.max(1, settings.maxEvaluationsPerTick());
-        for (int i = 0; i < budget; i++) {
-            Pending pending = pollLoadedPending();
+        int[] unloadBudget = {Math.max(1, settings.maxUnloadPurgePerTick())};
+        dropUnloadedFromQueue(unloadBudget);
+        int evalBudget = Math.max(1, settings.maxEvaluationsPerTick());
+        for (int i = 0; i < evalBudget; i++) {
+            Pending pending = pollLoadedPending(unloadBudget);
             if (pending == null) {
                 return;
             }
@@ -291,16 +293,19 @@ public class RuinAutoSpawner implements Listener {
     }
 
     /**
-     * Removes pending work for chunks that unloaded before their turn. Does not mark the ledger so
-     * a later load may retry. Cheap while {@code max-pending} keeps the queue tiny.
+     * Rotates up to the remaining unload budget through the queue: loaded entries go to the back,
+     * unloaded ones are dropped without marking so a later load may retry.
+     *
+     * @param unloadBudget single-element remaining {@code isChunkLoaded} checks for this drain tick
      */
-    private void dropUnloadedFromQueue() {
-        int size = queue.size();
-        for (int i = 0; i < size; i++) {
+    private void dropUnloadedFromQueue(int[] unloadBudget) {
+        int n = Math.min(unloadBudget[0], queue.size());
+        for (int i = 0; i < n; i++) {
             Pending pending = queue.poll();
             if (pending == null) {
                 return;
             }
+            unloadBudget[0]--;
             if (isChunkLoaded(pending)) {
                 queue.offer(pending);
             } else {
@@ -310,9 +315,10 @@ public class RuinAutoSpawner implements Listener {
     }
 
     /**
-     * @return next queued chunk that is still loaded, or {@code null} when none remain
+     * @param unloadBudget remaining checks for dropping unloaded entries this tick
+     * @return next queued chunk that is still loaded, or {@code null} when none found within budget
      */
-    private Pending pollLoadedPending() {
+    private Pending pollLoadedPending(int[] unloadBudget) {
         while (!queue.isEmpty()) {
             Pending pending = queue.poll();
             if (pending == null) {
@@ -321,6 +327,11 @@ public class RuinAutoSpawner implements Listener {
             if (isChunkLoaded(pending)) {
                 return pending;
             }
+            if (unloadBudget[0] <= 0) {
+                queue.addFirst(pending);
+                return null;
+            }
+            unloadBudget[0]--;
             inflight.remove(key(pending.worldName(), pending.chunkX(), pending.chunkZ()));
         }
         return null;
