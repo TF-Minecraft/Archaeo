@@ -33,7 +33,7 @@ These are Java enums or string literals. A new YAML value does nothing useful.
 | `interpretations.yml` → `profiles.<id>` | `object`, `individual`, `animal` | Section ignored |
 | `interest.yml` level keys | `low`, `medium`, `high`, `exceptional` | Plugin will not load that tier |
 | Stratum **machine ids** | Keep `I`, `II`, `III`, `IV` | Optional deep layer never spawns (see below) |
-| `artifacts.*.item` | Bukkit `Material` name, or a YAML list of them (`GOLD_NUGGET`, `BONE`, …). A list picks one when the find is generated and stores it on that instance | Falls back to `BRICK`. Not ItemsAdder / MMOItems ids |
+| `artifacts.*.item` | Bukkit `Material` name, ItemsAdder `itemsadder:namespace:id`, or MMOItems `mmoitems:TYPE:id`. Quote pack ids. A YAML list picks one when the find is generated and stores it on that instance | Falls back to `BRICK`. Pack plugins must be loaded or the lifted piece is brick |
 | `materials.*.clean-glass` and stain `glass:` | Bukkit pane materials | Fallback pane |
 | `rarity:` on an artifact | A key under `config.yml` `rarity:` (`common`, `rare`, `epic`, `legendary`, or one you added there) | Display falls back toward common |
 
@@ -173,7 +173,7 @@ Each key is a find template.
 | `relic` | Leave `false` unless you also raise `min-relics` in `interest.yml` and mark some templates `relic: true`. Relic quota with an empty relic pool just skips those slots |
 | `strata` | Subset of `I`–`IV` this template may occupy |
 | `tags` | Job A + Job B vocabulary |
-| `item` | Vanilla Bukkit material, or a list of them. A list is rolled once when the find is generated |
+| `item` | Vanilla Bukkit material, ItemsAdder `itemsadder:namespace:id`, or MMOItems `mmoitems:TYPE:id`. Quote pack ids. A list is rolled once when the find is generated |
 | `study-notes` | Shown after study at camp; not on lift |
 
 Every `profile: individual` / `animal` find still needs `material`, `strata`,
@@ -264,7 +264,8 @@ stain/tool labels if the dirt kinds change.
 9. Every `profiles.*.types` id exists under `types:`. Every type used by a
    path has ≥ 3 options that apply to that path.
 10. Interpretation option ids are unique across the whole file.
-11. `size-min ≤ size-max`. `item` is a Bukkit material or a list of them. Stratum keys are still
+11. `size-min ≤ size-max`. `item` is a Bukkit material, `itemsadder:namespace:id`,
+    `mmoitems:TYPE:id`, or a list of those. Quote pack ids. Stratum keys are still
     `I`–`IV`. `relic: false` unless interest relic quotas are raised.
 12. Some hints have no wealth/tag filters (or loose ones) so `hint-count` can
     fill on poor sites.

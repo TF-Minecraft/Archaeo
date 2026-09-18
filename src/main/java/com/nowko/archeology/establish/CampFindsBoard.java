@@ -2,6 +2,7 @@ package com.nowko.archeology.establish;
 
 import com.nowko.archeology.config.ArtifactTemplate;
 import com.nowko.archeology.config.CatalogRegistry;
+import com.nowko.archeology.item.RecoveredFindItem;
 import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindState;
 import com.nowko.archeology.model.Site;
@@ -30,18 +31,21 @@ public final class CampFindsBoard implements InventoryHolder {
     private final UUID siteId;
     private final boolean director;
     private final CatalogRegistry catalogs;
+    private final RecoveredFindItem recovered;
     private final List<UUID> finds = new ArrayList<>();
     private Inventory inventory;
 
     /**
      * @param siteId excavation
      * @param director whether the viewer may issue the closing report
-     * @param catalogs artifact icons and labels
+     * @param catalogs artifact labels
+     * @param recovered pack-aware icons for each find
      */
-    public CampFindsBoard(UUID siteId, boolean director, CatalogRegistry catalogs) {
+    public CampFindsBoard(UUID siteId, boolean director, CatalogRegistry catalogs, RecoveredFindItem recovered) {
         this.siteId = siteId;
         this.director = director;
         this.catalogs = catalogs;
+        this.recovered = recovered;
     }
 
     /**
@@ -108,7 +112,6 @@ public final class CampFindsBoard implements InventoryHolder {
      */
     private ItemStack rowItem(Site site, BuriedFind find) {
         ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
-        Material icon = iconOf(template, find);
         String name = find.shownName(template == null ? null : template.displayName());
         String number = find.publicNumber(site.getSerial());
         List<String> lore = new ArrayList<>();
@@ -116,27 +119,7 @@ public final class CampFindsBoard implements InventoryHolder {
         lore.add(ChatColor.GRAY + "Stratum " + find.getStratumId());
         lore.add(statusColor(find) + find.catalogStatusLabel());
         lore.add(ChatColor.DARK_GRAY + "Click to open the fiche.");
-        return named(icon, ChatColor.WHITE + name, lore.toArray(String[]::new));
-    }
-
-    /**
-     * @param template catalog row, or {@code null}
-     * @return inventory icon from the first catalog item
-     */
-    public static Material iconOf(ArtifactTemplate template) {
-        return iconOf(template, null);
-    }
-
-    /**
-     * @param template catalog row, or {@code null}
-     * @param find archive row whose rolled material wins when present
-     * @return inventory icon
-     */
-    public static Material iconOf(ArtifactTemplate template, BuriedFind find) {
-        if (template == null) {
-            return Material.BRICK;
-        }
-        return template.resolveItem(find == null ? null : find.getItem());
+        return named(recovered.baseStack(template, find), ChatColor.WHITE + name, lore.toArray(String[]::new));
     }
 
     /**
@@ -163,7 +146,20 @@ public final class CampFindsBoard implements InventoryHolder {
      * @return stack
      */
     private static ItemStack named(Material material, String name, String... lore) {
-        ItemStack stack = new ItemStack(material);
+        return named(new ItemStack(material), name, lore);
+    }
+
+    /**
+     * Copies pack custom-model data from {@code base}, then stamps camp name and lore.
+     *
+     * @param base appearance, including ItemsAdder / MMOItems stacks
+     * @param name display name
+     * @param lore extra lines
+     * @return stack
+     */
+    private static ItemStack named(ItemStack base, String name, String... lore) {
+        ItemStack stack = base == null ? new ItemStack(Material.BRICK) : base.clone();
+        stack.setAmount(1);
         ItemMeta meta = stack.getItemMeta();
         if (meta != null) {
             meta.setDisplayName(name);

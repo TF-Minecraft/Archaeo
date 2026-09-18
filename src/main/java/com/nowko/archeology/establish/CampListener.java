@@ -613,7 +613,7 @@ public class CampListener implements Listener {
         if (site.assignMissingFindNumbers()) {
             sites.save(site);
         }
-        new CampFindsBoard(site.getId(), mayIssueReport(player, site), catalogs).open(player, site);
+        new CampFindsBoard(site.getId(), mayIssueReport(player, site), catalogs, recoveredItem).open(player, site);
     }
 
     /**

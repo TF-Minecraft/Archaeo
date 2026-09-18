@@ -5,7 +5,9 @@
 # weight = relative spawn chance (higher = more common in generation).
 # rarity = optional display override (key under config.yml rarity:). If omitted,
 # display tier is derived from weight via config.yml rarity-from-weight.
-# item = one Bukkit material, or a list: generation picks one and stores it on that find.
+# item = vanilla Bukkit material, ItemsAdder, or MMOItems. Quote pack ids
+#   (GOLD_NUGGET, "itemsadder:namespace:id", "mmoitems:TYPE:id").
+#   A YAML list picks one when the find is generated and stores it on that find.
 # study-notes wrap across several lore lines (~34 characters) after the piece is studied.
 # Tone: field notes a scholar in Cerrith, autumn 379 AE, could write. Incomplete is allowed.
 artifacts:

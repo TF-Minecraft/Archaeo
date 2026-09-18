@@ -89,7 +89,7 @@ public record ItemRef(Kind kind, String primary, String secondary) {
     }
 
     /**
-     * @param plugin logger for unknown tokens
+     * @param plugin logger for unknown tokens, or {@code null} to stay quiet
      * @param tokens YAML lines
      * @return parsed refs; {@link #excavationDefaults()} when the list is empty
      */
@@ -99,9 +99,7 @@ public record ItemRef(Kind kind, String primary, String secondary) {
     }
 
     /**
-     * Parses a list without substituting {@link #excavationDefaults()} when empty.
-     *
-     * @param plugin logger for unknown tokens
+     * @param plugin logger for unknown tokens, or {@code null} to stay quiet
      * @param tokens YAML lines
      * @return parsed refs, possibly empty
      */
@@ -119,7 +117,7 @@ public record ItemRef(Kind kind, String primary, String secondary) {
     /**
      * Parses a YAML list whose entries may be strings or one-key maps from unquoted colons.
      *
-     * @param plugin logger for unknown tokens
+     * @param plugin logger for unknown tokens, or {@code null} to stay quiet
      * @param values {@code getList} result
      * @return parsed refs, possibly empty
      */
@@ -169,7 +167,7 @@ public record ItemRef(Kind kind, String primary, String secondary) {
     }
 
     /**
-     * @param plugin logger for unknown tokens
+     * @param plugin logger for unknown tokens, or {@code null} to stay quiet
      * @param raw YAML token
      * @param fallback used when {@code raw} is blank or invalid
      * @return parsed ref
@@ -179,7 +177,7 @@ public record ItemRef(Kind kind, String primary, String secondary) {
     }
 
     /**
-     * @param plugin logger for unknown tokens
+     * @param plugin logger for unknown tokens, or {@code null} to stay quiet
      * @param raw YAML token
      * @return parsed ref, or empty when the token is blank or unknown
      */
@@ -256,7 +254,7 @@ public record ItemRef(Kind kind, String primary, String secondary) {
      */
     private static Optional<ItemRef> itemsAdder(JavaPlugin plugin, String token, String rest) {
         if (rest.isBlank() || !rest.contains(":")) {
-            plugin.getLogger().warning("Invalid ItemsAdder id (want namespace:id): " + token);
+            warn(plugin, "Invalid ItemsAdder id (want namespace:id): " + token);
             return Optional.empty();
         }
         return Optional.of(new ItemRef(Kind.ITEMSADDER, rest.toLowerCase(Locale.ROOT), ""));
@@ -271,7 +269,7 @@ public record ItemRef(Kind kind, String primary, String secondary) {
     private static Optional<ItemRef> mmoItems(JavaPlugin plugin, String token, String rest) {
         int split = rest.indexOf(':');
         if (split <= 0 || split == rest.length() - 1) {
-            plugin.getLogger().warning("Invalid MMOItems id (want TYPE:id): " + token);
+            warn(plugin, "Invalid MMOItems id (want TYPE:id): " + token);
             return Optional.empty();
         }
         String type = rest.substring(0, split).trim();
@@ -287,9 +285,19 @@ public record ItemRef(Kind kind, String primary, String secondary) {
     private static Optional<ItemRef> vanillaName(JavaPlugin plugin, String name) {
         Material material = Material.matchMaterial(name.trim());
         if (material == null) {
-            plugin.getLogger().warning("Unknown item: " + name);
+            warn(plugin, "Unknown item: " + name);
             return Optional.empty();
         }
         return Optional.of(vanilla(material));
+    }
+
+    /**
+     * @param plugin logger, or {@code null} to stay quiet
+     * @param message warning line
+     */
+    private static void warn(JavaPlugin plugin, String message) {
+        if (plugin != null) {
+            plugin.getLogger().warning(message);
+        }
     }
 }

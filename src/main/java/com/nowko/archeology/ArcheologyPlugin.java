@@ -167,7 +167,7 @@ public class ArcheologyPlugin extends JavaPlugin {
     }
 
     /**
-     * Binds ItemsAdder / MMOItems lookups on role items and the excavation whitelist.
+     * Binds ItemsAdder / MMOItems lookups on role items, recovered finds, and the excavation whitelist.
      *
      * @param matcher detected APIs, or vanilla-only
      */
@@ -190,6 +190,9 @@ public class ArcheologyPlugin extends JavaPlugin {
         }
         if (digTools != null) {
             digTools.setMatcher(bound);
+        }
+        if (recoveredFindItem != null) {
+            recoveredFindItem.setMatcher(bound);
         }
         if (sketch != null) {
             sketch.setMatcher(bound);

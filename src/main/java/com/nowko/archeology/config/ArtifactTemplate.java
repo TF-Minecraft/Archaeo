@@ -1,5 +1,6 @@
 package com.nowko.archeology.config;
 
+import com.nowko.archeology.item.ItemRef;
 import org.bukkit.Material;
 
 import java.util.List;
@@ -20,7 +21,7 @@ import java.util.Set;
  * @param strata stratum ids this template may spawn in
  * @param tags matching tags for hints
  * @param profile which station questions this template uses
- * @param items Bukkit material names; generation picks one when there are several
+ * @param items vanilla / ItemsAdder / MMOItems refs; generation picks one when there are several
  * @param studyNotes English note revealed when the piece is studied at camp; may be blank
  */
 public record ArtifactTemplate(
@@ -35,7 +36,7 @@ public record ArtifactTemplate(
         Set<String> strata,
         Set<String> tags,
         FindProfile profile,
-        List<String> items,
+        List<ItemRef> items,
         String studyNotes
 ) {
     /**
@@ -44,7 +45,9 @@ public record ArtifactTemplate(
      */
     public ArtifactTemplate {
         profile = profile == null ? FindProfile.OBJECT : profile;
-        items = items == null || items.isEmpty() ? List.of("BRICK") : List.copyOf(items);
+        items = items == null || items.isEmpty()
+                ? List.of(ItemRef.vanilla(Material.BRICK))
+                : List.copyOf(items);
     }
 
     /**
@@ -58,31 +61,65 @@ public record ArtifactTemplate(
     }
 
     /**
-     * Picks the Bukkit material this instance will use. One catalog entry returns that name;
+     * Picks the catalog item this instance will use. One pool entry returns that token;
      * several entries pick uniformly.
      *
      * @param random site RNG; {@code null} uses the first entry
-     * @return catalog material name
+     * @return stored token ({@code GOLD_NUGGET}, {@code itemsadder:ns:id}, or {@code mmoitems:TYPE:id})
      */
     public String pickItem(Random random) {
-        if (items.size() == 1 || random == null) {
-            return items.getFirst();
-        }
-        return items.get(random.nextInt(items.size()));
+        ItemRef ref = items.size() == 1 || random == null
+                ? items.getFirst()
+                : items.get(random.nextInt(items.size()));
+        return ref.commandToken();
     }
 
     /**
-     * Resolves a stored or catalog material name to a Bukkit item. Unknown names become brick.
+     * Resolves a stored token or a catalog pool entry. Unknown names fall back to the first pool item.
      *
-     * @param chosen name stored on the find, or {@code null} to use the first catalog entry
+     * @param chosen token stored on the find, or {@code null} to use the first catalog entry
+     * @return matching ref
+     */
+    public ItemRef resolveRef(String chosen) {
+        if (chosen != null && !chosen.isBlank()) {
+            String token = chosen.trim();
+            for (ItemRef ref : items) {
+                if (matchesStored(ref, token)) {
+                    return ref;
+                }
+            }
+            return ItemRef.parse(null, token).orElseGet(items::getFirst);
+        }
+        return items.getFirst();
+    }
+
+    /**
+     * Vanilla Bukkit type for this find when the catalog entry is vanilla. Pack ids become brick
+     * so callers that only need a material still have an icon.
+     *
+     * @param chosen token stored on the find, or {@code null} to use the first catalog entry
      * @return item material
      */
     public Material resolveItem(String chosen) {
-        String name = chosen == null || chosen.isBlank() ? items.getFirst() : chosen;
-        Material material = Material.matchMaterial(name);
-        if (material == null || material.isAir() || !material.isItem()) {
-            return Material.BRICK;
+        ItemRef ref = resolveRef(chosen);
+        if (ref.kind() == ItemRef.Kind.VANILLA) {
+            Material material = ref.vanillaMaterial();
+            if (!material.isAir() && material.isItem()) {
+                return material;
+            }
         }
-        return material;
+        return Material.BRICK;
+    }
+
+    /**
+     * @param ref catalog pool entry
+     * @param token stored dossier token
+     * @return whether this is the same item, including old vanilla names without a {@code minecraft:} prefix
+     */
+    private static boolean matchesStored(ItemRef ref, String token) {
+        if (ref.commandToken().equalsIgnoreCase(token)) {
+            return true;
+        }
+        return ref.kind() == ItemRef.Kind.VANILLA && ref.primary().equalsIgnoreCase(token);
     }
 }

@@ -48,6 +48,7 @@ public class RecoveredFindItem {
     private final NamespacedKey studiedKey;
     private final NamespacedKey labCleanedKey;
     private final NamespacedKey fieldSketchKey;
+    private ItemMatcher matcher = ItemMatcher.vanillaOnly();
 
     /**
      * @param plugin owner of the PDC keys
@@ -73,6 +74,15 @@ public class RecoveredFindItem {
     }
 
     /**
+     * @param matcher ItemsAdder / MMOItems lookup used when a find's {@code item} is a pack id
+     */
+    public void setMatcher(ItemMatcher matcher) {
+        this.matcher = matcher == null ? ItemMatcher.vanillaOnly() : matcher;
+    }
+
+    /**
+     * Builds the recovered field piece from the catalog item (vanilla, ItemsAdder, or MMOItems).
+     *
      * @param template catalog row (material and display name)
      * @param site excavation this piece left
      * @param find dossier row being lifted
@@ -80,7 +90,7 @@ public class RecoveredFindItem {
      * @param grade condition band label for the final percentage
      * @param fieldDamaged whether the dig itself wounded the piece
      * @param catalogs rarity, notes, and interpretation labels
-     * @return stack to drop, or {@code null} if the template item is unknown
+     * @return stack to drop; brick when the catalog item is missing
      */
     public ItemStack create(
             ArtifactTemplate template,
@@ -91,22 +101,39 @@ public class RecoveredFindItem {
             boolean fieldDamaged,
             CatalogRegistry catalogs
     ) {
-        Material material = resolveMaterial(template, find);
-        ItemStack stack = new ItemStack(material, 1);
+        ItemStack stack = baseStack(template, find);
         write(stack, template, site, find, recoverer, grade, fieldDamaged, catalogs);
         return stack;
     }
 
     /**
-     * Material stored on this find, or a stable pick from the template pool for old dossiers.
+     * Pack or vanilla appearance for this find. Missing pack plugins or unknown ids become brick
+     * so a piece always exists. Side-effect: old dossiers without a stored item get a stable pick.
+     *
+     * @param template catalog row, or {@code null}
+     * @param find archive row, or {@code null}
+     * @return cloneable stack, never air
+     */
+    public ItemStack baseStack(ArtifactTemplate template, BuriedFind find) {
+        ItemRef ref = resolveRef(template, find);
+        ItemStack stack = matcher.create(ref);
+        if (stack == null || stack.getType().isAir()) {
+            return new ItemStack(Material.BRICK, 1);
+        }
+        stack.setAmount(1);
+        return stack;
+    }
+
+    /**
+     * Catalog item stored on this find, or a stable pick from the template pool for old dossiers.
      *
      * @param template catalog row
      * @param find archive row
-     * @return Bukkit item
+     * @return vanilla / ItemsAdder / MMOItems ref
      */
-    private static Material resolveMaterial(ArtifactTemplate template, BuriedFind find) {
+    private static ItemRef resolveRef(ArtifactTemplate template, BuriedFind find) {
         if (template == null) {
-            return Material.BRICK;
+            return ItemRef.vanilla(Material.BRICK);
         }
         String chosen = find == null ? null : find.getItem();
         if ((chosen == null || chosen.isBlank()) && find != null && find.getId() != null) {
@@ -114,7 +141,7 @@ public class RecoveredFindItem {
             chosen = template.pickItem(new Random(seed));
             find.setItem(chosen);
         }
-        return template.resolveItem(chosen);
+        return template.resolveRef(chosen);
     }
 
     /**
@@ -320,10 +347,9 @@ public class RecoveredFindItem {
      * @return display copy that must not be given to the player
      */
     public ItemStack standIn(ArtifactTemplate template, Site site, BuriedFind find, CatalogRegistry catalogs) {
-        Material icon = resolveMaterial(template, find);
         String name = find.shownName(template == null ? null : template.displayName());
         String grade = catalogs == null ? null : catalogs.pick().conservation().gradeLabel(find.getConservation());
-        ItemStack stack = new ItemStack(icon);
+        ItemStack stack = baseStack(template, find);
         ItemMeta meta = stack.getItemMeta();
         if (meta != null) {
             meta.setDisplayName(ChatColor.WHITE + name);
