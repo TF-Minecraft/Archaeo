@@ -250,7 +250,6 @@ public class CatalogRegistry {
                 key,
                 materialDisplayName(key),
                 1.0,
-                List.of("clean"),
                 defaultCleanGlass(key),
                 defaultStains(key));
     }
@@ -1961,7 +1960,6 @@ public class CatalogRegistry {
             if (section == null) {
                 continue;
             }
-            List<String> steps = List.copyOf(section.getStringList("steps"));
             List<String> stains = section.getStringList("stains");
             if (stains.isEmpty()) {
                 stains = defaultStains(id);
@@ -1972,7 +1970,6 @@ public class CatalogRegistry {
                     id,
                     section.getString("display-name", id),
                     Math.max(0.05, Math.min(1.0, section.getDouble("survival", 1.0))),
-                    steps,
                     ConfigEnums.material(
                             plugin,
                             section.getString("clean-glass"),

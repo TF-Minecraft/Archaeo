@@ -6,7 +6,7 @@
 #   artifacts.yml         find templates
 #   hints.yml             site clues
 #   interpretations.yml   player readings (not used in-game yet)
-#   materials.yml         find-material labels (and later lab chains)
+#   materials.yml         find-material labels, burial survival, and cabinet stains
 #
 # Item ids: STONE_HOE | itemsadder:namespace:id | mmoitems:TYPE:id
 # Any matching stack works (crafted, given, or from a pack). Pack items keep the pack look.
