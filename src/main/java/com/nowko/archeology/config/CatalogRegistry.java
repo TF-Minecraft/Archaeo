@@ -599,11 +599,18 @@ public class CatalogRegistry {
         } else {
             radii = List.copyOf(radii.subList(0, 3));
         }
+        int maxRange = Math.max(1, sectionInt(section, fallback.defaultMaxRange(), "max-range", "default-max-range"));
+        int nearRange = Math.min(
+                maxRange,
+                Math.max(1, sectionInt(section, TrackerSettings.scaledNearRange(maxRange), "medium-range", "near-range")));
+        int detectMessageRange = Math.min(
+                nearRange,
+                Math.max(1, sectionInt(section, TrackerSettings.scaledCloseRange(maxRange), "close-range", "detect-message-range")));
         tracker = new TrackerSettings(
                 section.getBoolean("enabled", fallback.enabled()),
-                Math.max(1, sectionInt(section, fallback.defaultMaxRange(), "max-range", "default-max-range")),
-                Math.max(1, sectionInt(section, fallback.nearRange(), "medium-range", "near-range")),
-                Math.max(1, sectionInt(section, fallback.detectMessageRange(), "close-range", "detect-message-range")),
+                maxRange,
+                nearRange,
+                detectMessageRange,
                 section.getBoolean("pulse-particles", fallback.pulseParticles()),
                 Math.max(1, sectionInt(section, fallback.beepMaxTicks(), "beep-max-ticks")),
                 Math.max(1, sectionInt(section, fallback.beepMinTicks(), "beep-min-ticks")),
@@ -1736,23 +1743,16 @@ public class CatalogRegistry {
         if (root == null) {
             throw new IllegalStateException("Missing interest-levels in interest.yml");
         }
-        int fallbackDetectionRadius = Math.max(1, config.getInt(
-                "tracker.max-range",
-                TrackerSettings.defaults().defaultMaxRange()));
         for (InterestLevel level : InterestLevel.values()) {
             ConfigurationSection section = root.getConfigurationSection(level.yamlKey());
             if (section == null) {
                 throw new IllegalStateException("Missing interest-levels." + level.yamlKey());
             }
-            int detectionRadius = section.contains("detection-radius")
-                    ? Math.max(1, section.getInt("detection-radius"))
-                    : fallbackDetectionRadius;
             interests.put(level, new InterestSettings(
                     level,
                     section.getString("display-name", level.yamlKey()),
                     section.getInt("base-wealth"),
                     section.getInt("variation"),
-                    detectionRadius,
                     section.getInt("min-finds"),
                     section.getInt("max-finds"),
                     section.getInt("min-relics"),
@@ -1819,10 +1819,36 @@ public class CatalogRegistry {
                     new LinkedHashSet<>(section.getStringList("strata")),
                     new LinkedHashSet<>(section.getStringList("tags")),
                     FindProfile.fromConfig(section.getString("profile")),
-                    section.getString("item", "STONE"),
+                    readItemPool(section),
                     section.getString("study-notes", "")
             ));
         }
+    }
+
+    /**
+     * {@code item:} may be one Bukkit material or a list. A list is rolled when the find is generated.
+     *
+     * @param section one artifact row
+     * @return non-empty material names; empty YAML becomes {@code STONE}
+     */
+    private static List<String> readItemPool(ConfigurationSection section) {
+        List<String> pool = new ArrayList<>();
+        if (section.isList("item")) {
+            for (String raw : section.getStringList("item")) {
+                if (raw != null && !raw.isBlank()) {
+                    pool.add(raw.trim());
+                }
+            }
+        } else {
+            String single = section.getString("item");
+            if (single != null && !single.isBlank()) {
+                pool.add(single.trim());
+            }
+        }
+        if (pool.isEmpty()) {
+            pool.add("STONE");
+        }
+        return pool;
     }
 
     /**

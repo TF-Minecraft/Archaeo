@@ -21,6 +21,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.UUID;
 
 /**
@@ -90,13 +91,30 @@ public class RecoveredFindItem {
             boolean fieldDamaged,
             CatalogRegistry catalogs
     ) {
-        Material material = Material.matchMaterial(template.item());
-        if (material == null || material.isAir()) {
-            material = Material.BRICK;
-        }
-        ItemStack stack = new ItemStack(material);
+        Material material = resolveMaterial(template, find);
+        ItemStack stack = new ItemStack(material, 1);
         write(stack, template, site, find, recoverer, grade, fieldDamaged, catalogs);
         return stack;
+    }
+
+    /**
+     * Material stored on this find, or a stable pick from the template pool for old dossiers.
+     *
+     * @param template catalog row
+     * @param find archive row
+     * @return Bukkit item
+     */
+    private static Material resolveMaterial(ArtifactTemplate template, BuriedFind find) {
+        if (template == null) {
+            return Material.BRICK;
+        }
+        String chosen = find == null ? null : find.getItem();
+        if ((chosen == null || chosen.isBlank()) && find != null && find.getId() != null) {
+            long seed = find.getId().getMostSignificantBits() ^ find.getId().getLeastSignificantBits();
+            chosen = template.pickItem(new Random(seed));
+            find.setItem(chosen);
+        }
+        return template.resolveItem(chosen);
     }
 
     /**
@@ -302,13 +320,7 @@ public class RecoveredFindItem {
      * @return display copy that must not be given to the player
      */
     public ItemStack standIn(ArtifactTemplate template, Site site, BuriedFind find, CatalogRegistry catalogs) {
-        Material icon = Material.BRICK;
-        if (template != null) {
-            Material match = Material.matchMaterial(template.item());
-            if (match != null && !match.isAir() && match.isItem()) {
-                icon = match;
-            }
-        }
+        Material icon = resolveMaterial(template, find);
         String name = find.shownName(template == null ? null : template.displayName());
         String grade = catalogs == null ? null : catalogs.pick().conservation().gradeLabel(find.getConservation());
         ItemStack stack = new ItemStack(icon);
@@ -350,6 +362,8 @@ public class RecoveredFindItem {
         String name = find.shownName(template == null ? null : template.displayName());
         meta.setDisplayName(ChatColor.WHITE + name);
         meta.setLore(lore(template, site, find, grade, fieldDamaged, catalogs));
+        meta.setMaxStackSize(1);
+        stack.setAmount(1);
         var pdc = meta.getPersistentDataContainer();
         pdc.set(markerKey, PersistentDataType.BYTE, (byte) 1);
         pdc.set(siteIdKey, PersistentDataType.STRING, site.getId().toString());
@@ -534,6 +548,9 @@ public class RecoveredFindItem {
     }
 
     /**
+     * Word-wraps a study note so the tooltip stays on-screen. Minecraft lore is one string per
+     * line; a single long line would run off the right edge.
+     *
      * @param lore lore being built
      * @param text one study note
      */

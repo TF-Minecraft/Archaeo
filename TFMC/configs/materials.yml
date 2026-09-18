@@ -1,0 +1,51 @@
+# Find materials. display-name is used on neighbour traces in the cut.
+# survival (0-1) scales the buried-conservation roll from config.yml: organic rots in the
+# ground, stone barely cares. It never depends on how well the player digs.
+# Lab: the cabinet wipe is the same for every material. clean-glass is the cleaned field.
+# stains lists ids from config.yml sketch.lab.stains (colour and matching tool live there).
+materials:
+  ceramic:
+    display-name: Fired clay
+    survival: 0.95
+    clean-glass: WHITE_STAINED_GLASS_PANE
+    stains: [limescale, soil]
+  bronze:
+    display-name: Bronze
+    survival: 0.88
+    clean-glass: ORANGE_STAINED_GLASS_PANE
+    stains: [rust, soil]
+  iron:
+    display-name: Iron
+    survival: 0.82
+    clean-glass: GRAY_STAINED_GLASS_PANE
+    stains: [rust]
+  abyssalite:
+    display-name: Abyssalite
+    survival: 1.0
+    clean-glass: BLUE_STAINED_GLASS_PANE
+    stains: [limescale]
+  gold:
+    display-name: Gold
+    survival: 0.95
+    clean-glass: YELLOW_STAINED_GLASS_PANE
+    stains: [soil]
+  bone:
+    display-name: Bone
+    survival: 0.8
+    clean-glass: WHITE_STAINED_GLASS_PANE
+    stains: [soil]
+  wood:
+    display-name: Wood
+    survival: 0.55
+    clean-glass: LIME_STAINED_GLASS_PANE
+    stains: [mud, ash]
+  stone:
+    display-name: Worked stone
+    survival: 1.0
+    clean-glass: LIGHT_GRAY_STAINED_GLASS_PANE
+    stains: [limescale, soil]
+  crystal:
+    display-name: Crystal
+    survival: 0.9
+    clean-glass: LIGHT_BLUE_STAINED_GLASS_PANE
+    stains: [ash, soil]

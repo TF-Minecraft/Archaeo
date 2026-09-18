@@ -719,8 +719,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("Rebuilt " + site.displayLabel()
                     + " at " + interest.yamlKey()
                     + " · finds " + site.getFinds().size()
-                    + " · hints " + site.getHintIds().size()
-                    + " · detection " + site.getDetectionRadius() + ".");
+                    + " · hints " + site.getHintIds().size() + ".");
             if (site.getFinds().isEmpty()) {
                 sender.sendMessage("No find fitted: this chunk has no buried ground in its strata.");
             }
@@ -1107,7 +1106,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("World: " + site.getWorldName()
                 + " · chunk " + site.getChunkX() + "," + site.getChunkZ()
                 + " · datum Y " + site.getSurfaceY()
-                + " · detection " + site.getDetectionRadius());
+                + " · tracker range " + catalogs.tracker().defaultMaxRange());
         sender.sendMessage("Created by: " + (site.getCreatedBy() == null ? "unknown" : site.getCreatedBy())
                 + " · at " + (site.getCreatedAt() == null ? "unknown" : site.getCreatedAt()));
         sender.sendMessage("Director: " + (site.getDirector() == null ? "none" : site.getDirector())

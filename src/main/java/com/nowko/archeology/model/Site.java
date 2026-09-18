@@ -24,7 +24,6 @@ public class Site {
     private int chunkX;
     private int chunkZ;
     private int surfaceY;
-    private int detectionRadius;
     private UUID createdBy;
     private Instant createdAt;
     private UUID director;
@@ -200,16 +199,6 @@ public class Site {
             }
         }
         return null;
-    }
-
-    /** @return tracker detection radius in blocks */
-    public int getDetectionRadius() {
-        return detectionRadius;
-    }
-
-    /** @param detectionRadius tracker detection radius in blocks */
-    public void setDetectionRadius(int detectionRadius) {
-        this.detectionRadius = detectionRadius;
     }
 
     /** @return staff player who registered the site, or {@code null} */

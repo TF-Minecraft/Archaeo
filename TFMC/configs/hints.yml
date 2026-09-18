@@ -1,0 +1,88 @@
+# Clues attached to a generated site. Filters match artifact tags and interest wealth.
+# text is what a field scholar in Cerrith, autumn 379 AE, would note on the cut.
+hints:
+  fire_multi:
+    text: "Ash and charcoal at more than one depth. Hearths stacked through time, or one burning that reached far."
+    tags: [fire, domestic]
+    weight: 10
+    require-tags-any: [fire]
+    min-strata: 2
+  pots_metal:
+    text: "Sherds sit with struck metal. A market, a camp that ate from both, or a house that kept both."
+    tags: [ceramic, metal]
+    weight: 10
+    require-tags-all: [ceramic, metal]
+  clustered:
+    text: "The pieces sit together, as if they were set down, not thrown."
+    tags: [deposit, ceremonial]
+    weight: 8
+    min-wealth: 3
+  scattered:
+    text: "The remains are widely scattered across the band. A poor occupation, or a hurried leaving."
+    tags: [abandonment, settlement]
+    weight: 8
+    max-wealth: 3
+  mixed_layer:
+    text: "One band is mixed against the others. Later work, a collapse, or a cut that did not care."
+    tags: [mixed]
+    weight: 6
+    require-disturbed: true
+  bone:
+    text: "There is more bone than tool in the cut."
+    tags: [burial, food]
+    weight: 8
+    require-tags-any: [bone, burial]
+  seed_grain:
+    text: "Grain or seed in the fill. A farm store, a Pastoralist camp, or a sack that burned with the house."
+    tags: [settlement, food]
+    weight: 5
+    require-tags-any: [food]
+  blade:
+    text: "A blade or war-kit, and little kitchen scatter with it."
+    tags: [conflict]
+    weight: 8
+    require-tags-any: [blade, conflict]
+  ornament:
+    text: "Small worked pieces, not tools. Faith-work, or trade gold wearing a pious face."
+    tags: [ceremonial, trade]
+    weight: 7
+    require-tags-any: [ornament, ceremonial]
+  trade:
+    text: "The metal does not quite fit this setting. Denar gold, abyssalite, or some other mint's habit."
+    tags: [trade]
+    weight: 6
+    require-tags-any: [trade]
+  empty_iv:
+    text: "The deepest band is not preserved. Erosion, or the ground never held that far."
+    tags: [erosion]
+    weight: 12
+    require-missing-stratum: IV
+  recent_interrupt:
+    text: "The overburden cuts the occupation below. Reclamation spoil, or a later camp digging in."
+    tags: [abandonment, disturbed]
+    weight: 6
+    require-strata-all: [I, III]
+  unknown:
+    text: "The assemblage does not argue a single use."
+    tags: [unknown]
+    weight: 4
+    max-wealth: 3
+  occupation_cut:
+    text: "A cut through occupation fill. People lived here, then they did not."
+    tags: [settlement, abandonment]
+    weight: 6
+  oseni_burn:
+    text: "Burnt iron and a red stain in the soil. War-camp, Oseni raid, or some later hatred wearing the same rust."
+    tags: [oseni, conflict]
+    weight: 7
+    require-tags-any: [oseni]
+  unholy_watch:
+    text: "Worked stone in the deep fill. A gate, a rune, or a watch over something the dryads would not name."
+    tags: [ceremonial, dryad]
+    weight: 6
+    require-tags-any: [dryad, runic]
+  ash_year:
+    text: "Fused grit and ash in the upper bands. The year 346, or an older fire wearing the same face."
+    tags: [fire, ash]
+    weight: 7
+    require-tags-any: [ash]

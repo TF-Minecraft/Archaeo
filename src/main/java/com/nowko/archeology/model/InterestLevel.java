@@ -4,11 +4,11 @@ package com.nowko.archeology.model;
  * Staff-chosen wealth of a managed ruin. YAML and command keys are lowercase English.
  */
 public enum InterestLevel {
-    /** Modest finds and a short tracker radius. */
+    /** Modest finds. */
     LOW,
     /** Default field site. */
     MEDIUM,
-    /** Richer dossier and wider detection. */
+    /** Richer dossier. */
     HIGH,
     /** Rare, high-budget ruin. */
     EXCEPTIONAL;

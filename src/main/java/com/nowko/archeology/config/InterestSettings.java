@@ -9,8 +9,6 @@ import com.nowko.archeology.model.InterestLevel;
  * @param displayName English label
  * @param baseWealth wealth used by hint filters
  * @param variation extra wealth used only for prospecting flavour (never below {@code baseWealth})
- * @param detectionRadius tracker range in blocks written onto new sites; when {@code detection-radius}
- *     is omitted in YAML this is {@code tracker.max-range} from {@code config.yml}
  * @param minFinds inclusive lower find count
  * @param maxFinds inclusive upper find count
  * @param minRelics inclusive lower relic count
@@ -24,7 +22,6 @@ public record InterestSettings(
         String displayName,
         int baseWealth,
         int variation,
-        int detectionRadius,
         int minFinds,
         int maxFinds,
         int minRelics,

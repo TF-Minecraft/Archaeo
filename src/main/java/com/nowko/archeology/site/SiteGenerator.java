@@ -157,7 +157,6 @@ public class SiteGenerator {
         }
         Random random = newRandom(chunk, interest);
         site.setInterest(interest);
-        site.setDetectionRadius(settings.detectionRadius());
         site.setSurfaceY(GroundDatum.medianY(chunk));
         assignStrata(site, settings, random);
         List<BuriedFind> finds = placeFinds(site, settings, random, chunk.getWorld());
@@ -223,6 +222,7 @@ public class SiteGenerator {
         BuriedFind find = new BuriedFind();
         find.setId(UUID.randomUUID());
         find.setArtifactId(template.id());
+        find.setItem(template.pickItem(new Random()));
         find.setStratumId(band.getId());
         find.setState(FindState.HIDDEN);
         find.getCells().addAll(grown.cells());
@@ -261,7 +261,6 @@ public class SiteGenerator {
         site.setChunkZ(chunk.getZ());
         site.setCreatedBy(director);
         site.setCreatedAt(Instant.now());
-        site.setDetectionRadius(settings.detectionRadius());
         site.setName("Staff sandbox");
         site.setSurfaceY(originY);
         assignStrata(site, settings, new Random());
@@ -424,6 +423,7 @@ public class SiteGenerator {
         BuriedFind find = new BuriedFind();
         find.setId(UUID.randomUUID());
         find.setArtifactId(template.id());
+        find.setItem(template.pickItem(random));
         find.setStratumId(stratumId);
         find.setState(FindState.HIDDEN);
         find.getCells().addAll(shape);

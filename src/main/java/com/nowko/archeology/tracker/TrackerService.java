@@ -199,7 +199,7 @@ public class TrackerService {
         if (!player.getWorld().getName().equals(site.getWorldName())) {
             return null;
         }
-        int range = Math.min(settings.defaultMaxRange(), Math.max(1, site.getDetectionRadius()));
+        int range = Math.max(1, settings.defaultMaxRange());
         double distance = horizontalDistance(player.getLocation(), site);
         if (distance > range) {
             return null;

@@ -538,7 +538,6 @@ public class SiteRepository {
         yaml.set("chunk-x", site.getChunkX());
         yaml.set("chunk-z", site.getChunkZ());
         yaml.set("surface-y", site.getSurfaceY());
-        yaml.set("detection-radius", site.getDetectionRadius());
         yaml.set("created-by", site.getCreatedBy() == null ? null : site.getCreatedBy().toString());
         yaml.set("created-at", site.getCreatedAt().toString());
         yaml.set("director", site.getDirector() == null ? null : site.getDirector().toString());
@@ -594,6 +593,9 @@ public class SiteRepository {
             Map<String, Object> node = new java.util.LinkedHashMap<>();
             node.put("id", find.getId().toString());
             node.put("artifact-id", find.getArtifactId());
+            if (find.getItem() != null && !find.getItem().isBlank()) {
+                node.put("item", find.getItem());
+            }
             if (find.getGivenName() != null && !find.getGivenName().isBlank()) {
                 node.put("given-name", find.getGivenName());
             }
@@ -766,7 +768,6 @@ public class SiteRepository {
         site.setChunkX(yaml.getInt("chunk-x"));
         site.setChunkZ(yaml.getInt("chunk-z"));
         site.setSurfaceY(yaml.getInt("surface-y"));
-        site.setDetectionRadius(yaml.getInt("detection-radius"));
         if (yaml.getString("created-by") != null) {
             site.setCreatedBy(UUID.fromString(yaml.getString("created-by")));
         }
@@ -846,6 +847,12 @@ public class SiteRepository {
             BuriedFind find = new BuriedFind();
             find.setId(UUID.fromString(String.valueOf(map.get("id"))));
             find.setArtifactId(String.valueOf(map.get("artifact-id")));
+            if (map.get("item") != null) {
+                String storedItem = String.valueOf(map.get("item")).trim();
+                if (!storedItem.isEmpty() && !"null".equals(storedItem)) {
+                    find.setItem(storedItem);
+                }
+            }
             if (map.get("given-name") != null) {
                 find.setGivenName(BuriedFind.sanitizeGivenName(String.valueOf(map.get("given-name"))));
             }

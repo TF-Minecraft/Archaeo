@@ -401,7 +401,7 @@ sketch:
       brush:
         item: BRUSH
         display-name: Brush
-        description: Dry-cleans rust and soil. Safe on metal and bone.
+        description: Dry-cleans rust, soil, and ash. Safe on metal and bone.
         sound: ITEM_BRUSH_BRUSHING_GENERIC
       air:
         item: FEATHER
@@ -425,6 +425,10 @@ sketch:
         display-name: Mud
         glass: BROWN_STAINED_GLASS_PANE
         tool: air
+      ash:
+        display-name: Ash
+        glass: GRAY_STAINED_GLASS_PANE
+        tool: brush
 
 # Shift+right-click a recovered find on these supports to open its plaque.
 # Vanilla clicks without shift stay Minecraft (hang, rotate, take).

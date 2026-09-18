@@ -1,0 +1,227 @@
+# Find templates. size-* = connected cells. relic = counts toward the relic quota
+# (unused in the default pack: every find is a liftable object).
+# profile = object | individual | animal (omit for object). That path picks the
+# station questions; species is signed there, not named here.
+# weight = relative spawn chance (higher = more common in generation).
+# rarity = optional display override (key under config.yml rarity:). If omitted,
+# display tier is derived from weight via config.yml rarity-from-weight.
+# item = one Bukkit material, or a list: generation picks one and stores it on that find.
+# study-notes wrap across several lore lines (~34 characters) after the piece is studied.
+# Tone: field notes a scholar in Cerrith, autumn 379 AE, could write. Incomplete is allowed.
+artifacts:
+  imperial_denar:
+    display-name: Imperial denar
+    size-min: 1
+    size-max: 1
+    material: gold
+    relic: false
+    weight: 20
+    strata: [I, II, III]
+    tags: [trade, gold, imperial]
+    item: GOLD_NUGGET
+    study-notes: "A struck gold disc. The die looks Delorian. Whether the mint still stands is another question."
+  pottery_sherd:
+    display-name: Pottery sherd
+    size-min: 1
+    size-max: 1
+    material: ceramic
+    relic: false
+    weight: 24
+    strata: [I, II, III, IV]
+    tags: [ceramic, settlement]
+    item:
+      - ANGLER_POTTERY_SHERD
+      - ARCHER_POTTERY_SHERD
+      - ARMS_UP_POTTERY_SHERD
+      - BLADE_POTTERY_SHERD
+      - BREWER_POTTERY_SHERD
+      - BURN_POTTERY_SHERD
+      - DANGER_POTTERY_SHERD
+      - EXPLORER_POTTERY_SHERD
+      - FLOW_POTTERY_SHERD
+      - FRIEND_POTTERY_SHERD
+      - GUSTER_POTTERY_SHERD
+      - HEART_POTTERY_SHERD
+      - HEARTBREAK_POTTERY_SHERD
+      - HOWL_POTTERY_SHERD
+      - MINER_POTTERY_SHERD
+      - MOURNER_POTTERY_SHERD
+      - PLENTY_POTTERY_SHERD
+      - PRIZE_POTTERY_SHERD
+      - SCRAPE_POTTERY_SHERD
+      - SHEAF_POTTERY_SHERD
+      - SHELTER_POTTERY_SHERD
+      - SKULL_POTTERY_SHERD
+      - SNORT_POTTERY_SHERD
+    study-notes: "A body sherd. Fabric and any surviving slip say more than the shape. Kitchen, camp, or temple — the break does not tell."
+  bronze_bit:
+    display-name: Bronze bit
+    size-min: 2
+    size-max: 3
+    material: bronze
+    relic: false
+    weight: 14
+    strata: [II, III]
+    tags: [settlement, metal, bronze]
+    item: COPPER_HOE
+    study-notes: "A working edge in bronze, not ornament. Calavorian dark-age work, if the alloy is what it looks. Wear on the bit argues repeated use."
+  imperial_blade:
+    display-name: Legion blade
+    size-min: 3
+    size-max: 5
+    material: iron
+    relic: false
+    weight: 6
+    strata: [II, III]
+    tags: [conflict, metal, blade, imperial]
+    item: IRON_SWORD
+    study-notes: "A blade with little kitchen scatter around it. Fuller and tang still read as a weapon. Legion issue, or a good copy of one."
+  offering_bowl:
+    display-name: Offering bowl
+    size-min: 3
+    size-max: 6
+    material: ceramic
+    relic: false
+    weight: 10
+    strata: [I, II, III]
+    tags: [ceramic, ceremonial, deposit, faith]
+    item: DECORATED_POT
+    study-notes: "A closed form, set down rather than smashed in discard. Trinity, Ancients, or some older custom — the slip is too worn to preach."
+  hearth_ash:
+    display-name: Hearth ash
+    size-min: 1
+    size-max: 2
+    material: wood
+    relic: false
+    weight: 16
+    strata: [I, II, III]
+    tags: [fire, domestic, ash]
+    item: CHARCOAL
+    study-notes: "Charred wood and ash. Repeated burning at this depth looks like a hearth. A single pyre would sit differently. Sometimes the charcoal takes a crimson grain — demonwood, if the soil ever drank Oseni blood."
+  faith_charm:
+    display-name: Faith charm
+    size-min: 1
+    size-max: 2
+    material: gold
+    relic: false
+    weight: 8
+    strata: [II, III]
+    tags: [ceremonial, trade, ornament, faith]
+    item: GOLD_INGOT
+    study-notes: "A small decorative piece. Trinitarian work, or a follower of the Ancients copying court gold. The metal does not match the cheapest local smithing."
+  runestone_chip:
+    display-name: Runestone chip
+    size-min: 1
+    size-max: 3
+    material: stone
+    relic: false
+    weight: 5
+    strata: [III, IV]
+    tags: [ceremonial, stone, runic]
+    item: AMETHYST_SHARD
+    study-notes: "A worked chip, not a tool. Staff-graft, spell-book inlay, or some older rite. Not a Colossus — those were mountains. This is the small kind, if it is a rune at all."
+  war_kit:
+    display-name: War-kit fragment
+    size-min: 2
+    size-max: 4
+    material: iron
+    relic: false
+    weight: 9
+    strata: [I, II]
+    tags: [conflict, oseni, metal]
+    item: IRON_NUGGET
+    study-notes: "Burnt iron and a scale that is not Cerrith work. First Oseni war, or the Rift year. The soil will not date a raid for me."
+  ash_glass:
+    display-name: Fused ash-glass
+    size-min: 1
+    size-max: 3
+    material: crystal
+    relic: false
+    weight: 7
+    strata: [I, II]
+    tags: [fire, ash, crystal]
+    item: GLASS
+    study-notes: "Grit fused as if the air itself burned. Most of us write 346 AE on such pieces. An older fire can wear the same face."
+  dryad_ward:
+    display-name: Ward-stone
+    size-min: 2
+    size-max: 4
+    material: stone
+    relic: false
+    weight: 5
+    strata: [III, IV]
+    tags: [ceremonial, dryad, stone, deposit]
+    item: MOSSY_COBBLESTONE
+    study-notes: "Worked stone, set as a mark rather than a wall. The old dryadic people gated unholy ground for centuries. Who keeps that watch now is not in any book I have."
+  abyssalite_fitting:
+    display-name: Abyssalite fitting
+    size-min: 1
+    size-max: 2
+    material: abyssalite
+    relic: false
+    weight: 5
+    strata: [II, III]
+    tags: [trade, metal]
+    item: IRON_INGOT
+    study-notes: "Inert, tough, blue-dark. Smithing it was a guarded secret until Falxor's wars; common enough outside Delor after 174 AE. Not mythril, whatever the finder hopes."
+  human_inhumation:
+    display-name: Inhumation
+    profile: individual
+    size-min: 8
+    size-max: 15
+    material: bone
+    rarity: legendary
+    relic: false
+    weight: 4
+    strata: [III, IV]
+    tags: [burial, bone, human]
+    item: BONE
+    study-notes: "Articulated bone, not kitchen scatter. The layout still argues for a grave. Human, if the proportions hold — I have been wrong about dryads before."
+  dryad_bone:
+    display-name: Dryad bone
+    profile: individual
+    size-min: 6
+    size-max: 12
+    material: bone
+    relic: false
+    weight: 4
+    strata: [III, IV]
+    tags: [burial, bone, dryad]
+    item: BONE
+    study-notes: "The bone takes a grain like timber. Dryad, if the Calavorian accounts are to be trusted — or a man the roots have claimed. They lost their war. The ground did not."
+  ruin_guard:
+    display-name: Ruin-guard bone
+    profile: individual
+    size-min: 8
+    size-max: 16
+    material: bone
+    relic: false
+    weight: 3
+    strata: [III, IV]
+    tags: [burial, bone, troll]
+    item: BONE
+    study-notes: "Too large for a man. The locals name them trolls and leave the ruins to them. I have no better name, and no book that gives them one."
+  pastoral_dump:
+    display-name: Livestock dump
+    profile: animal
+    size-min: 3
+    size-max: 8
+    material: bone
+    relic: false
+    weight: 10
+    strata: [I, II, III]
+    tags: [bone, food, animal, settlement]
+    item: BONE
+    study-notes: "Disarticulated bone with kitchen scatter. Sheep, cattle, or horse — Pastoralist country leaves all three. This looks like refuse, not a grave."
+  wyvern_bone:
+    display-name: Wyvern bone
+    profile: animal
+    size-min: 4
+    size-max: 10
+    material: bone
+    relic: false
+    weight: 6
+    strata: [I, II, III, IV]
+    tags: [bone, animal]
+    item: BONE
+    study-notes: "Wing-bone, hollow, too large for a bird. The coast still tells of wyverns over Vard. Older than the overburden, I think — though a late kill can sit in a shallow cut."

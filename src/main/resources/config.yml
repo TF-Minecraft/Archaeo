@@ -53,14 +53,13 @@ tracker:
   item: RECOVERY_COMPASS
   # item: "mmoitems:TOOL:ARCHAEO_TRACKER"
   enabled: true
-  # Hard cap in blocks for every ruin. Optional per-tier overrides live in interest.yml as
-  # detection-radius; if a tier omits that key, this max-range is copied onto new sites instead.
-  # At scan time the tracker still uses min(site detection-radius, max-range).
-  max-range: 256
-  # Pulse strength by distance (weak → strong). Standing on the ruin chunk is always strongest.
-  # Chat ("prospect this area") also fires inside close-range when you face the ruin.
-  medium-range: 64
-  close-range: 32
+  # Hard cap in blocks for every ruin. Default is 32 chunks (512). If you omit medium-range or
+  # close-range, they scale from this (1/4 and 1/8). Pulse strength is weak → strong by distance.
+  # Standing on the ruin chunk is always strongest. Chat ("prospect this area") also fires
+  # inside close-range when you face the ruin.
+  max-range: 512
+  medium-range: 128
+  close-range: 64
   pulse-particles: true
   # Ring sizes for the weak / medium / strong pulses.
   wave-radii: [1.2, 2.4, 3.6]
@@ -101,7 +100,7 @@ excavation:
   enabled: true
   visual-cues: true
   # How many successful cuts per Minecraft day. 0 = no work-day cap.
-  workday-actions: 8
+  workday-actions: 10
   conservation:
     # What the ground already took, rolled once per find when the site is generated.
     # Digging can only subtract from this, so a flawless dig does not make a flawless piece.

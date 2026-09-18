@@ -108,7 +108,7 @@ public final class CampFindsBoard implements InventoryHolder {
      */
     private ItemStack rowItem(Site site, BuriedFind find) {
         ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
-        Material icon = iconOf(template);
+        Material icon = iconOf(template, find);
         String name = find.shownName(template == null ? null : template.displayName());
         String number = find.publicNumber(site.getSerial());
         List<String> lore = new ArrayList<>();
@@ -121,17 +121,22 @@ public final class CampFindsBoard implements InventoryHolder {
 
     /**
      * @param template catalog row, or {@code null}
-     * @return inventory icon
+     * @return inventory icon from the first catalog item
      */
     public static Material iconOf(ArtifactTemplate template) {
+        return iconOf(template, null);
+    }
+
+    /**
+     * @param template catalog row, or {@code null}
+     * @param find archive row whose rolled material wins when present
+     * @return inventory icon
+     */
+    public static Material iconOf(ArtifactTemplate template, BuriedFind find) {
         if (template == null) {
             return Material.BRICK;
         }
-        Material material = Material.matchMaterial(template.item());
-        if (material == null || material.isAir() || !material.isItem()) {
-            return Material.BRICK;
-        }
-        return material;
+        return template.resolveItem(find == null ? null : find.getItem());
     }
 
     /**
