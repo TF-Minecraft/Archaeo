@@ -482,8 +482,6 @@ auto-ruins:
     medium: 35
     high: 15
     exceptional: 5
-  # Wait after chunk load so brand-new terrain can finish populate.
-  evaluate-delay-ticks: 20
   # --- Pending window (why this exists) ---
   # Players can load chunks much faster than Archaeo can decide them (see max-evaluations-per-tick).
   # Without a cap, the queue grows to tens of thousands while people fly. By the time a queued
@@ -492,6 +490,7 @@ auto-ruins:
   # trying” window (prefer 2–8). Loads beyond the cap are skipped, not burned — they may retry
   # the next time that chunk loads and a slot is free. Large values are allowed if you insist,
   # but then keep max-unload-purge-per-tick sensible (below).
+  # Chunks enter the drain queue on ChunkLoad (no populate delay; the chunk is readable then).
   max-pending: 4
   # --- Unload purge (why this exists) ---
   # Even inside the pending window, a chunk can unload before its turn (player moved on). Each

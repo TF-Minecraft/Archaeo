@@ -36,10 +36,10 @@ import java.util.logging.Level;
 /**
  * Trial auto-spawn on chunk load: each chunk is considered at most once by Archaeo, whether the
  * terrain is brand new or was generated months before the plugin was installed.
- * A small {@code max-pending} window caps delayed/queued work so exploration cannot build a huge
- * backlog of chunks that unload before they are decided. Each drain tick drops unloaded queue
- * entries without marking them (budgeted by {@code max-unload-purge-per-tick} so a large pending
- * cap cannot scan the whole queue in one tick) and then runs fitness only on chunks that are still
+ * A small {@code max-pending} window caps queued work so exploration cannot build a huge backlog
+ * of chunks that unload before they are decided. Each drain tick drops unloaded queue entries
+ * without marking them (budgeted by {@code max-unload-purge-per-tick} so a large pending cap
+ * cannot scan the whole queue in one tick) and then runs fitness only on chunks that are still
  * loaded. Staff get a chat line with a [tp] link.
  *
  * <p>Changing {@code chance-per-chunk} (or {@code /archaeo ruin auto reset}) wipes the ledger so
@@ -54,7 +54,7 @@ public class RuinAutoSpawner implements Listener {
     private final Path policyFile;
     private AutoRuinSettings settings;
     private final Deque<Pending> queue = new ArrayDeque<>();
-    /** Chunks waiting in the queue or on a delayed schedule, so reloads do not enqueue twice. */
+    /** Chunks in the drain queue, so reloads do not enqueue the same chunk twice. */
     private final Set<String> inflight = ConcurrentHashMap.newKeySet();
     private BukkitTask task;
     private BukkitTask flushTask;
@@ -216,9 +216,9 @@ public class RuinAutoSpawner implements Listener {
     }
 
     /**
-     * Accepts a chunk into the pending window the first time Archaeo sees it loaded, after a short
-     * delay for populate. When {@code max-pending} is full, the load is ignored (not burned) so a
-     * later load can retry once a slot frees.
+     * Accepts a chunk into the pending drain queue when Archaeo first sees it loaded.
+     * When {@code max-pending} is full, the load is ignored (not burned) so a later load can retry
+     * once a slot frees. The chunk is readable on {@link ChunkLoadEvent}; no populate delay.
      *
      * @param event any chunk load; Minecraft's {@code isNewChunk} is intentionally ignored
      */
@@ -250,24 +250,7 @@ public class RuinAutoSpawner implements Listener {
         if (!inflight.add(key)) {
             return;
         }
-        // New terrain may still be populating; old chunks are ready, and a short delay is harmless.
-        long delay = Math.max(1L, settings.evaluateDelayTicks());
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (!settings.enabled()) {
-                inflight.remove(key);
-                return;
-            }
-            World live = plugin.getServer().getWorld(worldName);
-            if (live == null || !live.isChunkLoaded(chunkX, chunkZ)) {
-                inflight.remove(key);
-                return;
-            }
-            if (ledger.isEvaluated(worldName, chunkX, chunkZ)) {
-                inflight.remove(key);
-                return;
-            }
-            queue.offer(new Pending(worldName, chunkX, chunkZ));
-        }, delay);
+        queue.offer(new Pending(worldName, chunkX, chunkZ));
     }
 
     /**
@@ -350,7 +333,7 @@ public class RuinAutoSpawner implements Listener {
      * Lottery, spacing, fitness, then {@link SiteGenerator#createManagedRuin}.
      * Marks the chunk evaluated once a decision is made so old maps are not re-scanned forever.
      *
-     * @param pending delayed chunk coordinates
+     * @param pending queued chunk coordinates
      */
     private void evaluate(Pending pending) {
         String key = key(pending.worldName(), pending.chunkX(), pending.chunkZ());
@@ -612,7 +595,7 @@ public class RuinAutoSpawner implements Listener {
     }
 
     /**
-     * Chunk waiting for a fitness pass after the load delay.
+     * Chunk waiting for a fitness pass on the drain queue.
      *
      * @param worldName world id
      * @param chunkX chunk X

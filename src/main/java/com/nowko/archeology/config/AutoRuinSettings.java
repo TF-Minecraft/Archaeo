@@ -23,8 +23,7 @@ import java.util.Set;
  * @param minSoilFraction minimum share of sparse surface samples with shovel-mineable ground
  * @param excludedBiomes biome path keys that reject a chunk (oceans/rivers by default); empty disables the gate
  * @param interestWeights relative weights for rolling {@link InterestLevel}
- * @param evaluateDelayTicks ticks to wait after chunk load so populate can finish on new terrain
- * @param maxPending maximum chunks waiting (delayed or queued); further loads are skipped until a slot frees
+ * @param maxPending maximum chunks waiting in the drain queue; further loads are skipped until a slot frees
  * @param maxUnloadPurgePerTick max queue entries checked per drain tick for “still loaded?” (drops unloaded
  *     without marking). Caps TPS cost if {@code max-pending} is set very high
  * @param maxEvaluationsPerTick how many full fitness checks may run in one server tick
@@ -41,7 +40,6 @@ public record AutoRuinSettings(
         double minSoilFraction,
         Set<String> excludedBiomes,
         Map<InterestLevel, Integer> interestWeights,
-        int evaluateDelayTicks,
         int maxPending,
         int maxUnloadPurgePerTick,
         int maxEvaluationsPerTick,
@@ -88,7 +86,6 @@ public record AutoRuinSettings(
                 0.35,
                 defaultExcludedBiomes(),
                 Map.copyOf(weights),
-                20,
                 4,
                 32,
                 1,

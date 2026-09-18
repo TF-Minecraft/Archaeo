@@ -1472,7 +1472,6 @@ public class CatalogRegistry {
                 Math.max(0.0, Math.min(1.0, readUnitInterval(section, "min-soil-fraction", fallback.minSoilFraction()))),
                 excludedBiomes,
                 Map.copyOf(weights),
-                Math.max(1, section.getInt("evaluate-delay-ticks", fallback.evaluateDelayTicks())),
                 Math.max(1, section.getInt("max-pending", fallback.maxPending())),
                 Math.max(1, section.getInt("max-unload-purge-per-tick", fallback.maxUnloadPurgePerTick())),
                 Math.max(1, section.getInt("max-evaluations-per-tick", fallback.maxEvaluationsPerTick())),
