@@ -53,7 +53,9 @@ tracker:
   item: RECOVERY_COMPASS
   # item: "mmoitems:TOOL:ARCHAEO_TRACKER"
   enabled: true
-  # Hard cap in blocks. Each ruin also has detection-radius in interest.yml; the smaller one wins.
+  # Hard cap in blocks for every ruin. Optional per-tier overrides live in interest.yml as
+  # detection-radius; if a tier omits that key, this max-range is copied onto new sites instead.
+  # At scan time the tracker still uses min(site detection-radius, max-range).
   max-range: 256
   # Pulse strength by distance (weak → strong). Standing on the ruin chunk is always strongest.
   # Chat ("prospect this area") also fires inside close-range when you face the ruin.
@@ -476,10 +478,10 @@ auto-ruins:
     - river
     - frozen_river
   interest-weights:
-    low: 50
+    low: 45
     medium: 35
-    high: 12
-    exceptional: 3
+    high: 15
+    exceptional: 5
   # Wait after chunk load so brand-new terrain can finish populate.
   evaluate-delay-ticks: 20
   # --- Pending window (why this exists) ---

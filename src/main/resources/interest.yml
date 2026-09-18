@@ -1,5 +1,9 @@
 # How rich a staff-registered ruin is. Established sites keep the dossier they already have.
 # Relic quotas stay at 0 until a later pack marks templates as relic (architecture, etc.).
+#
+# detection-radius (blocks): optional per-tier tracker range written onto the site at creation.
+# If you omit it on a tier, Archaeo uses tracker.max-range from config.yml for that tier.
+# The tracker still applies max-range as a hard cap: effective range = min(site radius, max-range).
 
 interest-levels:
   low:

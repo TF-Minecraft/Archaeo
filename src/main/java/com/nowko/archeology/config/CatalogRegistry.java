@@ -1738,17 +1738,23 @@ public class CatalogRegistry {
         if (root == null) {
             throw new IllegalStateException("Missing interest-levels in interest.yml");
         }
+        int fallbackDetectionRadius = Math.max(1, config.getInt(
+                "tracker.max-range",
+                TrackerSettings.defaults().defaultMaxRange()));
         for (InterestLevel level : InterestLevel.values()) {
             ConfigurationSection section = root.getConfigurationSection(level.yamlKey());
             if (section == null) {
                 throw new IllegalStateException("Missing interest-levels." + level.yamlKey());
             }
+            int detectionRadius = section.contains("detection-radius")
+                    ? Math.max(1, section.getInt("detection-radius"))
+                    : fallbackDetectionRadius;
             interests.put(level, new InterestSettings(
                     level,
                     section.getString("display-name", level.yamlKey()),
                     section.getInt("base-wealth"),
                     section.getInt("variation"),
-                    section.getInt("detection-radius"),
+                    detectionRadius,
                     section.getInt("min-finds"),
                     section.getInt("max-finds"),
                     section.getInt("min-relics"),
