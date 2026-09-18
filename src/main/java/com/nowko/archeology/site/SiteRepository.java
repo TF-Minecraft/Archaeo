@@ -278,6 +278,42 @@ public class SiteRepository {
     }
 
     /**
+     * Counts every loaded dossier by lifecycle. Hidden ruins, live camps, exhausted cuts, and
+     * closed records all sit in {@code sites/}; this is the staff census, not a player list.
+     *
+     * @return totals that add up to {@link SiteCensus#total()}
+     */
+    public SiteCensus census() {
+        return census(null);
+    }
+
+    /**
+     * Same buckets as {@link #census()}, optionally limited to one world name.
+     *
+     * @param worldName world to count, or {@code null} for every world
+     * @return totals for that slice
+     */
+    public SiteCensus census(String worldName) {
+        int hidden = 0;
+        int established = 0;
+        int exhausted = 0;
+        int closed = 0;
+        for (Site site : byId.values()) {
+            if (worldName != null && !worldName.equalsIgnoreCase(site.getWorldName())) {
+                continue;
+            }
+            switch (site.getStatus()) {
+                case HIDDEN -> hidden++;
+                case ESTABLISHED -> established++;
+                case EXHAUSTED -> exhausted++;
+                case CLOSED -> closed++;
+            }
+        }
+        int total = hidden + established + exhausted + closed;
+        return new SiteCensus(total, hidden, established, exhausted, closed);
+    }
+
+    /**
      * Counts camps this player still directs. Exhausted sites keep the camp, so they occupy a
      * slot until someone closes them. Hidden ruins and closed dossiers do not count.
      *

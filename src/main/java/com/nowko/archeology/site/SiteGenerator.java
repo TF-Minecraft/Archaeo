@@ -14,7 +14,9 @@ import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.SiteStatus;
 import com.nowko.archeology.model.SiteType;
 import com.nowko.archeology.excavation.PrismFill;
+import com.nowko.archeology.excavation.PrismWound;
 import com.nowko.archeology.model.StratumBand;
+import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
@@ -75,31 +77,92 @@ public class SiteGenerator {
         }
 
         chunk.load();
-        InterestSettings settings = catalog.interest(interest);
-        Random random = newRandom(chunk, interest);
 
         Site site = new Site();
         site.setId(UUID.randomUUID());
         site.setSerial(repository.nextSerial());
         site.setType(SiteType.MANAGED_RUIN);
         site.setStatus(SiteStatus.HIDDEN);
-        site.setInterest(interest);
         site.setWorldName(chunk.getWorld().getName());
         site.setChunkX(chunk.getX());
         site.setChunkZ(chunk.getZ());
         site.setCreatedBy(createdBy);
         site.setCreatedAt(Instant.now());
-        site.setDetectionRadius(settings.detectionRadius());
         site.setName(resolveName(name, chunk));
-        site.setSurfaceY(GroundDatum.medianY(chunk));
+        fillLayout(site, interest, chunk);
 
+        repository.save(site);
+        return site;
+    }
+
+    /**
+     * Rebuilds strata, finds, hints, and detection radius of a hidden ruin at a new interest.
+     * Keeps id, serial, chunk, name, and author. Refuses established camps, confirmed prospecting,
+     * and finds that the world has already wounded.
+     *
+     * @param site hidden ruin
+     * @param interest new wealth and detection budget
+     * @return the same site with a new generated layout
+     * @throws IllegalArgumentException if site or interest is missing
+     * @throws IllegalStateException if the rewrite is not allowed
+     */
+    public Site regenerateInterest(Site site, InterestLevel interest) {
+        if (site == null) {
+            throw new IllegalArgumentException("Site is required");
+        }
+        if (interest == null) {
+            throw new IllegalArgumentException("Interest level is required");
+        }
+        if (site.getStatus() != SiteStatus.HIDDEN) {
+            throw new IllegalStateException("Interest can only be changed on a hidden ruin.");
+        }
+        if (site.getInterest() == interest) {
+            throw new IllegalStateException("This ruin is already " + interest.yamlKey() + ".");
+        }
+        if (!site.getProspectConfirmed().isEmpty()) {
+            throw new IllegalStateException(
+                    "Players have already confirmed this ruin by prospecting. Delete and create a new ruin instead.");
+        }
+        if (site.hasRecordedFindWounds()) {
+            throw new IllegalStateException(
+                    "Buried finds were already damaged. Delete and create a new ruin instead.");
+        }
+        World world = Bukkit.getWorld(site.getWorldName());
+        if (world == null) {
+            throw new IllegalStateException("World \"" + site.getWorldName() + "\" is not loaded.");
+        }
+        Chunk chunk = world.getChunkAt(site.getChunkX(), site.getChunkZ());
+        chunk.load();
+        if (PrismWound.hasMissingFindTerrain(world, site)) {
+            throw new IllegalStateException(
+                    "The ground over this ruin is already broken. Delete and create a new ruin instead.");
+        }
+        site.clearGeneratedLayout();
+        fillLayout(site, interest, chunk);
+        repository.save(site);
+        return site;
+    }
+
+    /**
+     * Writes interest, datum, strata, finds, and hints onto {@code site}. Identity fields stay.
+     *
+     * @param site dossier to fill
+     * @param interest wealth budget
+     * @param chunk ruin chunk, used for seed and buried pockets
+     */
+    private void fillLayout(Site site, InterestLevel interest, Chunk chunk) {
+        InterestSettings settings = catalog.interest(interest);
+        if (settings == null) {
+            throw new IllegalStateException("No interest settings loaded for " + interest.yamlKey() + ".");
+        }
+        Random random = newRandom(chunk, interest);
+        site.setInterest(interest);
+        site.setDetectionRadius(settings.detectionRadius());
+        site.setSurfaceY(GroundDatum.medianY(chunk));
         assignStrata(site, settings, random);
         List<BuriedFind> finds = placeFinds(site, settings, random, chunk.getWorld());
         site.getFinds().addAll(finds);
         site.getHintIds().addAll(pickHints(site, settings, findTags(finds), random));
-
-        repository.save(site);
-        return site;
     }
 
     /**

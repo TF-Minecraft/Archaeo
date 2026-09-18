@@ -508,5 +508,5 @@ auto-ruins:
   # pending stuck full and TPS stays healthy. Unrelated to how many ruins spawn (that is chance +
   # filters); it only how fast the pending window is consumed.
   max-evaluations-per-tick: 1
-  notify-staff: true
+  notify-staff: false
 

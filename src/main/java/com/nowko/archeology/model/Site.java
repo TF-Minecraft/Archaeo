@@ -977,6 +977,45 @@ public class Site {
     }
 
     /**
+     * Same test the camp board uses before asking for an extra confirm: generated finds that have
+     * not all left the cut.
+     *
+     * @return whether closing now would leave work in the ground
+     */
+    public boolean isUnfinishedCut() {
+        return !finds.isEmpty() && completionPercent() < 100;
+    }
+
+    /**
+     * Wounds already written on hidden finds (vanilla smash, lost cells). Missing terrain that was
+     * never recorded still has to be checked in the world.
+     *
+     * @return whether any find is no longer a pristine hidden shape
+     */
+    public boolean hasRecordedFindWounds() {
+        for (BuriedFind find : finds) {
+            if (find.isFieldDamaged() || find.isDisturbedBeforeDig() || find.getState() != FindState.HIDDEN) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Drops generated wealth so staff can rebuild a hidden ruin at a new interest. Identity,
+     * chunk, name, and author stay. Prospect confirmations are left in place so the caller can
+     * refuse the rewrite if anyone already confirmed the site.
+     */
+    public void clearGeneratedLayout() {
+        strata.clear();
+        finds.clear();
+        hintIds.clear();
+        fillDamage.clear();
+        prospectSamples.clear();
+        recoveredCount = 0;
+    }
+
+    /**
      * Closes the project when the cut has nothing left to give. A site without generated finds
      * never closes this way, so a mis-generated ruin does not die on its first pick swing.
      *

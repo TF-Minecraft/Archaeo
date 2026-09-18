@@ -49,6 +49,30 @@ public final class PrismWound {
     }
 
     /**
+     * Whether any live find cell is no longer excavation fill. Used to refuse rewriting a hidden
+     * ruin whose ground was already opened, even if the dossier has not recorded the wound yet.
+     *
+     * @param world ruin world
+     * @param site hidden ruin
+     * @return {@code true} when at least one find cube is air, fluid, or a build
+     */
+    public static boolean hasMissingFindTerrain(World world, Site site) {
+        if (world == null || site == null) {
+            return false;
+        }
+        for (BuriedFind find : site.getFinds()) {
+            for (BlockCell cell : find.getCells()) {
+                Block block = world.getBlockAt(cell.x(), cell.y(), cell.z());
+                Material type = block.getType();
+                if (type.isAir() || block.isLiquid() || !PrismFill.isTerrainFill(type)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
      * Vanilla (or explosion) removed this prism cell: that layer is disturbed and overlapping finds are damaged.
      *
      * @param site ruin or established excavation

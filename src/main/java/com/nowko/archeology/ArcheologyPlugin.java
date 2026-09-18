@@ -3,6 +3,7 @@ package com.nowko.archeology;
 import com.nowko.archeology.command.ArchaeoCommand;
 import com.nowko.archeology.config.CatalogRegistry;
 import com.nowko.archeology.establish.CampListener;
+import com.nowko.archeology.establish.CampClosure;
 import com.nowko.archeology.establish.EstablishListener;
 import com.nowko.archeology.establish.EstablishService;
 import com.nowko.archeology.excavation.DigTools;
@@ -102,6 +103,7 @@ public class ArcheologyPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(
                 new RecoveredFindListener(this, sites, catalogs, recoveredFindItem),
                 this);
+        CampClosure campClosure = new CampClosure(this, sites);
         getServer().getPluginManager().registerEvents(
                 new CampListener(
                         this,
@@ -112,7 +114,8 @@ public class ArcheologyPlugin extends JavaPlugin {
                         handPick,
                         outline,
                         brushItem,
-                        recoveredFindItem),
+                        recoveredFindItem,
+                        campClosure),
                 this);
         findDust = new FindDustService(this, sites, catalogs.pick());
         establish.setFindDust(findDust);
@@ -153,7 +156,8 @@ public class ArcheologyPlugin extends JavaPlugin {
                 prismListener,
                 brushItem,
                 recover,
-                autoRuins);
+                autoRuins,
+                campClosure);
         PluginCommand pluginCommand = getCommand("archaeo");
         if (pluginCommand != null) {
             pluginCommand.setExecutor(command);

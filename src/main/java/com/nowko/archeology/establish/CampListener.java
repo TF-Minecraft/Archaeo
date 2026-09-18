@@ -73,6 +73,7 @@ public class CampListener implements Listener {
     private final RecoveredFindItem recoveredItem;
     private final FindReportBook reportBook;
     private final CampArchiveBook archiveBook;
+    private final CampClosure campClosure;
     private final Map<UUID, UUID> inviteForSite = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> closeForSite = new ConcurrentHashMap<>();
 
@@ -86,6 +87,7 @@ public class CampListener implements Listener {
      * @param outline draws the prism when the board asks for limits
      * @param brush study requires the field brush in hand
      * @param recoveredItem matches the piece in inventory and refreshes its lore
+     * @param campClosure shared camp close (board and staff command)
      */
     public CampListener(
             JavaPlugin plugin,
@@ -96,7 +98,8 @@ public class CampListener implements Listener {
             HandPickService handPick,
             PrismOutlineService outline,
             BrushItem brush,
-            RecoveredFindItem recoveredItem
+            RecoveredFindItem recoveredItem,
+            CampClosure campClosure
     ) {
         this.plugin = plugin;
         this.sites = sites;
@@ -108,7 +111,8 @@ public class CampListener implements Listener {
         this.brush = brush;
         this.recoveredItem = recoveredItem;
         this.reportBook = new FindReportBook(plugin);
-        this.archiveBook = new CampArchiveBook(plugin);
+        this.campClosure = campClosure;
+        this.archiveBook = campClosure.archiveBook();
     }
 
     /**
@@ -903,7 +907,7 @@ public class CampListener implements Listener {
         establish.abortRename(player);
         closeForSite.put(player.getUniqueId(), site.getId());
         int percent = site.completionPercent();
-        if (!site.getFinds().isEmpty() && percent < 100) {
+        if (site.isUnfinishedCut()) {
             player.sendMessage("This excavation is " + percent
                     + "% complete. Type confirm to close the camp, or type cancel.");
             return;
@@ -950,27 +954,7 @@ public class CampListener implements Listener {
             player.sendMessage("Only the director or server staff may close this excavation.");
             return;
         }
-        if (!site.closeCamp()) {
-            player.sendMessage("This excavation cannot be closed.");
-            return;
-        }
-        sites.save(site);
-        giveStack(player, archiveBook.create(player, site));
-        int percent = site.completionPercent();
-        if (!site.getFinds().isEmpty() && percent < 100) {
-            player.sendMessage("Closed " + site.displayLabel() + " at " + percent
-                    + "% complete. The record is in the field book.");
-        } else {
-            player.sendMessage("Closed " + site.displayLabel() + ". The record is in the field book.");
-        }
-        UUID directorId = site.getDirector();
-        if (directorId != null && !directorId.equals(player.getUniqueId())) {
-            Player director = plugin.getServer().getPlayer(directorId);
-            if (director != null) {
-                director.sendMessage("The camp at " + site.displayLabel()
-                        + " was closed. The record is in a field book.");
-            }
-        }
+        campClosure.close(player, site);
     }
 
     /**

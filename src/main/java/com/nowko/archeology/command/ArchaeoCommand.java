@@ -3,6 +3,7 @@ package com.nowko.archeology.command;
 import com.nowko.archeology.ArcheologyPlugin;
 import com.nowko.archeology.config.ArtifactTemplate;
 import com.nowko.archeology.config.CatalogRegistry;
+import com.nowko.archeology.establish.CampClosure;
 import com.nowko.archeology.establish.CampNames;
 import com.nowko.archeology.establish.EstablishService;
 import com.nowko.archeology.excavation.FindDustService;
@@ -21,6 +22,7 @@ import com.nowko.archeology.model.SiteStatus;
 import com.nowko.archeology.model.StratumBand;
 import com.nowko.archeology.prospect.ProspectService;
 import com.nowko.archeology.site.RuinAutoSpawner;
+import com.nowko.archeology.site.SiteCensus;
 import com.nowko.archeology.site.SiteGenerator;
 import com.nowko.archeology.site.SiteRepository;
 import com.nowko.archeology.tracker.TrackerService;
@@ -49,6 +51,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -58,7 +61,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private static final List<String> INTERESTS = List.of("low", "medium", "high", "exceptional");
     private static final List<String> ROOT = List.of(
             "give", "ruin", "workday", "find", "sketch", "reload");
-    private static final List<String> RUIN_ACTIONS = List.of("create", "info", "camps", "tp", "auto");
+    private static final List<String> RUIN_ACTIONS = List.of(
+            "create", "info", "stats", "set-interest", "close", "camps", "tp", "auto");
     private static final List<String> RUIN_AUTO_ACTIONS = List.of("status", "reset");
     private static final List<String> GIVE_KINDS = List.of(
             "tracker", "prospect", "establish", "tool", "brush", "paper", "pencil");
@@ -81,6 +85,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private final BrushItem brushItem;
     private final RecoverService recover;
     private final RuinAutoSpawner autoRuins;
+    private final CampClosure campClosure;
 
     /**
      * @param plugin owner used to re-bind ItemsAdder / MMOItems on reload
@@ -99,6 +104,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      * @param brushItem factory for {@code give brush}
      * @param recover field-brush loop, updated on reload
      * @param autoRuins trial chunk auto-spawner, updated on reload
+     * @param campClosure staff close of a standing camp, same path as the board
      */
     public ArchaeoCommand(
             ArcheologyPlugin plugin,
@@ -116,7 +122,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             PrismListener prism,
             BrushItem brushItem,
             RecoverService recover,
-            RuinAutoSpawner autoRuins
+            RuinAutoSpawner autoRuins,
+            CampClosure campClosure
     ) {
         this.plugin = plugin;
         this.catalogs = catalogs;
@@ -134,6 +141,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         this.brushItem = brushItem;
         this.recover = recover;
         this.autoRuins = autoRuins;
+        this.campClosure = campClosure;
     }
 
     /**
@@ -175,6 +183,15 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         }
         if ("info".equalsIgnoreCase(args[1])) {
             return handleInfo(sender, args);
+        }
+        if ("stats".equalsIgnoreCase(args[1])) {
+            return handleRuinStats(sender, args);
+        }
+        if ("set-interest".equalsIgnoreCase(args[1])) {
+            return handleSetInterest(sender, args);
+        }
+        if ("close".equalsIgnoreCase(args[1])) {
+            return handleRuinClose(sender, args);
         }
         if ("tp".equalsIgnoreCase(args[1])) {
             return handleRuinTp(sender, args);
@@ -632,6 +649,157 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
+     * Prints how many ruins exist, how many of those are excavations, and how many are closed.
+     * Active and exhausted camps are listed so the numbers add up.
+     *
+     * @param sender staff issuer
+     * @param args {@code ruin stats [world]}
+     * @return {@code true} always (handled)
+     */
+    private boolean handleRuinStats(CommandSender sender, String[] args) {
+        String worldName = args.length >= 3 ? Arrays.stream(args).skip(2).collect(Collectors.joining(" ")) : null;
+        if (worldName != null && Bukkit.getWorld(worldName) == null) {
+            boolean known = false;
+            for (Site site : sites.all()) {
+                if (worldName.equalsIgnoreCase(site.getWorldName())) {
+                    known = true;
+                    break;
+                }
+            }
+            if (!known) {
+                sender.sendMessage("Unknown world: " + worldName + ".");
+                return true;
+            }
+        }
+        SiteCensus census = sites.census(worldName);
+        String scope = worldName == null ? "all worlds" : worldName;
+        sender.sendMessage("Ruins: " + census.total() + " (" + scope + ")");
+        sender.sendMessage("  Hidden: " + census.hidden());
+        sender.sendMessage("  Excavations: " + census.excavations());
+        sender.sendMessage("    Active: " + census.established());
+        sender.sendMessage("    Exhausted: " + census.exhausted());
+        sender.sendMessage("    Closed: " + census.closed());
+        return true;
+    }
+
+    /**
+     * Rebuilds a hidden ruin at a new interest. Established camps, confirmed prospecting, and
+     * wounded finds are refused so the rewrite cannot change a live dossier.
+     *
+     * @param sender staff issuer
+     * @param args {@code ruin set-interest <low|medium|high|exceptional> [name|#serial]}
+     * @return {@code true} always (handled)
+     */
+    private boolean handleSetInterest(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            sender.sendMessage("Usage: /archaeo ruin set-interest <low|medium|high|exceptional> [name|#serial]");
+            return true;
+        }
+        InterestLevel interest = InterestLevel.fromInput(args[2]);
+        if (interest == null) {
+            sender.sendMessage("Unknown interest. Use: low, medium, high, or exceptional.");
+            return true;
+        }
+        Optional<Site> resolved;
+        if (args.length == 3) {
+            resolved = siteHere(sender);
+            if (resolved.isEmpty()) {
+                return true;
+            }
+        } else {
+            String query = Arrays.stream(args).skip(3).collect(Collectors.joining(" "));
+            resolved = resolveQuery(sender, query);
+            if (resolved.isEmpty()) {
+                return true;
+            }
+        }
+        Site site = resolved.get();
+        try {
+            generator.regenerateInterest(site, interest);
+            sender.sendMessage("Rebuilt " + site.displayLabel()
+                    + " at " + interest.yamlKey()
+                    + " · finds " + site.getFinds().size()
+                    + " · hints " + site.getHintIds().size()
+                    + " · detection " + site.getDetectionRadius() + ".");
+            if (site.getFinds().isEmpty()) {
+                sender.sendMessage("No find fitted: this chunk has no buried ground in its strata.");
+            }
+        } catch (IllegalStateException | IllegalArgumentException exception) {
+            sender.sendMessage(exception.getMessage());
+        }
+        return true;
+    }
+
+    /**
+     * Closes a standing camp the same way the board does: unlock, field book, no signed report.
+     * An unfinished cut needs {@code confirm}.
+     *
+     * @param sender staff issuer
+     * @param args {@code ruin close [name|#serial] [confirm]}
+     * @return {@code true} always (handled)
+     */
+    private boolean handleRuinClose(CommandSender sender, String[] args) {
+        boolean confirm = args.length >= 3 && "confirm".equalsIgnoreCase(args[args.length - 1]);
+        String query;
+        if (args.length == 2) {
+            query = "";
+        } else if (confirm && args.length == 3) {
+            query = "";
+        } else if (confirm) {
+            query = Arrays.stream(args).skip(2).limit(args.length - 3L).collect(Collectors.joining(" "));
+        } else {
+            query = Arrays.stream(args).skip(2).collect(Collectors.joining(" "));
+        }
+        Optional<Site> resolved;
+        if (query.isBlank()) {
+            resolved = siteHere(sender);
+            if (resolved.isEmpty()) {
+                return true;
+            }
+        } else {
+            resolved = resolveQuery(sender, query);
+            if (resolved.isEmpty()) {
+                return true;
+            }
+        }
+        Site site = resolved.get();
+        if (!site.isCampLocked()) {
+            sender.sendMessage(site.displayLabel() + " has no standing camp to close.");
+            return true;
+        }
+        if (site.isUnfinishedCut() && !confirm) {
+            sender.sendMessage(site.displayLabel() + " is " + site.completionPercent()
+                    + "% complete. Add confirm to close it: /archaeo ruin close "
+                    + "#" + site.getSerial() + " confirm");
+            return true;
+        }
+        campClosure.close(sender, site);
+        return true;
+    }
+
+    /**
+     * Site in the issuer's ruin chunk or camp chunk. Console must pass a name or serial.
+     *
+     * @param sender staff issuer
+     * @return the site, or empty after an error message
+     */
+    private Optional<Site> siteHere(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("Console must pass a site name or serial.");
+            return Optional.empty();
+        }
+        String world = player.getWorld().getName();
+        int chunkX = player.getLocation().getBlockX() >> 4;
+        int chunkZ = player.getLocation().getBlockZ() >> 4;
+        Optional<Site> resolved = sites.findByChunk(world, chunkX, chunkZ)
+                .or(() -> sites.findByEstablishmentChunk(world, chunkX, chunkZ));
+        if (resolved.isEmpty()) {
+            sender.sendMessage("No site in this chunk (" + chunkX + "," + chunkZ + ").");
+        }
+        return resolved;
+    }
+
+    /**
      * Staff teleport to the centre of a ruin chunk (surface datum). Used by auto-ruin {@code [tp]} links.
      *
      * @param sender must be a player
@@ -982,6 +1150,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private void sendUsage(CommandSender sender) {
         sender.sendMessage("Usage: /archaeo ruin create <low|medium|high|exceptional> [name]");
         sender.sendMessage("       /archaeo ruin info [name|#serial]");
+        sender.sendMessage("       /archaeo ruin stats [world]");
+        sender.sendMessage("       /archaeo ruin set-interest <low|medium|high|exceptional> [name|#serial]");
+        sender.sendMessage("       /archaeo ruin close [name|#serial] [confirm]");
         sender.sendMessage("       /archaeo ruin tp <name|#serial>");
         sender.sendMessage("       /archaeo ruin camps [player] [#serial]");
         sender.sendMessage("       /archaeo ruin auto status|reset");
@@ -1089,6 +1260,34 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     .filter(value -> value.startsWith(args[2].toLowerCase(Locale.ROOT)))
                     .toList();
         }
+        if (args.length == 3 && "stats".equalsIgnoreCase(args[1])) {
+            return worldNamesStartingWith(args[2]);
+        }
+        if (args.length >= 3 && "set-interest".equalsIgnoreCase(args[1])) {
+            if (args.length == 3) {
+                return INTERESTS.stream()
+                        .filter(value -> value.startsWith(args[2].toLowerCase(Locale.ROOT)))
+                        .toList();
+            }
+            return suggestSiteQueries(
+                    Arrays.stream(args).skip(3).collect(Collectors.joining(" ")),
+                    args.length == 4,
+                    site -> site.getStatus() == SiteStatus.HIDDEN);
+        }
+        if (args.length >= 3 && "close".equalsIgnoreCase(args[1])) {
+            String last = args[args.length - 1].toLowerCase(Locale.ROOT);
+            if ("confirm".equals(last) && args.length > 3) {
+                return List.of();
+            }
+            List<String> suggestions = new ArrayList<>(suggestSiteQueries(
+                    Arrays.stream(args).skip(2).collect(Collectors.joining(" ")),
+                    args.length == 3,
+                    Site::isCampLocked));
+            if ("confirm".startsWith(last)) {
+                suggestions.add("confirm");
+            }
+            return suggestions;
+        }
         if (args.length >= 3 && "create".equalsIgnoreCase(args[1])) {
             if (args.length == 3) {
                 return INTERESTS.stream()
@@ -1158,6 +1357,68 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             return List.of();
         }
         return List.of();
+    }
+
+    /**
+     * Name and serial suggestions for a staff site query, optionally filtered.
+     *
+     * @param typed text after the subcommand
+     * @param includeSerials whether the current token can still be a serial
+     * @param filter sites to offer
+     * @return matching names and serials
+     */
+    private List<String> suggestSiteQueries(String typed, boolean includeSerials, Predicate<Site> filter) {
+        String needle = typed == null ? "" : typed;
+        List<String> names = new ArrayList<>();
+        for (String name : sites.namesStartingWith(needle)) {
+            boolean allowed = false;
+            for (Site site : sites.findByName(name)) {
+                if (filter.test(site)) {
+                    allowed = true;
+                    break;
+                }
+            }
+            if (allowed) {
+                names.add(name);
+            }
+        }
+        if (includeSerials) {
+            String token = needle.toLowerCase(Locale.ROOT);
+            for (Site site : sites.all()) {
+                if (!filter.test(site)) {
+                    continue;
+                }
+                String serial = "#" + site.getSerial();
+                if (serial.startsWith(token) || String.valueOf(site.getSerial()).startsWith(token)) {
+                    names.add(serial);
+                }
+            }
+        }
+        return names;
+    }
+
+    /**
+     * @param prefix world-name prefix already typed
+     * @return loaded worlds plus worlds that still have a site dossier
+     */
+    private List<String> worldNamesStartingWith(String prefix) {
+        String typed = prefix.toLowerCase(Locale.ROOT);
+        List<String> names = new ArrayList<>();
+        for (World world : Bukkit.getWorlds()) {
+            if (world.getName().toLowerCase(Locale.ROOT).startsWith(typed)) {
+                names.add(world.getName());
+            }
+        }
+        for (Site site : sites.all()) {
+            String worldName = site.getWorldName();
+            if (worldName != null
+                    && worldName.toLowerCase(Locale.ROOT).startsWith(typed)
+                    && !names.contains(worldName)) {
+                names.add(worldName);
+            }
+        }
+        names.sort(String.CASE_INSENSITIVE_ORDER);
+        return names;
     }
 
     /**

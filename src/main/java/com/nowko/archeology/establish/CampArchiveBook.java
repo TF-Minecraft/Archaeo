@@ -37,6 +37,18 @@ public final class CampArchiveBook {
      * @return written book that opens the archive GUI
      */
     public ItemStack create(Player closer, Site site) {
+        String author = closer.getName() == null ? "Director" : closer.getName();
+        return create(author, site);
+    }
+
+    /**
+     * Same field book as {@link #create(Player, Site)} when the closer is console or a command.
+     *
+     * @param authorName stamped on the cover
+     * @param site excavation whose record this book opens
+     * @return written book that opens the archive GUI
+     */
+    public ItemStack create(String authorName, Site site) {
         ItemStack stack = new ItemStack(Material.WRITTEN_BOOK);
         BookMeta meta = (BookMeta) stack.getItemMeta();
         if (meta == null) {
@@ -47,7 +59,7 @@ public final class CampArchiveBook {
             title = title.substring(0, 32);
         }
         meta.setTitle(title);
-        String author = closer.getName() == null ? "Director" : closer.getName();
+        String author = authorName == null || authorName.isBlank() ? "Staff" : authorName;
         if (author.length() > 32) {
             author = author.substring(0, 32);
         }
