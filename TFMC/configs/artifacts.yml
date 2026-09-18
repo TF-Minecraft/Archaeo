@@ -8,6 +8,7 @@
 # item = one Bukkit material, or a list: generation picks one and stores it on that find.
 # study-notes wrap across several lore lines (~34 characters) after the piece is studied.
 # Tone: field notes a scholar in Cerrith, autumn 379 AE, could write. Incomplete is allowed.
+# Keep that voice. Prefer common English over paper jargon unless the next clause teaches the word.
 artifacts:
   imperial_denar:
     display-name: Imperial denar
@@ -19,7 +20,7 @@ artifacts:
     strata: [I, II, III]
     tags: [trade, gold, imperial]
     item: GOLD_NUGGET
-    study-notes: "A struck gold disc. The die looks Delorian. Whether the mint still stands is another question."
+    study-notes: "A gold disc, struck as coin. The stamp looks Delorian. Whether the mint still stands is another question."
   pottery_sherd:
     display-name: Pottery sherd
     size-min: 1
@@ -53,7 +54,7 @@ artifacts:
       - SHELTER_POTTERY_SHERD
       - SKULL_POTTERY_SHERD
       - SNORT_POTTERY_SHERD
-    study-notes: "A body sherd. Fabric and any surviving slip say more than the shape. Kitchen, camp, or temple — the break does not tell."
+    study-notes: "A broken pot wall, not the rim. The clay and any paint left on it say more than the shape. Kitchen, camp, or temple — the break does not tell."
   bronze_bit:
     display-name: Bronze bit
     size-min: 2
@@ -64,7 +65,7 @@ artifacts:
     strata: [II, III]
     tags: [settlement, metal, bronze]
     item: COPPER_HOE
-    study-notes: "A working edge in bronze, not ornament. Calavorian dark-age work, if the alloy is what it looks. Wear on the bit argues repeated use."
+    study-notes: "A working edge in bronze, not ornament. Calavorian dark-age work, if the metal is what it looks. Wear on the edge argues repeated use."
   imperial_blade:
     display-name: Legion blade
     size-min: 3
@@ -75,7 +76,7 @@ artifacts:
     strata: [II, III]
     tags: [conflict, metal, blade, imperial]
     item: IRON_SWORD
-    study-notes: "A blade with little kitchen scatter around it. Fuller and tang still read as a weapon. Legion issue, or a good copy of one."
+    study-notes: "A blade with little cooking waste around it. Groove and hilt still read as a weapon. Legion issue, or a good copy of one."
   offering_bowl:
     display-name: Offering bowl
     size-min: 3
@@ -86,7 +87,7 @@ artifacts:
     strata: [I, II, III]
     tags: [ceramic, ceremonial, deposit, faith]
     item: DECORATED_POT
-    study-notes: "A closed form, set down rather than smashed in discard. Trinity, Ancients, or some older custom — the slip is too worn to preach."
+    study-notes: "A whole bowl, set down rather than smashed and thrown away. Trinity, Ancients, or some older custom — the paint is too worn to preach."
   hearth_ash:
     display-name: Hearth ash
     size-min: 1
@@ -119,7 +120,7 @@ artifacts:
     strata: [III, IV]
     tags: [ceremonial, stone, runic]
     item: AMETHYST_SHARD
-    study-notes: "A worked chip, not a tool. Staff-graft, spell-book inlay, or some older rite. Not a Colossus — those were mountains. This is the small kind, if it is a rune at all."
+    study-notes: "A worked chip, not a tool. Fitted to a staff, set in a spell-book, or some older rite. Not a Colossus — those were mountains. This is the small kind, if it is a rune at all."
   war_kit:
     display-name: War-kit fragment
     size-min: 2
@@ -130,7 +131,7 @@ artifacts:
     strata: [I, II]
     tags: [conflict, oseni, metal]
     item: IRON_NUGGET
-    study-notes: "Burnt iron and a scale that is not Cerrith work. First Oseni war, or the Rift year. The soil will not date a raid for me."
+    study-notes: "Burnt iron and armour-scale that is not Cerrith work. First Oseni war, or the Rift year. The soil will not date a raid for me."
   ash_glass:
     display-name: Fused ash-glass
     size-min: 1
@@ -152,7 +153,7 @@ artifacts:
     strata: [III, IV]
     tags: [ceremonial, dryad, stone, deposit]
     item: MOSSY_COBBLESTONE
-    study-notes: "Worked stone, set as a mark rather than a wall. The old dryadic people gated unholy ground for centuries. Who keeps that watch now is not in any book I have."
+    study-notes: "Worked stone, set as a mark rather than a wall. The old dryadic people sealed unholy ground for centuries. Who keeps that watch now is not in any book I have."
   abyssalite_fitting:
     display-name: Abyssalite fitting
     size-min: 1
@@ -163,9 +164,9 @@ artifacts:
     strata: [II, III]
     tags: [trade, metal]
     item: IRON_INGOT
-    study-notes: "Inert, tough, blue-dark. Smithing it was a guarded secret until Falxor's wars; common enough outside Delor after 174 AE. Not mythril, whatever the finder hopes."
+    study-notes: "A blue-dark metal, hard and quiet in the hand. Smithing it was a guarded secret until Falxor's wars; common enough outside Delor after 174 AE. Not mythril, whatever the finder hopes."
   human_inhumation:
-    display-name: Inhumation
+    display-name: Burial
     profile: individual
     size-min: 8
     size-max: 15
@@ -176,7 +177,7 @@ artifacts:
     strata: [III, IV]
     tags: [burial, bone, human]
     item: BONE
-    study-notes: "Articulated bone, not kitchen scatter. The layout still argues for a grave. Human, if the proportions hold — I have been wrong about dryads before."
+    study-notes: "Bones still lying as a body, not cooking waste. The layout still argues for a grave. Human, if the proportions hold — I have been wrong about dryads before."
   dryad_bone:
     display-name: Dryad bone
     profile: individual
@@ -212,7 +213,7 @@ artifacts:
     strata: [I, II, III]
     tags: [bone, food, animal, settlement]
     item: BONE
-    study-notes: "Disarticulated bone with kitchen scatter. Sheep, cattle, or horse — Pastoralist country leaves all three. This looks like refuse, not a grave."
+    study-notes: "Bones pulled apart and mixed with cooking waste. Sheep, cattle, or horse — Pastoralist country leaves all three. This looks like refuse, not a grave."
   wyvern_bone:
     display-name: Wyvern bone
     profile: animal
@@ -224,4 +225,4 @@ artifacts:
     strata: [I, II, III, IV]
     tags: [bone, animal]
     item: BONE
-    study-notes: "Wing-bone, hollow, too large for a bird. The coast still tells of wyverns over Vard. Older than the overburden, I think — though a late kill can sit in a shallow cut."
+    study-notes: "Wing-bone, hollow, too large for a bird. The coast still tells of wyverns over Vard. Older than the soil above, I think — though a late kill can sit in a shallow trench."

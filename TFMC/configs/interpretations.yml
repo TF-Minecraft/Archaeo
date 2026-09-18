@@ -7,6 +7,7 @@
 # Phrase-level profiles: [individual] / [animal] split species and deposit pools.
 # Omit profiles on a phrase to offer it on every path (epoch).
 # Phrases are what a field scholar in Cerrith, autumn 379 AE, might write — incomplete, sometimes wrong.
+# Keep that voice. Prefer common English over paper jargon unless the next clause teaches the word.
 profiles:
   object:
     types: [function, formation, epoch]
@@ -41,7 +42,7 @@ types:
         suggested-by: [burial, bone]
         suggested-for: [faith_charm, offering_bowl]
       mint_piece:
-        display-name: "struck coinage"
+        display-name: "a struck coin"
         suggested-by: [trade, gold, imperial]
         suggested-for: [imperial_denar]
       rune_work:
@@ -66,7 +67,7 @@ types:
         suggested-for: [hearth_ash]
   formation:
     display-name: Formation
-    question: "How did it come to this band?"
+    question: "How did it come to this layer?"
     options:
       discarded:
         display-name: "thrown away"
@@ -85,7 +86,7 @@ types:
         suggested-by: [trade]
         suggested-for: [imperial_denar, abyssalite_fitting]
       washed_in:
-        display-name: "washed or slumped in"
+        display-name: "washed in or collapsed in"
         suggested-by: [unknown, erosion]
         suggested-for: [pottery_sherd, hearth_ash]
       war_scatter:
@@ -216,7 +217,7 @@ types:
     question: "How was it left here?"
     options:
       formal_inhumation:
-        display-name: "formal inhumation"
+        display-name: "a formal burial"
         profiles: [individual]
         suggested-by: [burial, ceremonial]
         suggested-for: [human_inhumation]
@@ -225,7 +226,7 @@ types:
         profiles: [individual]
         suggested-by: [burial, fire]
       secondary_deposit:
-        display-name: "secondary deposit"
+        display-name: "moved and buried again"
         profiles: [individual]
         suggested-by: [burial, bone]
       body_dump:
@@ -247,7 +248,7 @@ types:
         suggested-by: [troll]
         suggested-for: [ruin_guard]
       food_refuse:
-        display-name: "food refuse"
+        display-name: "kitchen waste"
         profiles: [animal]
         suggested-by: [food, domestic]
         suggested-for: [pastoral_dump]
@@ -256,7 +257,7 @@ types:
         profiles: [animal]
         suggested-by: [burial, ceremonial]
       ritual_sacrifice:
-        display-name: "ritual deposit or sacrifice"
+        display-name: "a ritual offering or sacrifice"
         profiles: [animal]
         suggested-by: [ceremonial]
       companion_burial:
@@ -264,7 +265,7 @@ types:
         profiles: [animal]
         suggested-by: [burial, animal]
       kill_site:
-        display-name: "kill-site discard"
+        display-name: "left where it was killed"
         profiles: [animal]
         suggested-by: [bone]
         suggested-for: [wyvern_bone]
