@@ -1,31 +1,27 @@
 # Order: 1 = top of the cut. depth-* is blocks below the chunk's median ground Y (datum).
-# antiquity is leftover config; the HUD and boards do not show it. Epoch is a station reading.
+# Epoch is a station reading, not a stratum field.
 strata:
   I:
     order: 1
     display-name: "Recent layer"
-    antiquity: "recent"
     depth-min: 0
     depth-max: 4
     always-present: true
   II:
     order: 2
     display-name: "Layer II"
-    antiquity: "300–500 years"
     depth-min: 5
     depth-max: 9
     always-present: true
   III:
     order: 3
     display-name: "Layer III"
-    antiquity: "700–900 years"
     depth-min: 10
     depth-max: 14
     always-present: true
   IV:
     order: 4
     display-name: "Deep layer"
-    antiquity: "1000–1300 years"
     depth-min: 15
     depth-max: 19
     always-present: false

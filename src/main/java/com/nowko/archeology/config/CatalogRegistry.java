@@ -1784,7 +1784,6 @@ public class CatalogRegistry {
                     id,
                     section.getInt("order"),
                     section.getString("display-name", id),
-                    section.getString("antiquity", ""),
                     section.getInt("depth-min"),
                     section.getInt("depth-max"),
                     section.getBoolean("always-present", true)

@@ -32,7 +32,3 @@ After every user request that **modifies code**, end the reply with a **proposed
 - Skip the proposal when the turn only answered a question and left the working tree unchanged.
 
 On demand, the user can run `/suggest-commit` (see `.cursor/commands/suggest-commit.md`) to suggest names from `git diff` without relying on this turn’s edits.
-
-## Design notes
-
-- Follow `docs/concepto.md` for product behaviour.
