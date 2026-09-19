@@ -110,7 +110,7 @@ public final class CampFindsBoard implements InventoryHolder {
         ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
         Material icon = iconOf(template, find);
         String name = find.shownName(template == null ? null : template.displayName());
-        String number = find.publicNumber(site.getSerial());
+        String number = find.publicNumber(site);
         List<String> lore = new ArrayList<>();
         lore.add(ChatColor.GOLD + (number == null ? "—" : number));
         lore.add(ChatColor.GRAY + "Stratum " + find.getStratumId());

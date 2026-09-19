@@ -71,7 +71,7 @@ public final class CampArchiveBook {
                 ? "\nThe cut was not finished (" + site.completionPercent() + "%)."
                 : "\nThe cut was finished.";
         meta.addPage(
-                site.displayLabel()
+                site.publicName()
                         + "\nCompletion: " + site.completionPercent() + "%"
                         + unfinished
                         + "\n\nRight-click this book to read the excavation record.");
@@ -139,7 +139,7 @@ public final class CampArchiveBook {
      * @return hotbar name
      */
     private static String displayName(Site site) {
-        return ChatColor.GOLD + "Field book — " + site.displayLabel();
+        return ChatColor.GOLD + "Field book — " + site.publicName();
     }
 
     /**

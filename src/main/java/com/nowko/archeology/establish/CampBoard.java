@@ -110,7 +110,7 @@ public final class CampBoard implements InventoryHolder {
      * @param site excavation
      */
     public void open(Player player, Site site) {
-        String title = "Excavation " + site.displayLabel();
+        String title = site.publicName();
         if (title.length() > 32) {
             title = title.substring(0, 32);
         }
@@ -170,7 +170,7 @@ public final class CampBoard implements InventoryHolder {
      */
     private ItemStack infoItem(Player player, Site site) {
         List<String> lore = new ArrayList<>();
-        lore.add(ChatColor.GRAY + "Name: " + ChatColor.WHITE + site.displayLabel());
+        lore.add(ChatColor.GRAY + "Name: " + ChatColor.WHITE + site.publicName());
         lore.add(ChatColor.GRAY + "Director: " + ChatColor.WHITE + CampNames.of(player, site.getDirector()));
         lore.add(ChatColor.GRAY + "Status: " + ChatColor.WHITE + statusLabel(site.getStatus()));
         if (site.getStatus() != SiteStatus.CLOSED) {

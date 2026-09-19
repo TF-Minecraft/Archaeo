@@ -41,7 +41,7 @@ public final class SiteClosure {
      * @param site excavation that just ran out of recoverable finds
      */
     private static void announce(Site site) {
-        String message = "The excavation at " + site.displayLabel()
+        String message = "The excavation at " + site.publicName()
                 + " is exhausted: nothing remains to recover.";
         Set<UUID> told = new HashSet<>();
         World world = site.getWorldName() == null ? null : Bukkit.getWorld(site.getWorldName());

@@ -123,6 +123,29 @@ public class AutoRuinEvaluationLedger {
     }
 
     /**
+     * Clears the evaluated bit so a later chunk load may roll auto-spawn again.
+     *
+     * @param worldName world id
+     * @param chunkX chunk X
+     * @param chunkZ chunk Z
+     */
+    public void forgetEvaluated(String worldName, int chunkX, int chunkZ) {
+        String key = sanitize(worldName);
+        BitSet bits = region(key, chunkX, chunkZ, false);
+        if (bits == null) {
+            return;
+        }
+        int bit = bitIndex(chunkX, chunkZ);
+        if (!bits.get(bit)) {
+            return;
+        }
+        bits.clear(bit);
+        dirty
+                .computeIfAbsent(key, ignored -> new ConcurrentHashMap<>())
+                .put(regionKey(chunkX, chunkZ), Boolean.TRUE);
+    }
+
+    /**
      * Drops every evaluated bit (memory and {@code auto-ruins/evaluated/} on disk).
      * Call this when spawn lottery knobs change so already-explored chunks can be reconsidered.
      */

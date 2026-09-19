@@ -1047,10 +1047,19 @@ public class Site {
     }
 
     /**
-     * @return serial plus name for command and log output
+     * Player-facing name. Serial is not part of it: several ruins may share
+     * {@code Site in plains}. Identity stays on the UUID; staff still look up by serial.
+     *
+     * @return given name, or {@code Site} when none was stored
+     */
+    public String publicName() {
+        return name != null && !name.isBlank() ? name : "Site";
+    }
+
+    /**
+     * @return serial plus name for staff commands and logs
      */
     public String displayLabel() {
-        String label = name != null && !name.isBlank() ? name : "Site";
-        return "#" + serial + " — " + label;
+        return "#" + serial + " — " + publicName();
     }
 }

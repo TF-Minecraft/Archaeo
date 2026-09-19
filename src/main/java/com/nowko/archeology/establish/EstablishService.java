@@ -4,6 +4,7 @@ import com.nowko.archeology.config.EstablishSettings;
 import com.nowko.archeology.excavation.FindDustService;
 import com.nowko.archeology.excavation.PrismWound;
 import com.nowko.archeology.item.EstablishItem;
+import com.nowko.archeology.item.SiteLabelRefresh;
 import com.nowko.archeology.model.BlockCell;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.model.SiteStatus;
@@ -60,6 +61,7 @@ public class EstablishService {
     private final Map<UUID, CampPlacement> lastPulse = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> lastPulseSite = new ConcurrentHashMap<>();
     private FindDustService findDust;
+    private SiteLabelRefresh labels;
 
     /**
      * @param plugin scheduler owner
@@ -91,6 +93,13 @@ public class EstablishService {
      */
     public void setFindDust(FindDustService findDust) {
         this.findDust = findDust;
+    }
+
+    /**
+     * @param labels rewrite of {@code #name-n} on recovered pieces and sketches
+     */
+    public void setLabelRefresh(SiteLabelRefresh labels) {
+        this.labels = labels;
     }
 
     /**
@@ -359,15 +368,18 @@ public class EstablishService {
         }
         site.setName(name);
         sites.save(site);
+        if (labels != null) {
+            labels.retitle(site);
+        }
         if (site.getCampSignX() != null) {
             World world = plugin.getServer().getWorld(site.getWorldName());
             if (world != null) {
                 CampSigns.write(
                         world.getBlockAt(site.getCampSignX(), site.getCampSignY(), site.getCampSignZ()),
-                        site.displayLabel());
+                        site.publicName());
             }
         }
-        player.sendMessage("Excavation renamed to " + site.displayLabel() + ".");
+        player.sendMessage("Excavation renamed to " + site.publicName() + ".");
         return true;
     }
 
@@ -530,6 +542,25 @@ public class EstablishService {
     }
 
     /**
+     * Drops relocate and pending rename for every player working this excavation.
+     *
+     * @param siteId excavation being erased
+     */
+    public void abortSessionsFor(UUID siteId) {
+        if (siteId == null) {
+            return;
+        }
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
+            if (siteId.equals(relocating.get(player.getUniqueId()))) {
+                cancelRelocate(player);
+            }
+            if (siteId.equals(renameForSite.get(player.getUniqueId()))) {
+                renameForSite.remove(player.getUniqueId());
+            }
+        }
+    }
+
+    /**
      * Drops relocate mode; the existing camp is untouched.
      *
      * @param player kit holder
@@ -645,7 +676,7 @@ public class EstablishService {
         if (site.getCampSignX() != null) {
             plugin.getServer().getScheduler().runTask(plugin, () -> CampSigns.write(
                     world.getBlockAt(site.getCampSignX(), site.getCampSignY(), site.getCampSignZ()),
-                    site.displayLabel()));
+                    site.publicName()));
         }
         player.playSound(player.getLocation(), Sound.BLOCK_WOODEN_BUTTON_CLICK_ON, SoundCategory.PLAYERS, 0.8f, 1.1f);
         if (moving) {

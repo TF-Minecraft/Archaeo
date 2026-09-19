@@ -57,10 +57,10 @@ public final class CampClosure {
         deliverFieldBook(closer, site);
         int percent = site.completionPercent();
         if (site.isUnfinishedCut()) {
-            closer.sendMessage("Closed " + site.displayLabel() + " at " + percent
+            closer.sendMessage("Closed " + site.publicName() + " at " + percent
                     + "% complete. The record is in the field book.");
         } else {
-            closer.sendMessage("Closed " + site.displayLabel() + ". The record is in the field book.");
+            closer.sendMessage("Closed " + site.publicName() + ". The record is in the field book.");
         }
         notifyDirector(closer, site);
         return true;
@@ -107,7 +107,7 @@ public final class CampClosure {
         }
         Player director = plugin.getServer().getPlayer(directorId);
         if (director != null) {
-            director.sendMessage("The camp at " + site.displayLabel()
+            director.sendMessage("The camp at " + site.publicName()
                     + " was closed. The record is in a field book.");
         }
     }

@@ -20,6 +20,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Builds the director's signed report: a readable snapshot of the live excavation archive.
@@ -69,6 +70,39 @@ public final class FindReportBook {
         pdc.set(siteIdKey, PersistentDataType.STRING, site.getId().toString());
         stack.setItemMeta(meta);
         return stack;
+    }
+
+    /**
+     * @param stack candidate
+     * @return whether this is a director's signed report
+     */
+    public boolean isReport(ItemStack stack) {
+        if (stack == null || stack.getType() != Material.WRITTEN_BOOK || !stack.hasItemMeta()) {
+            return false;
+        }
+        Byte marker = stack.getItemMeta().getPersistentDataContainer()
+                .get(markerKey, PersistentDataType.BYTE);
+        return marker != null && marker == (byte) 1;
+    }
+
+    /**
+     * @param stack signed report
+     * @return excavation id, or {@code null}
+     */
+    public UUID siteIdOf(ItemStack stack) {
+        if (!isReport(stack)) {
+            return null;
+        }
+        String raw = stack.getItemMeta().getPersistentDataContainer()
+                .get(siteIdKey, PersistentDataType.STRING);
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(raw);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 
     /**
@@ -124,7 +158,7 @@ public final class FindReportBook {
     private static String findPage(Player director, Site site, BuriedFind find, CatalogRegistry catalogs) {
         ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
         String name = find.shownName(template == null ? null : template.displayName());
-        String number = find.publicNumber(site.getSerial());
+        String number = find.publicNumber(site);
         StringBuilder page = new StringBuilder();
         page.append(number == null ? "Find" : number).append('\n');
         page.append(name).append('\n');

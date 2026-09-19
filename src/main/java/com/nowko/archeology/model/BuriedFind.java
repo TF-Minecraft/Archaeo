@@ -242,16 +242,19 @@ public class BuriedFind {
     }
 
     /**
-     * Formats the inventory number the way a finds register writes it: site serial, then sequence.
+     * Sequence of this piece on its excavation ({@code #Site in plains-1}).
+     * The player-facing site name is the prefix so two camps can both have a {@code #1}
+     * without looking like a hidden global list. Staff serial stays off this label.
      *
-     * @param siteSerial excavation serial
-     * @return {@code #027-14}, or {@code null} when this find has no number yet
+     * @param site excavation that owns this find
+     * @return {@code #name-n}, or {@code null} when this find has no number yet
      */
-    public String publicNumber(int siteSerial) {
+    public String publicNumber(Site site) {
         if (findNumber <= 0) {
             return null;
         }
-        return String.format("#%03d-%d", siteSerial, findNumber);
+        String name = site == null ? "Site" : site.publicName();
+        return "#" + name + "-" + findNumber;
     }
 
     /**

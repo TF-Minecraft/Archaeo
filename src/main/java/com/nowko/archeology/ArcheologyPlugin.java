@@ -21,6 +21,7 @@ import com.nowko.archeology.item.PackPluginHook;
 import com.nowko.archeology.item.ProspectItem;
 import com.nowko.archeology.item.RecoveredFindItem;
 import com.nowko.archeology.item.RecoveredFindListener;
+import com.nowko.archeology.item.SiteLabelRefresh;
 import com.nowko.archeology.item.SketchSupplies;
 import com.nowko.archeology.item.TrackerItem;
 import com.nowko.archeology.museum.MuseumListener;
@@ -29,6 +30,7 @@ import com.nowko.archeology.prospect.ProspectService;
 import com.nowko.archeology.site.AutoRuinEvaluationLedger;
 import com.nowko.archeology.site.RuinAutoSpawner;
 import com.nowko.archeology.site.SiteGenerator;
+import com.nowko.archeology.site.SitePurge;
 import com.nowko.archeology.site.SiteRepository;
 import com.nowko.archeology.sketch.SketchListener;
 import com.nowko.archeology.sketch.SketchService;
@@ -135,11 +137,22 @@ public class ArcheologyPlugin extends JavaPlugin {
         sketch = new SketchService(this, sketchSupplies, recoveredFindItem, sites, catalogs, catalogs.sketch());
         sketch.start();
         getServer().getPluginManager().registerEvents(new SketchListener(sketch), this);
+        establish.setLabelRefresh(new SiteLabelRefresh(this, recoveredFindItem, catalogs, sketch));
         museum = new MuseumListener(sites, catalogs, recoveredFindItem);
         getServer().getPluginManager().registerEvents(museum, this);
         bindItemMatcher(ItemMatcher.detect(this));
         PackPluginHook.register(this);
 
+        SitePurge sitePurge = new SitePurge(
+                this,
+                sites,
+                autoRuins,
+                establish,
+                recover,
+                findDust,
+                recoveredFindItem,
+                campClosure,
+                sketch);
         ArchaeoCommand command = new ArchaeoCommand(
                 this,
                 catalogs,
@@ -157,7 +170,8 @@ public class ArcheologyPlugin extends JavaPlugin {
                 brushItem,
                 recover,
                 autoRuins,
-                campClosure);
+                campClosure,
+                sitePurge);
         PluginCommand pluginCommand = getCommand("archaeo");
         if (pluginCommand != null) {
             pluginCommand.setExecutor(command);

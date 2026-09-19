@@ -387,6 +387,29 @@ public class SiteRepository {
     }
 
     /**
+     * Drops a site from memory and deletes its YAML (and any trash copy) so staff wipe leaves
+     * no dossier. Serials are not reused.
+     *
+     * @param site dossier to erase
+     */
+    public void erase(Site site) {
+        if (site == null || site.getId() == null) {
+            return;
+        }
+        UUID id = site.getId();
+        byId.remove(id);
+        dirty.remove(id);
+        File file = new File(sitesFolder, id + ".yml");
+        if (file.exists() && !file.delete()) {
+            plugin.getLogger().warning("Could not delete " + file.getName());
+        }
+        File trashed = new File(new File(sitesFolder, ".trash"), id + ".yml");
+        if (trashed.exists() && !trashed.delete()) {
+            plugin.getLogger().warning("Could not delete trash copy " + trashed.getName());
+        }
+    }
+
+    /**
      * Writes {@code site} this tick. Use when the world or the finds register already changed.
      *
      * @param site dossier to persist

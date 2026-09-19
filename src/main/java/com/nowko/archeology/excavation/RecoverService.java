@@ -380,7 +380,7 @@ public class RecoverService {
         if (fieldDamaged) {
             quality.append(" · hurt while digging");
         }
-        player.sendMessage("Recovered: " + find.publicNumber(site.getSerial()) + " · "
+        player.sendMessage("Recovered: " + find.publicNumber(site) + " · "
                 + template.displayName() + quality);
     }
 
@@ -610,6 +610,33 @@ public class RecoverService {
             return;
         }
         channel.bar.setVisible(false);
+    }
+
+    /**
+     * Stops a brush channel aimed at this excavation so a staff wipe does not leave a HUD bar.
+     *
+     * @param siteId excavation being erased
+     */
+    public void abortForSite(UUID siteId) {
+        if (siteId == null) {
+            return;
+        }
+        for (UUID playerId : List.copyOf(channels.keySet())) {
+            Channel channel = channels.get(playerId);
+            if (channel == null || !siteId.equals(channel.siteId)) {
+                continue;
+            }
+            Player player = plugin.getServer().getPlayer(playerId);
+            if (player != null) {
+                teardown(player);
+                continue;
+            }
+            hideBar(channel);
+            if (channel.task != null) {
+                channel.task.cancel();
+            }
+            channels.remove(playerId);
+        }
     }
 
     /**

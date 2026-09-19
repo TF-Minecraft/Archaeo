@@ -636,7 +636,7 @@ public class CampListener implements Listener {
             return;
         }
         if (!recoveredItem.isInMainHand(player, find.getId())) {
-            player.sendMessage("Keep the piece in your hand.");
+            player.sendMessage("Keep the artifact in your hand.");
             return;
         }
         if (!find.addInterpretation(new FindInterpretation(
@@ -689,7 +689,7 @@ public class CampListener implements Listener {
         }
         player.closeInventory();
         giveStack(player, reportBook.create(player, site, catalogs));
-        player.sendMessage("Issued a signed report for " + site.displayLabel() + ".");
+        player.sendMessage("Issued a signed report for " + site.publicName() + ".");
     }
 
     /**
@@ -708,7 +708,7 @@ public class CampListener implements Listener {
         player.sendMessage("Removed " + CampNames.of(player, member) + " from the excavation staff.");
         Player online = player.getServer().getPlayer(member);
         if (online != null) {
-            online.sendMessage("You may no longer work on " + site.displayLabel() + ".");
+            online.sendMessage("You may no longer work on " + site.publicName() + ".");
         }
         openStaff(player, site, true);
     }
@@ -729,10 +729,10 @@ public class CampListener implements Listener {
         }
         sites.save(site);
         player.sendMessage(CampNames.of(player, member) + " is now "
-                + role.displayName() + " on " + site.displayLabel() + ".");
+                + role.displayName() + " on " + site.publicName() + ".");
         Player online = player.getServer().getPlayer(member);
         if (online != null) {
-            online.sendMessage("You are now " + role.displayName() + " on " + site.displayLabel()
+            online.sendMessage("You are now " + role.displayName() + " on " + site.publicName()
                     + ". " + role.duty());
         }
         new CampWorkerBoard(site.getId(), member, true).open(player, site);
@@ -868,7 +868,7 @@ public class CampListener implements Listener {
         player.sendMessage("Added " + added + " to the excavation staff.");
         Player online = player.getServer().getPlayer(target.getUniqueId());
         if (online != null) {
-            online.sendMessage("You may now excavate " + site.displayLabel() + ".");
+            online.sendMessage("You may now excavate " + site.publicName() + ".");
         }
         openStaff(player, site, true);
     }

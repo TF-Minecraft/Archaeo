@@ -23,7 +23,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * 27-slot lab: a glass field in the material colours, dirt scattered through it, tools on the last row.
  */
-final class CabinetLabBoard implements InventoryHolder {
+public final class CabinetLabBoard implements InventoryHolder {
     private static final String KIND_DIRTY = "dirty";
     private static final String KIND_CLEAN = "clean";
     private static final String KIND_TOOL = "tool";
@@ -82,7 +82,7 @@ final class CabinetLabBoard implements InventoryHolder {
     /**
      * @return excavation
      */
-    UUID siteId() {
+    public UUID siteId() {
         return siteId;
     }
 

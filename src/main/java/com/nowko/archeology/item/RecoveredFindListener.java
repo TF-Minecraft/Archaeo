@@ -6,13 +6,18 @@ import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.Site;
 import com.nowko.archeology.site.SiteRepository;
 import org.bukkit.ChatColor;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.inventory.PrepareAnvilEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.AnvilInventory;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -22,7 +27,8 @@ import java.util.UUID;
 
 /**
  * Writes an anvil rename onto the excavation dossier so camp fiches and later lore refreshes
- * keep the new name instead of snapping back to the catalog.
+ * keep the new name instead of snapping back to the catalog. Also rebuilds {@code #name-n}
+ * when a recovered piece is seen with a stale excavation name.
  */
 public final class RecoveredFindListener implements Listener {
     private static final int ANVIL_RESULT_SLOT = 2;
@@ -102,6 +108,61 @@ public final class RecoveredFindListener implements Listener {
             typed = recovered.labelOf(result);
         }
         applyGivenName(player, result, typed);
+    }
+
+    /**
+     * Rebuilds lore on carried recovered pieces after a site rename while this player was offline.
+     *
+     * @param event join
+     */
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        syncInventory(player.getInventory());
+        syncInventory(player.getEnderChest());
+    }
+
+    /**
+     * Rebuilds lore in a chest that was unloaded when the excavation was renamed.
+     *
+     * @param event open
+     */
+    @EventHandler
+    public void onOpen(InventoryOpenEvent event) {
+        syncInventory(event.getInventory());
+        if (event.getPlayer() instanceof Player player) {
+            syncInventory(player.getInventory());
+        }
+    }
+
+    /**
+     * Rebuilds lore on a recovered piece picked up from the ground or a hopper.
+     *
+     * @param event pickup
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onPickup(EntityPickupItemEvent event) {
+        Item dropped = event.getItem();
+        ItemStack stack = dropped.getItemStack();
+        if (recovered.retitleIfStale(stack, sites, catalogs)) {
+            dropped.setItemStack(stack);
+        }
+    }
+
+    /**
+     * @param inventory bag or chest
+     */
+    private void syncInventory(Inventory inventory) {
+        if (inventory == null) {
+            return;
+        }
+        ItemStack[] contents = inventory.getContents();
+        for (int i = 0; i < contents.length; i++) {
+            ItemStack stack = contents[i];
+            if (recovered.retitleIfStale(stack, sites, catalogs)) {
+                inventory.setItem(i, stack);
+            }
+        }
     }
 
     /**

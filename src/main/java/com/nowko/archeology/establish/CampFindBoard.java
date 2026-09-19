@@ -100,7 +100,7 @@ public final class CampFindBoard implements InventoryHolder {
             return;
         }
         ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
-        String number = find.publicNumber(site.getSerial());
+        String number = find.publicNumber(site);
         String title = number == null ? "Find" : number;
         if (title.length() > 32) {
             title = title.substring(0, 32);

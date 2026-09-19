@@ -339,7 +339,7 @@ public class SketchService {
         }
         ItemStack hand = player.getInventory().getItemInMainHand();
         if (!recovered.isRecovered(hand)) {
-            player.sendMessage(ChatColor.GOLD + "Bring the piece in your hand.");
+            player.sendMessage(ChatColor.GOLD + "Bring an artifact.");
             return true;
         }
         UUID findId = recovered.findIdOf(hand);
@@ -495,7 +495,7 @@ public class SketchService {
             return;
         }
         if (!recovered.isInMainHand(player, find.getId())) {
-            refuseRegister(player, "Keep the piece in your hand.");
+            refuseRegister(player, "Keep the artifact in your hand.");
             return;
         }
         if (!find.isLabCleaned()) {
@@ -553,7 +553,7 @@ public class SketchService {
             return;
         }
         if (!recovered.isInMainHand(player, find.getId())) {
-            player.sendMessage(ChatColor.GOLD + "Keep the piece in your hand.");
+            player.sendMessage(ChatColor.GOLD + "Keep the artifact in your hand.");
             return;
         }
         if (top != null) {
@@ -885,6 +885,26 @@ public class SketchService {
     }
 
     /**
+     * @param stack sketch map
+     * @return excavation id stamped when the drawing was registered, or {@code null}
+     */
+    public UUID siteIdOf(ItemStack stack) {
+        if (stack == null || !isSketchMap(stack) || !stack.hasItemMeta()) {
+            return null;
+        }
+        String raw = stack.getItemMeta().getPersistentDataContainer()
+                .get(siteIdKey, PersistentDataType.STRING);
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(raw);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    /**
      * @param player editor
      * @return open session, or {@code null}
      */
@@ -1083,6 +1103,56 @@ public class SketchService {
         if (!sheets.containsKey(id)) {
             sheets.put(id, SketchSheet.fromBytes(cellsOf(stack)));
         }
+        retitleFromLive(stack);
+    }
+
+    /**
+     * Rewrites {@code #name-n} on a registered sketch after the excavation is renamed.
+     *
+     * @param stack signed sketch, or {@code null}
+     * @param site excavation
+     * @return whether the label was rewritten
+     */
+    public boolean retitle(ItemStack stack, Site site) {
+        if (stack == null || site == null || site.getId() == null || !site.getId().equals(siteIdOf(stack))) {
+            return false;
+        }
+        UUID findId = boundFindId(stack);
+        if (findId == null) {
+            return false;
+        }
+        BuriedFind find = site.findById(findId).orElse(null);
+        if (find == null || !(stack.getItemMeta() instanceof MapMeta meta)) {
+            return false;
+        }
+        String label = find.publicNumber(site);
+        String current = meta.getPersistentDataContainer().get(labelKey, PersistentDataType.STRING);
+        if (java.util.Objects.equals(current, label)) {
+            return false;
+        }
+        if (label == null || label.isBlank()) {
+            meta.getPersistentDataContainer().remove(labelKey);
+        } else {
+            meta.getPersistentDataContainer().set(labelKey, PersistentDataType.STRING, label);
+        }
+        stack.setItemMeta(meta);
+        MapView view = mapView(stack);
+        SketchSheet sheet = view == null ? new SketchSheet() : sheets.getOrDefault(view.getId(), new SketchSheet());
+        writeItem(stack, sheet, isSigned(stack), authorOf(stack));
+        return true;
+    }
+
+    /**
+     * Same as {@link #retitle} using the site stamped on the map.
+     *
+     * @param stack sketch, or {@code null}
+     */
+    private void retitleFromLive(ItemStack stack) {
+        UUID siteId = siteIdOf(stack);
+        if (siteId == null) {
+            return;
+        }
+        retitle(stack, sites.findById(siteId).orElse(null));
     }
 
     /**
@@ -1372,7 +1442,7 @@ public class SketchService {
         String title = find.shownName(template == null ? null : template.displayName());
         pdc.set(titleKey, PersistentDataType.STRING, title);
         if (site != null) {
-            String label = find.publicNumber(site.getSerial());
+            String label = find.publicNumber(site);
             if (label != null && !label.isBlank()) {
                 pdc.set(labelKey, PersistentDataType.STRING, label);
             }

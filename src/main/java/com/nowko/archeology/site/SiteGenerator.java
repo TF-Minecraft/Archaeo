@@ -777,7 +777,7 @@ public class SiteGenerator {
     /**
      * @param requested player-supplied name
      * @param chunk used to read biome for a fallback name
-     * @return display name; the excavation serial is added later by {@code displayLabel}
+     * @return player-facing name; staff commands still prefix the serial via {@code displayLabel}
      */
     private String resolveName(String requested, Chunk chunk) {
         if (requested != null && !requested.isBlank()) {

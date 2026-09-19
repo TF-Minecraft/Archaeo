@@ -33,7 +33,7 @@ public class SketchSupplies {
             ChatColor.GRAY + "or hold it and right-click with the",
             ChatColor.GRAY + "pencil in your other hand.");
     private static final List<String> PENCIL_LORE = List.of(
-            ChatColor.GRAY + "Click a field sheet onto this,",
+            ChatColor.GRAY + "Click a paper onto this,",
             ChatColor.GRAY + "or hold the sheet and right-click",
             ChatColor.GRAY + "with this in your other hand.");
 

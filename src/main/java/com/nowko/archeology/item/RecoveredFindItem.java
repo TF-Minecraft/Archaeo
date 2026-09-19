@@ -9,6 +9,7 @@ import com.nowko.archeology.model.BuriedFind;
 import com.nowko.archeology.model.FindInterpretation;
 import com.nowko.archeology.model.FindState;
 import com.nowko.archeology.model.Site;
+import com.nowko.archeology.site.SiteRepository;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -185,6 +186,68 @@ public class RecoveredFindItem {
     }
 
     /**
+     * Rewrites {@code #name-n} from the live excavation when this stack belongs to {@code site}.
+     *
+     * @param stack recovered piece, or {@code null}
+     * @param site excavation
+     * @param catalogs grades and catalog titles
+     * @return whether lore was rewritten
+     */
+    public boolean retitle(ItemStack stack, Site site, CatalogRegistry catalogs) {
+        UUID findId = findIdOf(stack);
+        if (findId == null || site == null || site.getId() == null || !site.getId().equals(siteIdOf(stack))) {
+            return false;
+        }
+        BuriedFind find = site.findById(findId).orElse(null);
+        if (find == null) {
+            return false;
+        }
+        ArtifactTemplate template = catalogs == null ? null : catalogs.artifact(find.getArtifactId());
+        String grade = catalogs == null ? null : catalogs.pick().conservation().gradeLabel(find.getConservation());
+        refresh(stack, site, find, template, grade, catalogs);
+        return true;
+    }
+
+    /**
+     * Same as {@link #retitle} when the stamped site name no longer matches the dossier.
+     *
+     * @param stack recovered piece, or {@code null}
+     * @param sites live dossiers
+     * @param catalogs grades and catalog titles
+     * @return whether lore was rewritten
+     */
+    public boolean retitleIfStale(ItemStack stack, SiteRepository sites, CatalogRegistry catalogs) {
+        UUID siteId = siteIdOf(stack);
+        if (siteId == null || sites == null) {
+            return false;
+        }
+        Site site = sites.findById(siteId).orElse(null);
+        if (site == null) {
+            return false;
+        }
+        String stored = siteNameOf(stack);
+        if (stored != null && stored.equals(site.publicName())) {
+            return false;
+        }
+        return retitle(stack, site, catalogs);
+    }
+
+    /**
+     * @param stack recovered piece
+     * @return excavation name stamped when lore was last written, or {@code null}
+     */
+    public String siteNameOf(ItemStack stack) {
+        if (stack == null || stack.getType().isAir()) {
+            return null;
+        }
+        ItemMeta meta = stack.getItemMeta();
+        if (meta == null) {
+            return null;
+        }
+        return meta.getPersistentDataContainer().get(siteNameKey, PersistentDataType.STRING);
+    }
+
+    /**
      * @param player carrier
      * @param findId archive row
      * @return whether the recovered piece is in the main hand
@@ -328,7 +391,7 @@ public class RecoveredFindItem {
         if (meta != null) {
             meta.setDisplayName(ChatColor.WHITE + name);
             List<String> lines = lore(template, site, find, grade, find.isFieldDamaged(), catalogs);
-            lines.add(ChatColor.DARK_GRAY + "The real piece stays in your hand.");
+            lines.add(ChatColor.DARK_GRAY + "The real artifact stays in your hand.");
             meta.setLore(lines);
             stack.setItemMeta(meta);
         }
@@ -410,11 +473,10 @@ public class RecoveredFindItem {
             CatalogRegistry catalogs
     ) {
         List<String> lore = new ArrayList<>();
-        String number = find.publicNumber(site.getSerial());
+        String number = find.publicNumber(site);
         if (number != null) {
             lore.add(ChatColor.GOLD + number);
         }
-        lore.add(ChatColor.GRAY + siteName(site));
         lore.add(ChatColor.DARK_GRAY + "Stratum " + find.getStratumId());
         if (find.isDisturbedBeforeDig()) {
             lore.add(ChatColor.GOLD + "Disturbed before the dig");
@@ -538,13 +600,10 @@ public class RecoveredFindItem {
 
     /**
      * @param site excavation
-     * @return name used on the tag
+     * @return name used on the tag; several sites may share it
      */
     public static String siteName(Site site) {
-        if (site.getName() == null || site.getName().isBlank()) {
-            return "Excavation #" + site.getSerial();
-        }
-        return site.getName();
+        return site.publicName();
     }
 
     /**

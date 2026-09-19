@@ -168,6 +168,17 @@ public class RuinAutoSpawner implements Listener {
     }
 
     /**
+     * Forgets that this chunk was evaluated so a later load may roll auto-spawn again.
+     *
+     * @param worldName world id
+     * @param chunkX chunk X
+     * @param chunkZ chunk Z
+     */
+    public void forgetChunk(String worldName, int chunkX, int chunkZ) {
+        ledger.forgetEvaluated(worldName, chunkX, chunkZ);
+    }
+
+    /**
      * @return last chance written under {@code auto-ruins/evaluation-policy.txt}, or {@code null}
      */
     private Double readPolicyChance() {

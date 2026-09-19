@@ -24,6 +24,7 @@ import com.nowko.archeology.prospect.ProspectService;
 import com.nowko.archeology.site.RuinAutoSpawner;
 import com.nowko.archeology.site.SiteCensus;
 import com.nowko.archeology.site.SiteGenerator;
+import com.nowko.archeology.site.SitePurge;
 import com.nowko.archeology.site.SiteRepository;
 import com.nowko.archeology.tracker.TrackerService;
 import net.md_5.bungee.api.chat.ClickEvent;
@@ -62,7 +63,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private static final List<String> ROOT = List.of(
             "give", "ruin", "workday", "find", "sketch", "reload");
     private static final List<String> RUIN_ACTIONS = List.of(
-            "create", "info", "stats", "set-interest", "close", "camps", "tp", "auto");
+            "create", "info", "stats", "set-interest", "close", "delete", "camps", "tp", "auto");
     private static final List<String> RUIN_AUTO_ACTIONS = List.of("status", "reset");
     private static final List<String> GIVE_KINDS = List.of(
             "tracker", "prospect", "establish", "tool", "brush", "paper", "pencil");
@@ -86,6 +87,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private final RecoverService recover;
     private final RuinAutoSpawner autoRuins;
     private final CampClosure campClosure;
+    private final SitePurge sitePurge;
 
     /**
      * @param plugin owner used to re-bind ItemsAdder / MMOItems on reload
@@ -105,6 +107,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      * @param recover field-brush loop, updated on reload
      * @param autoRuins trial chunk auto-spawner, updated on reload
      * @param campClosure staff close of a standing camp, same path as the board
+     * @param sitePurge staff wipe of a ruin in any status
      */
     public ArchaeoCommand(
             ArcheologyPlugin plugin,
@@ -123,7 +126,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             BrushItem brushItem,
             RecoverService recover,
             RuinAutoSpawner autoRuins,
-            CampClosure campClosure
+            CampClosure campClosure,
+            SitePurge sitePurge
     ) {
         this.plugin = plugin;
         this.catalogs = catalogs;
@@ -142,6 +146,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         this.recover = recover;
         this.autoRuins = autoRuins;
         this.campClosure = campClosure;
+        this.sitePurge = sitePurge;
     }
 
     /**
@@ -192,6 +197,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         }
         if ("close".equalsIgnoreCase(args[1])) {
             return handleRuinClose(sender, args);
+        }
+        if ("delete".equalsIgnoreCase(args[1])) {
+            return handleRuinDelete(sender, args);
         }
         if ("tp".equalsIgnoreCase(args[1])) {
             return handleRuinTp(sender, args);
@@ -308,7 +316,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     target,
                     plugin.sketchSupplies().createPencil(),
                     "a field pencil",
-                    "You received a field pencil. Click a field sheet onto it; the pencil wears like a tool.");
+                    "You received a field pencil. Click a paper onto it; the pencil wears like a tool.");
             default -> {
                 sender.sendMessage("Unknown item. Use: tracker, prospect, establish, tool, brush, paper, or pencil.");
                 yield true;
@@ -777,6 +785,51 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
+     * Wipes a ruin in any status: dossier, camp, tagged items, and auto-spawn memory.
+     * Always needs {@code confirm}.
+     *
+     * @param sender staff issuer
+     * @param args {@code ruin delete [name|#serial] [confirm]}
+     * @return {@code true} always (handled)
+     */
+    private boolean handleRuinDelete(CommandSender sender, String[] args) {
+        boolean confirm = args.length >= 3 && "confirm".equalsIgnoreCase(args[args.length - 1]);
+        String query;
+        if (args.length == 2) {
+            query = "";
+        } else if (confirm && args.length == 3) {
+            query = "";
+        } else if (confirm) {
+            query = Arrays.stream(args).skip(2).limit(args.length - 3L).collect(Collectors.joining(" "));
+        } else {
+            query = Arrays.stream(args).skip(2).collect(Collectors.joining(" "));
+        }
+        Optional<Site> resolved;
+        if (query.isBlank()) {
+            resolved = siteHere(sender);
+            if (resolved.isEmpty()) {
+                return true;
+            }
+        } else {
+            resolved = resolveQuery(sender, query);
+            if (resolved.isEmpty()) {
+                return true;
+            }
+        }
+        Site site = resolved.get();
+        if (!confirm) {
+            sender.sendMessage("This erases " + site.displayLabel()
+                    + " — dossier, camp, archive items, and auto-spawn memory. Add confirm: /archaeo ruin delete "
+                    + "#" + site.getSerial() + " confirm");
+            return true;
+        }
+        String label = site.displayLabel();
+        sitePurge.erase(site);
+        sender.sendMessage("Deleted " + label + " as if it had never existed.");
+        return true;
+    }
+
+    /**
      * Site in the issuer's ruin chunk or camp chunk. Console must pass a name or serial.
      *
      * @param sender staff issuer
@@ -1001,7 +1054,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                 + " · camp " + site.getCampX() + "," + site.getCampY() + "," + site.getCampZ()
                 + " (" + site.getWorldName() + ").");
         if (traveler != sender) {
-            traveler.sendMessage("Staff moved you to camp " + site.displayLabel() + ".");
+            traveler.sendMessage("Staff moved you to camp " + site.publicName() + ".");
         }
         return true;
     }
@@ -1152,6 +1205,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("       /archaeo ruin stats [world]");
         sender.sendMessage("       /archaeo ruin set-interest <low|medium|high|exceptional> [name|#serial]");
         sender.sendMessage("       /archaeo ruin close [name|#serial] [confirm]");
+        sender.sendMessage("       /archaeo ruin delete [name|#serial] confirm");
         sender.sendMessage("       /archaeo ruin tp <name|#serial>");
         sender.sendMessage("       /archaeo ruin camps [player] [#serial]");
         sender.sendMessage("       /archaeo ruin auto status|reset");
@@ -1282,6 +1336,20 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     Arrays.stream(args).skip(2).collect(Collectors.joining(" ")),
                     args.length == 3,
                     Site::isCampLocked));
+            if ("confirm".startsWith(last)) {
+                suggestions.add("confirm");
+            }
+            return suggestions;
+        }
+        if (args.length >= 3 && "delete".equalsIgnoreCase(args[1])) {
+            String last = args[args.length - 1].toLowerCase(Locale.ROOT);
+            if ("confirm".equals(last) && args.length > 3) {
+                return List.of();
+            }
+            List<String> suggestions = new ArrayList<>(suggestSiteQueries(
+                    Arrays.stream(args).skip(2).collect(Collectors.joining(" ")),
+                    args.length == 3,
+                    site -> true));
             if ("confirm".startsWith(last)) {
                 suggestions.add("confirm");
             }
