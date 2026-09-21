@@ -6,6 +6,11 @@
 # rarity = optional display override (key under config.yml rarity:). If omitted,
 # display tier is derived from weight via config.yml rarity-from-weight.
 # Example override: rarity: legendary (forces LEGENDARY even if weight is high).
+# item: vanilla Bukkit material, ItemsAdder, or MMOItems. Quote pack ids.
+#   GOLD_NUGGET
+#   "itemsadder:namespace:id"
+#   "mmoitems:TYPE:id"
+# A YAML list picks one when the find is generated and stores it on that instance.
 # study-notes are revealed at camp after the piece is studied; they do not show on lift.
 artifacts:
   coin:

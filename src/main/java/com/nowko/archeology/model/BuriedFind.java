@@ -15,7 +15,7 @@ import java.util.UUID;
 public class BuriedFind {
     private UUID id;
     private String artifactId;
-    /** Bukkit material chosen from the template pool when this instance was generated. */
+    /** Vanilla, ItemsAdder, or MMOItems token chosen from the template pool when this instance was generated. */
     private String item;
     /** Player name from an anvil; catalog display name is used when this is blank. */
     private String givenName;
@@ -63,16 +63,16 @@ public class BuriedFind {
     }
 
     /**
-     * Material rolled from the template's {@code item} pool. Blank on old dossiers until the piece is lifted.
+     * Item rolled from the template's {@code item} pool. Blank on old dossiers until the piece is lifted.
      *
-     * @return Bukkit material name, or {@code null} if none has been chosen yet
+     * @return stored token ({@code GOLD_NUGGET}, {@code itemsadder:ns:id}, or {@code mmoitems:TYPE:id}), or {@code null}
      */
     public String getItem() {
         return item;
     }
 
     /**
-     * @param item Bukkit material name stored for this instance
+     * @param item catalog token stored for this instance
      */
     public void setItem(String item) {
         if (item == null || item.isBlank()) {

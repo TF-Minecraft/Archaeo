@@ -1826,27 +1826,23 @@ public class CatalogRegistry {
     }
 
     /**
-     * {@code item:} may be one Bukkit material or a list. A list is rolled when the find is generated.
+     * {@code item:} may be one id or a list. Quote pack ids so YAML keeps the colons.
+     * A list is rolled when the find is generated.
      *
      * @param section one artifact row
-     * @return non-empty material names; empty YAML becomes {@code STONE}
+     * @return non-empty refs; empty or invalid YAML becomes brick
      */
-    private static List<String> readItemPool(ConfigurationSection section) {
-        List<String> pool = new ArrayList<>();
-        if (section.isList("item")) {
-            for (String raw : section.getStringList("item")) {
-                if (raw != null && !raw.isBlank()) {
-                    pool.add(raw.trim());
-                }
-            }
+    private List<ItemRef> readItemPool(ConfigurationSection section) {
+        Object raw = section.get("item");
+        List<ItemRef> pool;
+        if (raw instanceof List<?> list) {
+            pool = new ArrayList<>(ItemRef.parseYamlList(plugin, list));
         } else {
-            String single = section.getString("item");
-            if (single != null && !single.isBlank()) {
-                pool.add(single.trim());
-            }
+            pool = new ArrayList<>();
+            ItemRef.parse(plugin, ItemRef.yamlToken(raw)).ifPresent(pool::add);
         }
         if (pool.isEmpty()) {
-            pool.add("STONE");
+            pool.add(ItemRef.vanilla(Material.BRICK));
         }
         return pool;
     }
