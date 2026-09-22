@@ -15,8 +15,8 @@ def validate(source, version):
     target = Path.cwd().resolve() / "target"
     if not source.is_relative_to(target) or not source.is_file():
         raise ValueError("Expected the Maven runtime JAR inside target/")
-    if not source.name.endswith(f"-{version}.jar"):
-        raise ValueError("Runtime JAR filename must end with the Maven version")
+    if not re.fullmatch(r"[a-z][a-z0-9]*-" + re.escape(version) + r"\.jar", source.name):
+        raise ValueError("Runtime JAR filename must use a lowercase alphanumeric name followed by the Maven version")
     with zipfile.ZipFile(source) as jar:
         descriptors = {"plugin.yml", "paper-plugin.yml"}.intersection(jar.namelist())
         if not descriptors:
