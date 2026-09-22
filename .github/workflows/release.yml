@@ -15,4 +15,4 @@ jobs:
     with:
       java-version: '21'
       # Exact path, not a glob. {version} is replaced with the tag without v.
-      artifact-path: target/Archaeo-{version}.jar
+      artifact-path: target/archeology-plugin-{version}.jar
