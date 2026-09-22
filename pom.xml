@@ -33,7 +33,7 @@
   </dependencies>
 
   <build>
-    <finalName>Archaeo-${project.version}</finalName>
+    <finalName>${project.artifactId}-${project.version}</finalName>
     <sourceDirectory>${project.basedir}/src/main/java</sourceDirectory>
     <resources>
       <resource>
