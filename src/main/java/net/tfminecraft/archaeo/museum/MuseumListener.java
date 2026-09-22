@@ -9,6 +9,7 @@ import net.tfminecraft.archaeo.model.Site;
 import net.tfminecraft.archaeo.site.SiteRepository;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Lectern;
 import org.bukkit.block.Shelf;
@@ -200,13 +201,34 @@ public final class MuseumListener implements Listener {
                 }
                 return stacks;
             }
-            int slot = shelf.getSlot(click);
+            int slot = shelfSlot(((org.bukkit.block.data.type.Shelf) shelf.getBlockData()).getFacing(), click);
             if (slot >= 0) {
                 stacks.add(shelf.getInventory().getItem(slot));
             }
             return stacks;
         }
         return stacks;
+    }
+
+    // Paper 1.21.10 has no Shelf#getSlot. Match vanilla's three equal columns,
+    // ordered left to right when looking at the shelf's front.
+    static int shelfSlot(BlockFace facing, Vector click) {
+        if (click == null || !(click.getX() >= 0 && click.getX() <= 1
+                && click.getY() >= 0 && click.getY() <= 1
+                && click.getZ() >= 0 && click.getZ() <= 1)) {
+            return -1;
+        }
+        float horizontal = (float) switch (facing) {
+            case NORTH -> 1 - click.getX();
+            case SOUTH -> click.getX();
+            case WEST -> click.getZ();
+            case EAST -> 1 - click.getZ();
+            default -> -1;
+        };
+        if (horizontal < 0) {
+            return -1;
+        }
+        return Math.min(2, (int) Math.floor(horizontal * 16.0f / (16.0f / 3)));
     }
 
     /**
