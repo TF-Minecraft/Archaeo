@@ -25,11 +25,14 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Set dated development version
+      - name: Set build version
         id: dev
         shell: bash
         run: |
-          dev_version="DEV-$(date -u +%Y%m%d-%H%M)"
+          dev_version="main-SNAPSHOT"
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            dev_version="DEV-$(date -u +%Y%m%d-%H%M)"
+          fi
           mvn -B --no-transfer-progress -P'!deploy-live' org.codehaus.mojo:versions-maven-plugin:2.22.0:set \
             -DnewVersion="$dev_version" -DgenerateBackupPoms=false
           mvn -B --no-transfer-progress -P'!deploy-live' help:evaluate \
@@ -51,6 +54,7 @@ jobs:
 
 
       - name: Upload plugin jar
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.dev.outputs.name }}-${{ github.run_id }}-${{ github.run_attempt }}
