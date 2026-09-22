@@ -14,5 +14,3 @@ jobs:
     uses: ./.github/workflows/maven-release.yml
     with:
       java-version: '21'
-      # Exact path, not a glob. {version} is replaced with the tag without v.
-      artifact-path: target/archeology-plugin-{version}.jar

@@ -7,12 +7,16 @@ nbbuild/
 nbdist/
 *.class
 dependency-reduced-pom.xml
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
 
 # Build dependencies
 /.build/
 *.jar
 !.mvn/wrapper/maven-wrapper.jar
-/libs/*
 
 # Python caches and environments
 __pycache__/
@@ -49,5 +53,5 @@ Desktop.ini
 # Local investigation notes and test artifacts
 /.scratch/
 
-# Local lore source material
-TFMC/lore
+# Repository-specific generated or local files
+/TFMC/lore
