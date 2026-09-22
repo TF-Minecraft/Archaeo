@@ -1,2 +1,53 @@
-/target
+# Build output
+target/
+build/
+out/
+dist/
+nbbuild/
+nbdist/
+*.class
+dependency-reduced-pom.xml
+
+# Build dependencies
+/.build/
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+/libs/*
+
+# Python caches and environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# IDE files
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.project
+.classpath
+.settings/
+nbproject/private/
+.nb-gradle/
+
+# Logs and temporary files
+*.log
+hs_err_pid*
+replay_pid*
+*.bak
+*.swp
+*.tmp
+*~
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local investigation notes and test artifacts
+/.scratch/
+
+# Local lore source material
 TFMC/lore
