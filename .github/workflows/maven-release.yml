@@ -43,18 +43,13 @@ jobs:
           }
           [[ "${TAG^^}" != *SNAPSHOT* ]] || exit 1
 
-      - name: Check Maven version and build
+      - name: Set version from tag and build
         id: maven
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          version_file="$RUNNER_TEMP/maven-release-version"
-          mvn -B --no-transfer-progress -P'!deploy-live' help:evaluate \
-            -Dexpression=project.version -Doutput="$version_file"
-          [[ "$(cat "$version_file")" == "${TAG#v}" ]] || {
-            echo '::error::The tag must match project.version exactly.'
-            exit 1
-          }
+          mvn -B --no-transfer-progress -P'!deploy-live' org.codehaus.mojo:versions-maven-plugin:2.22.0:set \
+            -DnewVersion="${TAG#v}" -DgenerateBackupPoms=false
           mvn -B --no-transfer-progress -P'!deploy-live' help:evaluate \
             -Dexpression=project.build.finalName -Doutput="$RUNNER_TEMP/final-name"
           final_name=$(cat "$RUNNER_TEMP/final-name")
