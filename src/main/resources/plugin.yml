@@ -1,5 +1,5 @@
 name: Archaeo
-main: com.nowko.archeology.ArcheologyPlugin
+main: net.tfminecraft.archaeo.ArcheologyPlugin
 version: ${project.version}
 api-version: "1.21"
 author: nowko
