@@ -1,0 +1,124 @@
+name: Maven plugin release
+
+on:
+  workflow_call:
+    inputs:
+      java-version:
+        required: true
+        type: string
+      artifact-path:
+        description: Exact deployable JAR path, with optional {version} placeholder
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-release-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java-version }}
+
+      - name: Validate release version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]] || {
+            echo '::error::Expected vMAJOR.MINOR or vMAJOR.MINOR.PATCH, with an optional prerelease suffix.'
+            exit 1
+          }
+          [[ "${TAG^^}" != *SNAPSHOT* ]] || exit 1
+
+      - name: Check Maven version and build
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version_file="$RUNNER_TEMP/maven-release-version"
+          mvn -B --no-transfer-progress help:evaluate \
+            -Dexpression=project.version -Doutput="$version_file"
+          [[ "$(cat "$version_file")" == "${TAG#v}" ]] || {
+            echo '::error::The tag must match project.version exactly.'
+            exit 1
+          }
+          mvn -B --no-transfer-progress clean verify
+
+      - name: Stage only the release JAR
+        env:
+          ARTIFACT_PATH: ${{ inputs.artifact-path }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, shutil, zipfile
+          root = pathlib.Path.cwd().resolve()
+          source = (root / os.environ['ARTIFACT_PATH'].replace('{version}', os.environ['TAG'][1:])).resolve()
+          if not source.is_relative_to(root / 'target') or not source.is_file() or source.suffix != '.jar':
+              raise SystemExit('Expected one existing JAR inside target/')
+          with zipfile.ZipFile(source) as jar:
+              if not {'plugin.yml', 'paper-plugin.yml'}.intersection(jar.namelist()):
+                  raise SystemExit('Release JAR has no plugin descriptor')
+              if jar.testzip() is not None:
+                  raise SystemExit('Release JAR is corrupt')
+          dest = pathlib.Path(os.environ['RUNNER_TEMP']) / 'plugin-release'
+          dest.mkdir()
+          shutil.copyfile(source, dest / source.name)
+          digest = hashlib.sha256((dest / source.name).read_bytes()).hexdigest()
+          (dest / 'SHA256SUMS').write_text(f'{digest}  {source.name}\n')
+          (dest / 'build.json').write_text(json.dumps({
+              'repository': os.environ['GITHUB_REPOSITORY'],
+              'commit': os.environ['GITHUB_SHA'],
+              'tag': os.environ['TAG'],
+              'run': f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
+              'artifact': source.name,
+              'sha256': digest,
+          }, indent=2) + '\n')
+          PY
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: plugin-release-${{ github.sha }}
+          path: ${{ runner.temp }}/plugin-release/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: plugin-release-${{ github.sha }}
+          path: release
+
+      - name: Create draft release
+        working-directory: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          sha256sum --check SHA256SUMS
+          flags=()
+          if [[ "$TAG" == *-* ]]; then flags+=(--prerelease); fi
+          gh release create "$TAG" ./*.jar SHA256SUMS build.json \
+            --verify-tag --draft --title "$TAG" --generate-notes "${flags[@]}"
