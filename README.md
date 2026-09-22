@@ -32,15 +32,6 @@ them before they ever reach the surface.
 
 Technical documentation is maintained in [TF-Minecraft/Docs](https://github.com/TF-Minecraft/Docs).
 
-## Repository layout
-
-- `src/main/java/` — plugin source.
-- `src/main/resources/` — bundled defaults, catalogs, and `plugin.yml` metadata.
-- `pack/plugins/` — optional MMOItems and ItemsAdder integrations, including an
-  Archaeo configuration preset. See the [pack installation guide](https://github.com/TF-Minecraft/Docs/blob/main/projects/Archaeo/docs/pack-installation.md).
-- TFMC-specific configuration and lore catalogs live in private
-  [ServerAssets](https://github.com/TF-Minecraft/ServerAssets/tree/main/configs/Archaeo).
-
 ## License
 
 Copyright (c) 2026 TF-Minecraft contributors.
