@@ -1,0 +1,57 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Set dated development version
+        id: dev
+        shell: bash
+        run: |
+          dev_version="DEV-$(date -u +%Y%m%d-%H%M)"
+          mvn -B --no-transfer-progress org.codehaus.mojo:versions-maven-plugin:2.22.0:set \
+            -DnewVersion="$dev_version" -DgenerateBackupPoms=false
+          mvn -B --no-transfer-progress help:evaluate \
+            -Dexpression=project.build.finalName -Doutput="$RUNNER_TEMP/final-name"
+          final_name=$(cat "$RUNNER_TEMP/final-name")
+          echo "name=$final_name" >> "$GITHUB_OUTPUT"
+          echo "jar=target/$final_name.jar" >> "$GITHUB_OUTPUT"
+
+      - name: Run unit tests and build
+        run: mvn -B --no-transfer-progress clean verify -DskipTests=false -Dmaven.test.skip=false
+
+      - name: Upload plugin jar
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.dev.outputs.name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.dev.outputs.jar }}
+          if-no-files-found: error
+
+      - name: Upload unit test reports
+        if: ${{ !cancelled() && hashFiles('target/surefire-reports/*.xml') != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: unit-test-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/surefire-reports/
+          if-no-files-found: error
