@@ -20,6 +20,7 @@ import org.bukkit.inventory.AnvilInventory;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.view.AnvilView;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Objects;
@@ -75,7 +76,7 @@ public final class RecoveredFindListener implements Listener {
         ItemStack stamped = left.clone();
         stamped.setAmount(result.getAmount());
         ItemMeta meta = stamped.getItemMeta();
-        String typed = BuriedFind.sanitizeGivenName(strip(anvil.getRenameText()));
+        String typed = BuriedFind.sanitizeGivenName(strip(event.getView().getRenameText()));
         if (meta != null && typed != null) {
             meta.setDisplayName(ChatColor.WHITE + typed);
             stamped.setItemMeta(meta);
@@ -96,7 +97,7 @@ public final class RecoveredFindListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
-        if (!(event.getView().getTopInventory() instanceof AnvilInventory anvil)) {
+        if (!(event.getView() instanceof AnvilView anvil)) {
             return;
         }
         ItemStack result = event.getCurrentItem();
