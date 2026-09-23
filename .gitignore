@@ -55,3 +55,6 @@ Desktop.ini
 
 # Repository-specific generated or local files
 /TFMC/lore
+
+# Technical documentation is maintained in TF-Minecraft/Docs
+/docs/
