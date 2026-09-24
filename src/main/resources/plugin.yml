@@ -1,7 +1,7 @@
 name: Archaeo
 main: net.tfminecraft.archaeo.ArcheologyPlugin
 version: ${project.version}
-api-version: "1.21"
+api-version: '1.21.10'
 author: nowko
 description: An archaeology plugin. Hidden ruins you track by ear, a camp beside the cut, and finds you can break as easily as recover.
 
