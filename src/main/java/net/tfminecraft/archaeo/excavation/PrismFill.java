@@ -26,13 +26,11 @@ public final class PrismFill {
     /**
      * World block the Hand Pick should work. Air, fluids, and placeable decorations are not fill.
      *
-     * @param material block type
+     * @param material block type of a world cell
      * @return whether this is excavation substrate
      */
     public static boolean isTerrainFill(Material material) {
-        return material != null
-                && material.isBlock()
-                && !material.isAir()
+        return !material.isAir()
                 && !isFluid(material)
                 && !exempt(material);
     }
@@ -102,9 +100,6 @@ public final class PrismFill {
      * @return whether this is not excavation fill
      */
     static boolean exempt(Material material) {
-        if (material.isAir()) {
-            return true;
-        }
         if (Tag.REPLACEABLE.isTagged(material)
                 || Tag.ALL_SIGNS.isTagged(material)
                 || Tag.ALL_HANGING_SIGNS.isTagged(material)

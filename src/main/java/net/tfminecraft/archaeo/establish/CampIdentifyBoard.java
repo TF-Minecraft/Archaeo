@@ -190,17 +190,17 @@ public final class CampIdentifyBoard implements InventoryHolder {
 
     /**
      * @param site excavation
-     * @param template artifact, or {@code null}
+     * @param template artifact, or {@code null}; the catalogue always loads tag sets, if empty
      * @return tags that only weight the draw
      */
     private Set<String> weightTags(Site site, ArtifactTemplate template) {
         Set<String> tags = new HashSet<>();
-        if (template != null && template.tags() != null) {
+        if (template != null) {
             tags.addAll(template.tags());
         }
         for (String hintId : site.getHintIds()) {
             var hint = catalogs.hint(hintId);
-            if (hint != null && hint.tags() != null) {
+            if (hint != null) {
                 tags.addAll(hint.tags());
             }
         }
@@ -228,13 +228,9 @@ public final class CampIdentifyBoard implements InventoryHolder {
     private static ItemStack named(Material material, String name, String... lore) {
         ItemStack stack = new ItemStack(material);
         ItemMeta meta = stack.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName(name);
-            if (lore.length > 0) {
-                meta.setLore(List.of(lore));
-            }
-            stack.setItemMeta(meta);
-        }
+        meta.setDisplayName(name);
+        meta.setLore(List.of(lore));
+        stack.setItemMeta(meta);
         return stack;
     }
 }

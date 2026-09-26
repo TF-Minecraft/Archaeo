@@ -23,9 +23,6 @@ public final class FindBreakCue {
      * @param block cell that held the find
      */
     public static void play(Player player, Block block) {
-        if (block == null) {
-            return;
-        }
         Location at = block.getLocation().add(0.5, 0.5, 0.5);
         block.getWorld().playSound(at, Sound.BLOCK_DECORATED_POT_SHATTER, SoundCategory.BLOCKS, 1.15f, 0.8f);
         block.getWorld().playSound(at, Sound.ENTITY_ITEM_BREAK, SoundCategory.PLAYERS, 0.55f, 0.55f);

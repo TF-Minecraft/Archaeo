@@ -11,7 +11,6 @@ import net.tfminecraft.archaeo.model.BlockCell;
 import net.tfminecraft.archaeo.model.BuriedFind;
 import net.tfminecraft.archaeo.model.FindState;
 import net.tfminecraft.archaeo.model.Site;
-import net.tfminecraft.archaeo.model.WorkerRecord;
 import net.tfminecraft.archaeo.site.SiteClosure;
 import net.tfminecraft.archaeo.site.SiteRepository;
 import org.bukkit.Bukkit;
@@ -37,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongSupplier;
 
 /**
  * Brushes matrix off a fully exposed find. The last required cube drops one item and lifts the shape.
@@ -52,6 +52,8 @@ public class RecoverService {
     private RecoverySettings settings;
     private final Map<UUID, Channel> channels = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastWarn = new ConcurrentHashMap<>();
+    /** Wall clock in milliseconds for the warning cooldown; tests replace it to step past the cooldown. */
+    LongSupplier clock = System::currentTimeMillis;
 
     /**
      * @param plugin scheduler
@@ -88,15 +90,12 @@ public class RecoverService {
      * Cancels open brush channels.
      */
     public void stop() {
-        for (UUID id : List.copyOf(channels.keySet())) {
-            Channel channel = channels.get(id);
+        for (Channel channel : List.copyOf(channels.values())) {
             stash(channel);
-            channels.remove(id);
             hideBar(channel);
-            if (channel != null && channel.task != null) {
-                channel.task.cancel();
-            }
+            channel.task.cancel();
         }
+        channels.clear();
     }
 
     /**
@@ -126,8 +125,8 @@ public class RecoverService {
             return;
         }
         Channel channel = new Channel(createBar(player), Math.max(1, settings.channelTicks()));
-        channels.put(player.getUniqueId(), channel);
         channel.task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> pulse(player, channel), 1L, 1L);
+        channels.put(player.getUniqueId(), channel);
     }
 
     /**
@@ -172,12 +171,11 @@ public class RecoverService {
             warn(player, "That cube is already clean.");
             return;
         }
+        // Recovery is on and a brush is held, so watch always leaves a channel.
         watch(player);
         Channel channel = channels.get(player.getUniqueId());
-        if (channel == null) {
-            return;
-        }
-        if (channel.focused && channel.sameCell(block) && channel.findId.equals(find.getId())) {
+        if (channel.focused && channel.sameCell(block) && channel.findId.equals(find.getId())
+                && find.brushRemaining(cell) != null) {
             channel.startGrace = 3;
             return;
         }
@@ -223,6 +221,7 @@ public class RecoverService {
                 find = site.findAt(new BlockCell(target.getX(), target.getY(), target.getZ())).orElse(null);
             }
         }
+        // A find is only looked up for a real target, so a missing target leaves it null.
         if (!isDustable(target, find)) {
             stash(channel);
             hideHud(channel);
@@ -234,10 +233,12 @@ public class RecoverService {
             stash(channel);
             attach(channel, site, find, target);
         }
-        if (find.brushRemaining(cell) == null) {
+        Integer saved = find.brushRemaining(cell);
+        if (saved == null) {
             hideHud(channel);
             return;
         }
+        channel.remaining = Math.min(channel.duration, saved);
         showHud(channel, player);
         if (!isUsingBrush(player)) {
             if (channel.startGrace > 0) {
@@ -248,6 +249,14 @@ public class RecoverService {
         } else {
             channel.startGrace = 0;
         }
+        int tick = Bukkit.getCurrentTick();
+        for (Channel peer : channels.values()) {
+            // One cube of one site holds a single find, so the site id is enough to match it.
+            if (peer.lastBrushTick == tick && peer.sameCell(target) && site.getId().equals(peer.siteId)) {
+                return;
+            }
+        }
+        channel.lastBrushTick = tick;
         channel.remaining--;
         find.setBrushRemaining(cell, channel.remaining);
         updateBar(channel);
@@ -265,27 +274,17 @@ public class RecoverService {
     /**
      * Marks this cube clean; lifts the piece when the tedium cap is met.
      *
-     * @param player holder
-     * @param block cleaned cell
+     * @param player holder allowed to recover here
+     * @param block cleaned cell, still fill
      * @param site excavation
      * @param find shape
      * @param cell cleaned coordinates
      */
     private void finishCell(Player player, Block block, Site site, BuriedFind find, BlockCell cell) {
-        if (find.getState() != FindState.DISCOVERED) {
-            return;
-        }
-        if (!find.getCells().contains(cell) || find.isCleaned(cell)) {
-            return;
-        }
-        if (!PrismFill.isTerrainFill(block.getType())) {
-            return;
-        }
+        // The pulse has just checked that this is uncleaned fill of a discovered find and that
+        // the player may recover here, so the staff log exists.
         find.markCleaned(cell);
-        WorkerRecord log = site.staffLog(player.getUniqueId());
-        if (log != null) {
-            log.noteCellBrushed();
-        }
+        site.staffLog(player.getUniqueId()).noteCellBrushed();
         ToolWear.spend(
                 player,
                 player.getInventory().getItemInMainHand(),
@@ -317,9 +316,7 @@ public class RecoverService {
                 cleanedFill++;
             }
         }
-        if (fill == 0) {
-            return false;
-        }
+        // The cube just cleaned is still fill, so there is at least one.
         int needed = Math.min(fill, Math.max(1, settings.maxCellsToClean()));
         return cleanedFill >= needed;
     }
@@ -340,23 +337,14 @@ public class RecoverService {
                 clearFill(block);
             }
         }
+        // A find whose condition reaches zero is already LOST, so a discovered one has some left.
         find.setState(FindState.RECOVERED);
         int conservation = find.getConservation();
         String grade = catalogs.pick().conservation().gradeLabel(conservation);
         boolean fieldDamaged = find.isFieldDamaged();
-        if (conservation <= 0) {
-            find.setState(FindState.LOST);
-            site.catalogSettledFinds(player.getUniqueId());
-            player.sendMessage("Those remains were destroyed. Nothing could be recovered.");
-            world.playSound(origin.getLocation(), Sound.ENTITY_ITEM_BREAK, SoundCategory.BLOCKS, 0.8f, 0.7f);
-            return;
-        }
         site.catalogSettledFinds(player.getUniqueId());
         site.setRecoveredCount(site.getRecoveredCount() + 1);
-        WorkerRecord log = site.staffLog(player.getUniqueId());
-        if (log != null) {
-            log.noteFindRecovered();
-        }
+        site.staffLog(player.getUniqueId()).noteFindRecovered();
         ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
         if (template == null) {
             player.sendMessage("Recovered a find, but its template is missing from the catalog.");
@@ -463,10 +451,10 @@ public class RecoverService {
     }
 
     /**
-     * @param channel finished or aborted brush, or {@code null}
+     * @param channel finished or aborted brush
      */
     private static void hideBar(Channel channel) {
-        if (channel == null || channel.bar == null) {
+        if (channel.bar == null) {
             return;
         }
         channel.bar.removeAll();
@@ -478,7 +466,7 @@ public class RecoverService {
      * @param message English line
      */
     private void warn(Player player, String message) {
-        long now = System.currentTimeMillis();
+        long now = clock.getAsLong();
         Long previous = lastWarn.get(player.getUniqueId());
         if (previous != null && now - previous < WARN_MS) {
             return;
@@ -507,13 +495,13 @@ public class RecoverService {
     }
 
     /**
-     * Writes remaining ticks onto the find cube so a later look with the brush can restore the bar.
-     * Marked dirty rather than committed: a few lost ticks are acceptable, a restart is not.
+     * Marks shared cube progress dirty so a later look with the brush can restore the bar.
+     * Each active pulse already updates the cube; a paused channel must not overwrite newer work.
      *
      * @param channel watcher, or {@code null}
      */
     private void stash(Channel channel) {
-        if (channel == null || !channel.focused || channel.siteId == null || channel.findId == null) {
+        if (channel == null || !channel.focused) {
             return;
         }
         Site site = sites.findById(channel.siteId).orElse(null);
@@ -523,12 +511,6 @@ public class RecoverService {
         BuriedFind find = findOn(site, channel.findId);
         if (find == null) {
             return;
-        }
-        BlockCell cell = new BlockCell(channel.x, channel.y, channel.z);
-        if (channel.remaining <= 0 || find.isCleaned(cell)) {
-            find.setBrushRemaining(cell, 0);
-        } else {
-            find.setBrushRemaining(cell, channel.remaining);
         }
         sites.touch(site);
     }
@@ -552,15 +534,16 @@ public class RecoverService {
         Integer saved = find.brushRemaining(new BlockCell(block.getX(), block.getY(), block.getZ()));
         channel.remaining = saved == null ? channel.duration : Math.min(channel.duration, saved);
         channel.startGrace = 0;
+        channel.lastBrushTick = -1;
     }
 
     /**
      * @param block aimed cube, or {@code null}
-     * @param find shape at that cube, or {@code null}
+     * @param find shape at that cube; {@code null} whenever {@code block} is
      * @return whether the brush can still work this fill cell
      */
     private static boolean isDustable(Block block, BuriedFind find) {
-        if (block == null || find == null) {
+        if (find == null) {
             return false;
         }
         if (find.getState() != FindState.DISCOVERED) {
@@ -592,21 +575,19 @@ public class RecoverService {
      * @param player viewer
      */
     private static void showHud(Channel channel, Player player) {
+        // The bar was created for this player and is only emptied when the channel ends.
         if (channel.bar == null) {
             return;
-        }
-        if (!channel.bar.getPlayers().contains(player)) {
-            channel.bar.addPlayer(player);
         }
         channel.bar.setVisible(true);
         updateBar(channel);
     }
 
     /**
-     * @param channel watcher, or {@code null}
+     * @param channel watcher
      */
     private static void hideHud(Channel channel) {
-        if (channel == null || channel.bar == null) {
+        if (channel.bar == null) {
             return;
         }
         channel.bar.setVisible(false);
@@ -615,27 +596,22 @@ public class RecoverService {
     /**
      * Stops a brush channel aimed at this excavation so a staff wipe does not leave a HUD bar.
      *
-     * @param siteId excavation being erased
+     * @param siteId id of the excavation being erased
      */
     public void abortForSite(UUID siteId) {
-        if (siteId == null) {
-            return;
-        }
-        for (UUID playerId : List.copyOf(channels.keySet())) {
-            Channel channel = channels.get(playerId);
-            if (channel == null || !siteId.equals(channel.siteId)) {
+        for (Map.Entry<UUID, Channel> entry : List.copyOf(channels.entrySet())) {
+            Channel channel = entry.getValue();
+            if (!siteId.equals(channel.siteId)) {
                 continue;
             }
-            Player player = plugin.getServer().getPlayer(playerId);
+            Player player = plugin.getServer().getPlayer(entry.getKey());
             if (player != null) {
                 teardown(player);
                 continue;
             }
             hideBar(channel);
-            if (channel.task != null) {
-                channel.task.cancel();
-            }
-            channels.remove(playerId);
+            channel.task.cancel();
+            channels.remove(entry.getKey());
         }
     }
 
@@ -644,23 +620,21 @@ public class RecoverService {
      */
     private void teardown(Player player) {
         Channel channel = channels.remove(player.getUniqueId());
-        hideBar(channel);
-        if (channel != null && channel.task != null) {
-            channel.task.cancel();
+        if (channel == null) {
+            return;
         }
+        hideBar(channel);
+        channel.task.cancel();
     }
 
     /**
      * Spigot does not fire {@code PlayerInteractEvent} again while a brush is held
      * ({@code SPIGOT-7501}). {@link Player#getItemInUse()} is true for those few ticks.
      *
-     * @param player holder
+     * @param player holder whose main hand is already known to be a brush
      * @return whether the main-hand brush is currently being used
      */
     private boolean isUsingBrush(Player player) {
-        if (!brush.isBrush(player.getInventory().getItemInMainHand())) {
-            return false;
-        }
         ItemStack using = player.getItemInUse();
         if (using != null) {
             return brush.isBrush(using);
@@ -681,6 +655,8 @@ public class RecoverService {
         private int duration;
         private final BossBar bar;
         private int remaining;
+        /** Coordinates same-cell watchers so several brushes still consume only one tick of work. */
+        private int lastBrushTick = -1;
         /** First pulses after a click may run before the server marks the brush as in-use. */
         private int startGrace;
         private BukkitTask task;
@@ -709,7 +685,7 @@ public class RecoverService {
          * @return whether this watcher is still on that cube
          */
         private boolean sameCell(Block block) {
-            return focused && block.getX() == x && block.getY() == y && block.getZ() == z;
+            return block.getX() == x && block.getY() == y && block.getZ() == z;
         }
     }
 }

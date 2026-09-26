@@ -92,7 +92,6 @@ public final class ConfigEnums {
         if (sound == null) {
             return "none";
         }
-        NamespacedKey key = sound.getKey();
-        return key == null ? sound.toString() : key.toString();
+        return sound.getKey().toString();
     }
 }

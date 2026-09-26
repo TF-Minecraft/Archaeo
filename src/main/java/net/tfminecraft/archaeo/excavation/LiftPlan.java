@@ -118,10 +118,9 @@ public final class LiftPlan {
             Block next = shuffle
                     ? frontier.get(ThreadLocalRandom.current().nextInt(frontier.size()))
                     : frontier.get(0);
-            if (!tryAdd(out, taken, site, next)) {
-                pool.remove(next);
-                continue;
-            }
+            // Pool cubes were accepted when the pool was built and leave it once chosen.
+            taken.add(pack(next));
+            out.add(next);
             pool.remove(next);
             need--;
         }
@@ -130,16 +129,13 @@ public final class LiftPlan {
     /**
      * Pool cubes that share a face with a cube already chosen, in pool order.
      *
-     * @param pool remaining 3×3×2 candidates
+     * @param pool remaining 3×3×2 candidates; never holds a cube already taken
      * @param taken packed keys already lifting
      * @return attached candidates
      */
     private static List<Block> attached(List<Block> pool, Set<Long> taken) {
         List<Block> frontier = new ArrayList<>();
         for (Block cell : pool) {
-            if (taken.contains(pack(cell))) {
-                continue;
-            }
             if (touchesTaken(cell, taken)) {
                 frontier.add(cell);
             }
@@ -165,7 +161,7 @@ public final class LiftPlan {
      * @param out cubes already chosen
      * @param taken packed keys
      * @param site excavation
-     * @param cell candidate
+     * @param cell candidate that is not yet in {@code out}
      * @return whether {@code cell} was appended
      */
     private static boolean tryAdd(
@@ -177,9 +173,7 @@ public final class LiftPlan {
         if (!accept(site, cell)) {
             return false;
         }
-        if (!taken.add(pack(cell))) {
-            return false;
-        }
+        taken.add(pack(cell));
         out.add(cell);
         return true;
     }

@@ -14,38 +14,38 @@ import java.util.Locale;
  * @param tool rack tool id that wipes it
  */
 public record LabStain(String id, String displayName, Material glass, String tool) {
+    // Rows come from LabSettings#defaults or CatalogRegistry#loadLab, which never leave a field
+    // null and never pick air for the pane (ConfigEnums#material falls back instead).
+
     /**
-     * @param toolId cursor tool
-     * @return whether that tool wipes this stain
+     * @param toolId cursor tool, or {@code null} when the cursor is not a rack tool
+     * @return whether that tool wipes this stain; a blank {@code tool} accepts any cursor
      */
     public boolean allowsTool(String toolId) {
-        if (tool == null || tool.isBlank()) {
+        if (tool.isBlank()) {
             return true;
         }
-        return tool.equalsIgnoreCase(toolId == null ? "" : toolId);
+        return tool.equalsIgnoreCase(toolId);
     }
 
     /**
      * @return pane used on the field
      */
     public Material pane() {
-        return glass == null || glass.isAir() ? Material.BROWN_STAINED_GLASS_PANE : glass;
+        return glass;
     }
 
     /**
-     * @return name shown on the pane
+     * @return name shown on the pane; a blank {@code display-name} shows the stain key
      */
     public String label() {
-        if (displayName == null || displayName.isBlank()) {
-            return id == null || id.isBlank() ? "Dirt" : id;
-        }
-        return displayName;
+        return displayName.isBlank() ? id : displayName;
     }
 
     /**
      * @return rack tool key, lower case
      */
     public String toolId() {
-        return tool == null ? "" : tool.trim().toLowerCase(Locale.ROOT);
+        return tool.trim().toLowerCase(Locale.ROOT);
     }
 }

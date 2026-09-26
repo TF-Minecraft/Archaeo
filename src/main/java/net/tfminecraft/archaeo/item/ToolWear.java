@@ -38,8 +38,10 @@ public final class ToolWear {
         if (points <= 0 || stack == null || stack.getType().getMaxDurability() <= 0) {
             return false;
         }
+        // Every CraftBukkit item meta implements Damageable; durability alone decides whether it wears.
         ItemMeta meta = stack.getItemMeta();
-        if (!(meta instanceof Damageable damageable) || meta.isUnbreakable()) {
+        Damageable damageable = (Damageable) meta;
+        if (meta.isUnbreakable()) {
             return false;
         }
         int applied = unbreaking ? afterUnbreaking(stack, points) : points;

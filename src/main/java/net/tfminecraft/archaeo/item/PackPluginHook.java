@@ -4,9 +4,11 @@ import net.tfminecraft.archaeo.ArcheologyPlugin;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Cancellable;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerEvent;
 import org.bukkit.plugin.EventExecutor;
 
 import java.util.logging.Level;
@@ -51,7 +53,6 @@ public final class PackPluginHook {
      * @param executor handler
      * @param label log label when registration fails
      */
-    @SuppressWarnings("unchecked")
     private static void registerNamed(
             ArcheologyPlugin plugin,
             Listener listener,
@@ -61,12 +62,10 @@ public final class PackPluginHook {
             String label
     ) {
         try {
-            Class<?> raw = Class.forName(className);
-            if (!Event.class.isAssignableFrom(raw)) {
-                return;
-            }
+            // asSubclass fails (and is logged below) if an incompatible ItemsAdder moved the event off Event.
+            Class<? extends Event> type = Class.forName(className).asSubclass(Event.class);
             plugin.getServer().getPluginManager().registerEvent(
-                    (Class<? extends Event>) raw,
+                    type,
                     listener,
                     priority,
                     executor,
@@ -84,33 +83,16 @@ public final class PackPluginHook {
      * @param event ItemsAdder furniture interact
      */
     private static void handleFurniture(ArcheologyPlugin plugin, Event event) {
-        if (plugin.sketch() == null && plugin.museum() == null) {
-            return;
-        }
+        // FurnitureInteractEvent is a cancellable PlayerEvent, and onEnable builds the museum and
+        // sketch services before it registers this hook.
+        Player player = ((PlayerEvent) event).getPlayer();
         try {
-            Object playerObj = event.getClass().getMethod("getPlayer").invoke(event);
-            if (!(playerObj instanceof Player player)) {
-                return;
-            }
             String id = readNamespacedId(event);
             Entity entity = readEntity(event);
             Block block = entity == null ? null : entity.getLocation().getBlock();
-            boolean handled = false;
-            if (plugin.museum() != null
-                    && plugin.museum().tryOpenFromSupport(player, id, entity, block, player.isSneaking())) {
-                handled = true;
-            }
-            if (!handled
-                    && plugin.sketch() != null
-                    && plugin.sketch().tryOpenCabinet(player, id, entity, block, player.isSneaking())) {
-                handled = true;
-            }
-            if (handled) {
-                try {
-                    event.getClass().getMethod("setCancelled", boolean.class).invoke(event, true);
-                } catch (ReflectiveOperationException ignored) {
-                    // Not every IA event is cancellable.
-                }
+            if (plugin.museum().tryOpenFromSupport(player, id, entity, block, player.isSneaking())
+                    || plugin.sketch().tryOpenCabinet(player, id, entity, block, player.isSneaking())) {
+                ((Cancellable) event).setCancelled(true);
             }
         } catch (ReflectiveOperationException exception) {
             plugin.getLogger().log(Level.FINE, "Furniture interact could not be read.", exception);
@@ -120,41 +102,28 @@ public final class PackPluginHook {
     /**
      * @param event furniture interact
      * @return {@code namespace:id}, or {@code null}
+     * @throws ReflectiveOperationException when ItemsAdder fails to answer
      */
     private static String readNamespacedId(Event event) throws ReflectiveOperationException {
-        try {
-            Object namespaced = event.getClass().getMethod("getNamespacedID").invoke(event);
-            if (namespaced != null) {
-                String text = String.valueOf(namespaced);
-                if (!text.isBlank()) {
-                    return text;
-                }
-            }
-        } catch (NoSuchMethodException ignored) {
-            // Fall through to the furniture wrapper.
+        Object namespaced = event.getClass().getMethod("getNamespacedID").invoke(event);
+        if (namespaced != null && !String.valueOf(namespaced).isBlank()) {
+            return String.valueOf(namespaced);
         }
-        try {
-            Object furniture = event.getClass().getMethod("getFurniture").invoke(event);
-            if (furniture == null) {
-                return null;
-            }
-            Object namespaced = furniture.getClass().getMethod("getNamespacedID").invoke(furniture);
-            return namespaced == null ? null : String.valueOf(namespaced);
-        } catch (NoSuchMethodException ignored) {
+        // Fall back to the furniture wrapper when the event carries no id of its own.
+        Object furniture = event.getClass().getMethod("getFurniture").invoke(event);
+        if (furniture == null) {
             return null;
         }
+        Object furnitureId = furniture.getClass().getMethod("getNamespacedID").invoke(furniture);
+        return furnitureId == null ? null : String.valueOf(furnitureId);
     }
 
     /**
      * @param event furniture interact
      * @return furniture entity, or {@code null}
+     * @throws ReflectiveOperationException when ItemsAdder fails to answer
      */
-    private static Entity readEntity(Event event) {
-        try {
-            Object bukkit = event.getClass().getMethod("getBukkitEntity").invoke(event);
-            return bukkit instanceof Entity found ? found : null;
-        } catch (ReflectiveOperationException ignored) {
-            return null;
-        }
+    private static Entity readEntity(Event event) throws ReflectiveOperationException {
+        return (Entity) event.getClass().getMethod("getBukkitEntity").invoke(event);
     }
 }

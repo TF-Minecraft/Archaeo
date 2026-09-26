@@ -52,14 +52,11 @@ public final class PrismWound {
      * Whether any live find cell is no longer excavation fill. Used to refuse rewriting a hidden
      * ruin whose ground was already opened, even if the dossier has not recorded the wound yet.
      *
-     * @param world ruin world
+     * @param world loaded ruin world
      * @param site hidden ruin
      * @return {@code true} when at least one find cube is air, fluid, or a build
      */
     public static boolean hasMissingFindTerrain(World world, Site site) {
-        if (world == null || site == null) {
-            return false;
-        }
         for (BuriedFind find : site.getFinds()) {
             for (BlockCell cell : find.getCells()) {
                 Block block = world.getBlockAt(cell.x(), cell.y(), cell.z());
@@ -86,8 +83,9 @@ public final class PrismWound {
             return Removal.none();
         }
         boolean changed = false;
+        // Only present bands are returned, and a cell inside the prism always sits in one.
         StratumBand band = site.stratumAt(y);
-        if (band != null && band.isPresent() && !band.isDisturbed()) {
+        if (!band.isDisturbed()) {
             band.setDisturbed(true);
             changed = true;
         }

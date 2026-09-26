@@ -95,13 +95,14 @@ public class PrismOutlineService {
         LimitsSettings limits = catalogs.pick().limits();
         List<Entity> bars = new ArrayList<>();
         paint(player, world, site, rings, limits, bars);
-        if (bars.isEmpty()) {
-            return;
-        }
         shows.put(player.getUniqueId(), bars);
         UUID viewer = player.getUniqueId();
         plugin.getServer().getScheduler().runTaskLater(
-                plugin, () -> cancelById(viewer), Math.max(1L, limits.seconds() * 20L));
+                plugin, () -> {
+                    if (shows.remove(viewer, bars)) {
+                        bars.forEach(Entity::remove);
+                    }
+                }, Math.max(1L, limits.seconds() * 20L));
         player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, SoundCategory.PLAYERS, 0.6f, 1.4f);
         player.sendMessage("Excavation limits shown for " + limits.seconds() + " seconds.");
     }

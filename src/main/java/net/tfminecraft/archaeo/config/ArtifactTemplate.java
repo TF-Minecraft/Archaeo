@@ -84,7 +84,8 @@ public record ArtifactTemplate(
         if (chosen != null && !chosen.isBlank()) {
             String token = chosen.trim();
             for (ItemRef ref : items) {
-                if (matchesStored(ref, token)) {
+                // Vanilla tokens are the bare material name; "minecraft:" tokens resolve via parse below.
+                if (ref.commandToken().equalsIgnoreCase(token)) {
                     return ref;
                 }
             }
@@ -109,17 +110,5 @@ public record ArtifactTemplate(
             }
         }
         return Material.BRICK;
-    }
-
-    /**
-     * @param ref catalog pool entry
-     * @param token stored dossier token
-     * @return whether this is the same item, including old vanilla names without a {@code minecraft:} prefix
-     */
-    private static boolean matchesStored(ItemRef ref, String token) {
-        if (ref.commandToken().equalsIgnoreCase(token)) {
-            return true;
-        }
-        return ref.kind() == ItemRef.Kind.VANILLA && ref.primary().equalsIgnoreCase(token);
     }
 }

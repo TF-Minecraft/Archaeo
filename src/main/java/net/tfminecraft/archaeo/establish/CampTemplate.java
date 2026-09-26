@@ -213,24 +213,23 @@ public final class CampTemplate {
     }
 
     /**
+     * The sign is the template's only rotatable piece and the campfire its only lightable one.
+     *
      * @param material piece type
-     * @param facing camp front (used when the block is directional)
+     * @param facing camp front, one of the four cardinals from {@link #facingFromYaw(float)}
      * @return block data for {@link org.bukkit.entity.Player#sendBlockChange}
      */
     public static BlockData dataFor(Material material, BlockFace facing) {
         BlockData data = material.createBlockData();
-        if (material == Material.OAK_SIGN && data instanceof Rotatable rotatable) {
-            BlockFace towardPlayer = facing.getOppositeFace();
-            if (towardPlayer.isCartesian() && towardPlayer.getModY() == 0) {
-                rotatable.setRotation(towardPlayer);
-            }
-        } else if (data instanceof Directional directional && facing.isCartesian() && facing.getModY() == 0) {
+        if (data instanceof Rotatable rotatable) {
+            rotatable.setRotation(facing.getOppositeFace());
+        } else if (data instanceof Directional directional) {
             directional.setFacing(facing);
         }
         if (data instanceof Slab slab) {
             slab.setType(Slab.Type.BOTTOM);
         }
-        if (data instanceof Lightable lightable && material == Material.CAMPFIRE) {
+        if (data instanceof Lightable lightable) {
             lightable.setLit(true);
         }
         return data;

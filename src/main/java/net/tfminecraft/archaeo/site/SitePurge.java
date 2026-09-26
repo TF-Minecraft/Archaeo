@@ -93,12 +93,9 @@ public final class SitePurge {
     /**
      * Erases {@code site} from memory, disk, camp, and tagged items as if it had never been filed.
      *
-     * @param site ruin or excavation in any status
+     * @param site stored ruin or excavation in any status
      */
     public void erase(Site site) {
-        if (site == null || site.getId() == null) {
-            return;
-        }
         UUID id = site.getId();
         establish.abortSessionsFor(id);
         recover.abortForSite(id);
@@ -209,9 +206,6 @@ public final class SitePurge {
      */
     private void stripArmorStand(ArmorStand stand, UUID siteId) {
         EntityEquipment equipment = stand.getEquipment();
-        if (equipment == null) {
-            return;
-        }
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             if (belongs(equipment.getItem(slot), siteId)) {
                 equipment.setItem(slot, null);
@@ -222,26 +216,26 @@ public final class SitePurge {
     /**
      * @param inventory bag, chest, or similar
      * @param siteId excavation
+     * @return whether any slot was cleared or rewritten
      */
-    private void stripInventory(Inventory inventory, UUID siteId) {
-        if (inventory == null) {
-            return;
-        }
+    private boolean stripInventory(Inventory inventory, UUID siteId) {
+        boolean changed = false;
         ItemStack[] contents = inventory.getContents();
         for (int i = 0; i < contents.length; i++) {
             ItemStack stack = contents[i];
-            if (stack == null || stack.getType().isAir()) {
+            // getContents reports an empty slot as null, never as an air stack.
+            if (stack == null) {
                 continue;
             }
             if (belongs(stack, siteId)) {
                 inventory.setItem(i, null);
-                continue;
-            }
-            ItemStack nested = stripNested(stack, siteId);
-            if (nested != stack) {
-                inventory.setItem(i, nested);
+                changed = true;
+            } else if (stripNested(stack, siteId)) {
+                inventory.setItem(i, stack);
+                changed = true;
             }
         }
+        return changed;
     }
 
     /**
@@ -249,21 +243,20 @@ public final class SitePurge {
      *
      * @param stack container item
      * @param siteId excavation
-     * @return the same stack, mutated when an inner inventory was rewritten
+     * @return whether an inner inventory lost an item, in which case {@code stack} was rewritten
      */
-    private ItemStack stripNested(ItemStack stack, UUID siteId) {
+    private boolean stripNested(ItemStack stack, UUID siteId) {
         ItemMeta meta = stack.getItemMeta();
         if (!(meta instanceof BlockStateMeta blockMeta)) {
-            return stack;
+            return false;
         }
         BlockState innerState = blockMeta.getBlockState();
-        if (!(innerState instanceof InventoryHolder holder)) {
-            return stack;
+        if (!(innerState instanceof InventoryHolder holder) || !stripInventory(holder.getInventory(), siteId)) {
+            return false;
         }
-        stripInventory(holder.getInventory(), siteId);
         blockMeta.setBlockState(innerState);
         stack.setItemMeta(blockMeta);
-        return stack;
+        return true;
     }
 
     /**
@@ -272,7 +265,7 @@ public final class SitePurge {
      * @return whether this stack is tagged to the ruin
      */
     private boolean belongs(ItemStack stack, UUID siteId) {
-        if (stack == null || stack.getType().isAir() || siteId == null) {
+        if (stack == null || stack.getType().isAir()) {
             return false;
         }
         return siteId.equals(recovered.siteIdOf(stack))

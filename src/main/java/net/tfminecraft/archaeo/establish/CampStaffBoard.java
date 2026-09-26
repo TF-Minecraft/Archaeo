@@ -55,13 +55,6 @@ public final class CampStaffBoard implements InventoryHolder {
     }
 
     /**
-     * @return whether this copy includes add/remove
-     */
-    public boolean director() {
-        return director;
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -137,9 +130,6 @@ public final class CampStaffBoard implements InventoryHolder {
     private ItemStack head(Player viewer, Site site, UUID member) {
         ItemStack stack = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) stack.getItemMeta();
-        if (meta == null) {
-            return stack;
-        }
         OfflinePlayer owner = Bukkit.getOfflinePlayer(member);
         meta.setOwningPlayer(owner);
         SiteRole role = site.roleOf(member);
@@ -162,13 +152,9 @@ public final class CampStaffBoard implements InventoryHolder {
     private static ItemStack named(Material material, String name, String... lore) {
         ItemStack stack = new ItemStack(material);
         ItemMeta meta = stack.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName(name);
-            if (lore.length > 0) {
-                meta.setLore(List.of(lore));
-            }
-            stack.setItemMeta(meta);
-        }
+        meta.setDisplayName(name);
+        meta.setLore(List.of(lore));
+        stack.setItemMeta(meta);
         return stack;
     }
 }

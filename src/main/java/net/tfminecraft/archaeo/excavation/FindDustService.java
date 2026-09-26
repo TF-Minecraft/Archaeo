@@ -107,10 +107,7 @@ public class FindDustService implements Listener {
      * Walks loaded find cells and sheds from those that face an opening.
      */
     private void pulse() {
-        if (!settings.findDust()) {
-            stopTimer();
-            return;
-        }
+        // Every settings change goes through syncTimer, so the loop only runs while dust is on.
         tick++;
         int interval = settings.findDustIntervalTicks();
         if (interval < 1 || tick % interval != 0) {

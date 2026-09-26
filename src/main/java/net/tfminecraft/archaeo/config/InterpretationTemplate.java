@@ -63,7 +63,7 @@ public record InterpretationTemplate(
      * @return whether this phrase may be offered
      */
     public boolean appliesTo(FindProfile profile) {
-        if (profiles == null || profiles.isEmpty()) {
+        if (profiles.isEmpty()) {
             return true;
         }
         return profile != null && profiles.contains(profile);

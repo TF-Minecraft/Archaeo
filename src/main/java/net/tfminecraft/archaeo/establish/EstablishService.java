@@ -9,6 +9,7 @@ import net.tfminecraft.archaeo.model.BlockCell;
 import net.tfminecraft.archaeo.model.Site;
 import net.tfminecraft.archaeo.model.SiteStatus;
 import net.tfminecraft.archaeo.site.SiteRepository;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
 import org.bukkit.DyeColor;
@@ -56,10 +57,9 @@ public class EstablishService {
     private final Map<UUID, UUID> renameForSite = new ConcurrentHashMap<>();
     private final Map<UUID, String> woolChoicePrimary = new ConcurrentHashMap<>();
     private final Map<UUID, String> woolChoiceSecondary = new ConcurrentHashMap<>();
-    private final Map<UUID, Long> woolCycleTick = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> woolCycleTick = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> moveAimProxies = new ConcurrentHashMap<>();
-    private final Map<UUID, CampPlacement> lastPulse = new ConcurrentHashMap<>();
-    private final Map<UUID, UUID> lastPulseSite = new ConcurrentHashMap<>();
+    private final Map<UUID, Pulse> lastPulse = new ConcurrentHashMap<>();
     private FindDustService findDust;
     private SiteLabelRefresh labels;
 
@@ -126,26 +126,13 @@ public class EstablishService {
         }
         previews.clear();
         lastPulse.clear();
-        lastPulseSite.clear();
         for (UUID playerId : new HashSet<>(moveAimProxies.keySet())) {
-            Player player = plugin.getServer().getPlayer(playerId);
-            if (player != null) {
-                removeMoveAimProxy(player);
-            } else {
-                removeMoveAimProxy(playerId);
-            }
+            removeMoveAimProxy(playerId);
         }
-        for (UUID playerId : new HashSet<>(bars.keySet())) {
-            Player player = plugin.getServer().getPlayer(playerId);
-            if (player != null) {
-                hideHud(player);
-            } else {
-                BossBar bar = bars.remove(playerId);
-                if (bar != null) {
-                    bar.removeAll();
-                }
-            }
+        for (BossBar bar : bars.values()) {
+            bar.removeAll();
         }
+        bars.clear();
     }
 
     /**
@@ -197,8 +184,7 @@ public class EstablishService {
      */
     private void pulsePlacement(Player player, Site site, boolean moving) {
         CampPlacement placement = assess(player, site, aimBlock(player, site));
-        lastPulse.put(player.getUniqueId(), placement);
-        lastPulseSite.put(player.getUniqueId(), site.getId());
+        lastPulse.put(player.getUniqueId(), new Pulse(site.getId(), placement));
         applyGhosts(player, site, placement);
         if (placement.allowed()) {
             String action = moving
@@ -264,7 +250,7 @@ public class EstablishService {
      */
     public boolean tryFinishMoveOnAimProxy(Player player, Entity clicked) {
         UUID standId = moveAimProxies.get(player.getUniqueId());
-        if (standId == null || clicked == null || !standId.equals(clicked.getUniqueId())) {
+        if (standId == null || !standId.equals(clicked.getUniqueId())) {
             return false;
         }
         tryFinishMove(player);
@@ -280,7 +266,7 @@ public class EstablishService {
      */
     public boolean handleMoveAimProxyAttack(Player player, Entity clicked) {
         UUID standId = moveAimProxies.get(player.getUniqueId());
-        if (standId == null || clicked == null || !standId.equals(clicked.getUniqueId())) {
+        if (standId == null || !standId.equals(clicked.getUniqueId())) {
             return false;
         }
         tryCancelMove(player);
@@ -349,7 +335,6 @@ public class EstablishService {
         }
         if (raw.equalsIgnoreCase("cancel")) {
             player.sendMessage("Rename cancelled.");
-            renameForSite.remove(player.getUniqueId());
             return true;
         }
         Site site = sites.findById(siteId).orElse(null);
@@ -357,7 +342,7 @@ public class EstablishService {
             player.sendMessage("That excavation is no longer active.");
             return true;
         }
-        if (site.getDirector() == null || !site.getDirector().equals(player.getUniqueId())) {
+        if (!site.isDirector(player.getUniqueId())) {
             return true;
         }
         String name = raw.replace('§', ' ').trim();
@@ -423,12 +408,13 @@ public class EstablishService {
         if (isRelocating(player)) {
             return;
         }
-        long tick = player.getWorld().getFullTime();
-        Long previous = woolCycleTick.put(player.getUniqueId(), tick);
+        // The server tick, not World#getFullTime: the day clock stands still when doDaylightCycle is off.
+        int tick = Bukkit.getCurrentTick();
+        Integer previous = woolCycleTick.put(player.getUniqueId(), tick);
         if (previous != null && previous == tick) {
             return;
         }
-        Site site = activeSite(player);
+        Site site = nearestConfirmedHidden(player);
         String current = secondaryWoolName(player, site);
         String next = CampWools.next(current).name();
         woolChoiceSecondary.put(player.getUniqueId(), next);
@@ -446,7 +432,7 @@ public class EstablishService {
      * @param role primary ({@code W}) or secondary ({@code R})
      */
     public void applyCampWool(Player player, Site site, DyeColor color, CampWoolRole role) {
-        if (site.getDirector() == null || !site.getDirector().equals(player.getUniqueId())) {
+        if (!site.isDirector(player.getUniqueId())) {
             return;
         }
         DyeColor fallback = role == CampWoolRole.PRIMARY ? DyeColor.WHITE : DyeColor.RED;
@@ -474,11 +460,8 @@ public class EstablishService {
      * @param to new wool
      */
     private void recolorWoolCells(World world, Site site, CampWoolRole role, Material to) {
-        Integer originX = site.getCampX();
-        Integer originY = site.getCampY();
-        Integer originZ = site.getCampZ();
         BlockFace facing = campFacing(site);
-        if (originX == null || originY == null || originZ == null || facing == null) {
+        if (facing == null) {
             DyeColor fallback = role == CampWoolRole.PRIMARY ? DyeColor.WHITE : DyeColor.RED;
             String stored = role == CampWoolRole.PRIMARY ? site.getCampWoolPrimary() : site.getCampWoolSecondary();
             Material from = CampWools.woolOf(stored, fallback);
@@ -499,20 +482,24 @@ public class EstablishService {
             }
             Vector offset = CampTemplate.rotate(piece.dx(), piece.dz(), facing);
             world.getBlockAt(
-                    originX + offset.getBlockX(),
-                    originY + piece.dy(),
-                    originZ + offset.getBlockZ()
+                    site.getCampX() + offset.getBlockX(),
+                    site.getCampY() + piece.dy(),
+                    site.getCampZ() + offset.getBlockZ()
             ).setType(to, false);
         }
     }
 
     /**
      * Stored facing, or inferred from the sign cell of the tent grid ({@code N} at local −2, −2).
+     * The dossier stores the three origin coordinates together, so a present X means a full origin.
      *
      * @param site excavation
-     * @return cardinal, or {@code null}
+     * @return cardinal, or {@code null} when the camp origin or its orientation is unknown
      */
     private BlockFace campFacing(Site site) {
+        if (site.getCampX() == null) {
+            return null;
+        }
         if (site.getCampFacing() != null) {
             try {
                 BlockFace stored = BlockFace.valueOf(site.getCampFacing());
@@ -523,7 +510,7 @@ public class EstablishService {
                 // fall through to sign inference
             }
         }
-        if (site.getCampX() == null || site.getCampSignX() == null) {
+        if (site.getCampSignX() == null) {
             return null;
         }
         int dx = site.getCampSignX() - site.getCampX();
@@ -547,9 +534,6 @@ public class EstablishService {
      * @param siteId excavation being erased
      */
     public void abortSessionsFor(UUID siteId) {
-        if (siteId == null) {
-            return;
-        }
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             if (siteId.equals(relocating.get(player.getUniqueId()))) {
                 cancelRelocate(player);
@@ -618,10 +602,6 @@ public class EstablishService {
             player.sendMessage(placement.reason());
             return;
         }
-        if (!moving && atDirectorCap(player)) {
-            player.sendMessage(directorCapHint());
-            return;
-        }
         clearPreview(player);
         World world = player.getWorld();
         if (moving) {
@@ -667,17 +647,16 @@ public class EstablishService {
             consumeOne(player);
         }
         if (!moving) {
-            noteMissingTerrain(player, site);
+            noteMissingTerrain(player, world, site);
         }
         sites.save(site);
         if (findDust != null) {
             findDust.syncTimer();
         }
-        if (site.getCampSignX() != null) {
-            plugin.getServer().getScheduler().runTask(plugin, () -> CampSigns.write(
-                    world.getBlockAt(site.getCampSignX(), site.getCampSignY(), site.getCampSignZ()),
-                    site.publicName()));
-        }
+        // Every template has one sign piece, and an allowed placement plants all of them.
+        plugin.getServer().getScheduler().runTask(plugin, () -> CampSigns.write(
+                world.getBlockAt(site.getCampSignX(), site.getCampSignY(), site.getCampSignZ()),
+                site.publicName()));
         player.playSound(player.getLocation(), Sound.BLOCK_WOODEN_BUTTON_CLICK_ON, SoundCategory.PLAYERS, 0.8f, 1.1f);
         if (moving) {
             player.sendMessage("Camp moved.");
@@ -714,13 +693,10 @@ public class EstablishService {
      * First plant: finds whose cells are already air, water, or builds are damaged. Does not block the claim.
      *
      * @param player director
+     * @param ruinWorld world the camp was just planted in, which is always the ruin's world
      * @param site excavation just established
      */
-    private void noteMissingTerrain(Player player, Site site) {
-        World ruinWorld = plugin.getServer().getWorld(site.getWorldName());
-        if (ruinWorld == null) {
-            return;
-        }
+    private void noteMissingTerrain(Player player, World ruinWorld, Site site) {
         ruinWorld.getChunkAt(site.getChunkX(), site.getChunkZ()).load();
         PrismWound.Prior prior = PrismWound.markMissingTerrain(ruinWorld, site);
         site.catalogSettledFinds(null);
@@ -746,17 +722,6 @@ public class EstablishService {
     }
 
     /**
-     * Site being moved, or the nearest hidden ruin ready to claim.
-     *
-     * @param player kit holder
-     * @return site, or {@code null}
-     */
-    private Site activeSite(Player player) {
-        Site moving = relocatingSite(player);
-        return moving != null ? moving : nearestConfirmedHidden(player);
-    }
-
-    /**
      * @param player kit holder
      * @return excavation being relocated, or {@code null}
      */
@@ -765,45 +730,40 @@ public class EstablishService {
         if (siteId == null) {
             return null;
         }
-        return sites.findById(siteId).orElse(null);
+        Site site = sites.findById(siteId).orElse(null);
+        if (site == null || !site.isCampLocked() || !site.isDirector(player.getUniqueId())) {
+            cancelRelocate(player);
+            return null;
+        }
+        return site;
     }
 
     /**
+     * Outside a move the site is always a hidden ruin, so only the player's own choice applies.
+     *
      * @param player kit holder
-     * @param site current site, or {@code null}
+     * @param site site being placed; the camp being moved while relocating
      * @return DyeColor name for {@code W} cells
      */
     private String primaryWoolName(Player player, Site site) {
-        if (isRelocating(player) && site != null) {
+        if (isRelocating(player)) {
             return site.getCampWoolPrimary();
         }
         String chosen = woolChoicePrimary.get(player.getUniqueId());
-        if (chosen != null) {
-            return chosen;
-        }
-        if (site != null && site.isCampLocked()) {
-            return site.getCampWoolPrimary();
-        }
-        return "WHITE";
+        return chosen != null ? chosen : "WHITE";
     }
 
     /**
      * @param player kit holder
-     * @param site current site, or {@code null}
+     * @param site site being placed, the camp being moved, or {@code null} when cycling away from any ruin
      * @return DyeColor name for {@code R} cells
      */
     private String secondaryWoolName(Player player, Site site) {
-        if (isRelocating(player) && site != null) {
+        if (isRelocating(player)) {
             return site.getCampWoolSecondary();
         }
         String chosen = woolChoiceSecondary.get(player.getUniqueId());
-        if (chosen != null) {
-            return chosen;
-        }
-        if (site != null && site.isCampLocked()) {
-            return site.getCampWoolSecondary();
-        }
-        return "RED";
+        return chosen != null ? chosen : "RED";
     }
 
     /**
@@ -900,11 +860,8 @@ public class EstablishService {
      * @return first real block on the crosshair, or {@code null}
      */
     private Block aimBlock(Player player, Site site) {
-        if (site == null) {
-            return player.getTargetBlockExact(64);
-        }
-        UUID movingId = relocating.get(player.getUniqueId());
-        if (movingId == null || !movingId.equals(site.getId())) {
+        // While relocating, the only site ever aimed for is the camp being moved.
+        if (!relocating.containsKey(player.getUniqueId())) {
             return player.getTargetBlockExact(64);
         }
         BlockIterator iterator = new BlockIterator(player, 64);
@@ -932,15 +889,20 @@ public class EstablishService {
      * @return placement to confirm, or {@code null} to re-aim
      */
     private CampPlacement lastAllowedPulse(Player player, Site site) {
-        UUID siteId = lastPulseSite.get(player.getUniqueId());
-        if (siteId == null || !siteId.equals(site.getId())) {
+        Pulse pulse = lastPulse.get(player.getUniqueId());
+        if (pulse == null || !pulse.siteId().equals(site.getId()) || !pulse.placement().allowed()) {
             return null;
         }
-        CampPlacement placement = lastPulse.get(player.getUniqueId());
-        if (placement == null || !placement.allowed()) {
-            return null;
-        }
-        return placement;
+        return pulse.placement();
+    }
+
+    /**
+     * Ghost drawn on the last preview tick, with the site it was drawn for.
+     *
+     * @param siteId ruin or excavation the ghost belongs to
+     * @param placement assessed ghost
+     */
+    private record Pulse(UUID siteId, CampPlacement placement) {
     }
 
     /**
@@ -952,12 +914,10 @@ public class EstablishService {
         Location loc = player.getEyeLocation().add(player.getEyeLocation().getDirection().multiply(2.4));
         UUID existingId = moveAimProxies.get(player.getUniqueId());
         Entity existing = existingId == null ? null : plugin.getServer().getEntity(existingId);
+        // A world change ends the move and removes the stand, so a live stand shares the viewer's world.
         if (existing instanceof ArmorStand stand && stand.isValid()) {
-            if (stand.getWorld().equals(loc.getWorld())) {
-                stand.teleport(loc);
-                return;
-            }
-            removeMoveAimProxy(player);
+            stand.teleport(loc);
+            return;
         }
         ArmorStand stand = loc.getWorld().spawn(loc, ArmorStand.class, this::configureMoveAimProxy);
         moveAimProxies.put(player.getUniqueId(), stand.getUniqueId());
@@ -1030,13 +990,16 @@ public class EstablishService {
         String world = chunk.getWorld().getName();
         int cx = chunk.getX();
         int cz = chunk.getZ();
-        if (world.equals(site.getWorldName()) && cx == site.getChunkX() && cz == site.getChunkZ()) {
+        if (!world.equals(site.getWorldName())) {
+            return CampPlacement.Issue.NOT_NEIGHBOR;
+        }
+        if (cx == site.getChunkX() && cz == site.getChunkZ()) {
             return CampPlacement.Issue.ON_DIG;
         }
         if (occupiedByOther(site, world, cx, cz)) {
             return CampPlacement.Issue.OCCUPIED;
         }
-        if (!isValidCampChunk(site, world, cx, cz)) {
+        if (!isNeighborChunk(site.getChunkX(), site.getChunkZ(), cx, cz)) {
             return CampPlacement.Issue.NOT_NEIGHBOR;
         }
         return null;
@@ -1148,33 +1111,16 @@ public class EstablishService {
     }
 
     /**
-     * @param site hidden ruin
-     * @param world world name
-     * @param chunkX candidate camp chunk X
-     * @param chunkZ candidate camp chunk Z
-     * @return whether the chunk shares a side with the dig and is not already occupied
-     */
-    boolean isValidCampChunk(Site site, String world, int chunkX, int chunkZ) {
-        if (!world.equals(site.getWorldName())) {
-            return false;
-        }
-        if (!isNeighborChunk(site.getChunkX(), site.getChunkZ(), chunkX, chunkZ)) {
-            return false;
-        }
-        return !occupiedByOther(site, world, chunkX, chunkZ);
-    }
-
-    /**
+     * Callers rule out the site's own dig chunk first, so any ruin found there is another one.
+     *
      * @param self site being placed or moved
      * @param world world name
-     * @param chunkX chunk X
+     * @param chunkX chunk X, never the dig chunk of {@code self}
      * @param chunkZ chunk Z
      * @return whether a different site already owns this chunk
      */
     private boolean occupiedByOther(Site self, String world, int chunkX, int chunkZ) {
-        return sites.findByChunk(world, chunkX, chunkZ)
-                .filter(other -> !other.getId().equals(self.getId()))
-                .isPresent()
+        return sites.findByChunk(world, chunkX, chunkZ).isPresent()
                 || sites.findByEstablishmentChunk(world, chunkX, chunkZ)
                 .filter(other -> !other.getId().equals(self.getId()))
                 .isPresent();
@@ -1190,9 +1136,7 @@ public class EstablishService {
      * @return whether they share a full side
      */
     static boolean isNeighborChunk(int siteX, int siteZ, int chunkX, int chunkZ) {
-        int dx = Math.abs(chunkX - siteX);
-        int dz = Math.abs(chunkZ - siteZ);
-        return (dx == 1 && dz == 0) || (dx == 0 && dz == 1);
+        return Math.abs(chunkX - siteX) + Math.abs(chunkZ - siteZ) == 1;
     }
 
     /**
@@ -1228,9 +1172,8 @@ public class EstablishService {
      */
     public void clearPreview(Player player) {
         lastPulse.remove(player.getUniqueId());
-        lastPulseSite.remove(player.getUniqueId());
         Map<BlockPos, BlockData> previous = previews.remove(player.getUniqueId());
-        if (previous == null || previous.isEmpty()) {
+        if (previous == null) {
             return;
         }
         World world = player.getWorld();
@@ -1247,7 +1190,7 @@ public class EstablishService {
      */
     public void clearPreviewFromWorld(Player player, World from) {
         Map<BlockPos, BlockData> previous = previews.remove(player.getUniqueId());
-        if (previous == null || previous.isEmpty()) {
+        if (previous == null) {
             return;
         }
         for (BlockPos pos : previous.keySet()) {
@@ -1256,8 +1199,13 @@ public class EstablishService {
     }
 
     /**
+     * Skips cells of another world. A world change cancels a camp move through
+     * {@link #clearSession(Player)} before {@link #clearPreviewFromWorld(Player, World)} runs, so
+     * {@link #clearPreview(Player)} then sees the destination world. The client has already
+     * dropped the old world's ghost blocks, and reading the destination would load its chunks.
+     *
      * @param player viewer
-     * @param world player's world
+     * @param world world to read real blocks from
      * @param pos fake block
      */
     private void restore(Player player, World world, BlockPos pos) {
@@ -1280,7 +1228,7 @@ public class EstablishService {
      * @param pos restored cell
      */
     private void resendSign(Player player, World world, BlockPos pos) {
-        if (!player.isOnline() || !pos.world().equals(world.getName())) {
+        if (!player.isOnline()) {
             return;
         }
         CampSigns.sendTo(player, world.getBlockAt(pos.x(), pos.y(), pos.z()));
@@ -1332,9 +1280,7 @@ public class EstablishService {
         BossBar bar = bars.computeIfAbsent(
                 player.getUniqueId(),
                 id -> plugin.getServer().createBossBar("", BarColor.WHITE, BarStyle.SOLID));
-        if (!bar.getPlayers().contains(player)) {
-            bar.addPlayer(player);
-        }
+        bar.addPlayer(player); // Idempotent on Spigot and Paper: the viewers are a set.
         bar.setVisible(true);
         bar.setProgress(1.0);
         bar.setColor(allowed ? BarColor.GREEN : BarColor.RED);

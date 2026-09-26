@@ -20,9 +20,6 @@ public final class CabinetCues {
      * @param player cataloguer
      */
     public static void complete(JavaPlugin plugin, Player player) {
-        if (player == null) {
-            return;
-        }
         player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_YES, SoundCategory.PLAYERS, 0.9f, 1.1f);
         player.getWorld().spawnParticle(
                 Particle.HAPPY_VILLAGER,
@@ -32,10 +29,6 @@ public final class CabinetCues {
                 0.25,
                 0.35,
                 0.02);
-        if (plugin == null) {
-            player.closeInventory();
-            return;
-        }
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             if (player.isOnline()) {
                 player.closeInventory();
@@ -49,9 +42,6 @@ public final class CabinetCues {
      * @param player cataloguer
      */
     public static void signedReading(Player player) {
-        if (player == null) {
-            return;
-        }
         player.playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, SoundCategory.PLAYERS, 1f, 1.1f);
     }
 }

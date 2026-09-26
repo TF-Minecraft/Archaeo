@@ -172,11 +172,10 @@ public class ArcheologyPlugin extends JavaPlugin {
                 autoRuins,
                 campClosure,
                 sitePurge);
+        // plugin.yml in this jar declares the command, so Bukkit always returns it.
         PluginCommand pluginCommand = getCommand("archaeo");
-        if (pluginCommand != null) {
-            pluginCommand.setExecutor(command);
-            pluginCommand.setTabCompleter(command);
-        }
+        pluginCommand.setExecutor(command);
+        pluginCommand.setTabCompleter(command);
         getLogger().info("Archaeo enabled. Loaded sites: " + sites.all().size());
     }
 
@@ -186,34 +185,17 @@ public class ArcheologyPlugin extends JavaPlugin {
      * @param matcher detected APIs, or vanilla-only
      */
     public void bindItemMatcher(ItemMatcher matcher) {
+        // Callers (enable, reload, the pack-plugin hook) run only after onEnable built every item.
         ItemMatcher bound = matcher == null ? ItemMatcher.vanillaOnly() : matcher;
-        if (trackerItem != null) {
-            trackerItem.setMatcher(bound);
-        }
-        if (prospectItem != null) {
-            prospectItem.setMatcher(bound);
-        }
-        if (establishItem != null) {
-            establishItem.setMatcher(bound);
-        }
-        if (brushItem != null) {
-            brushItem.setMatcher(bound);
-        }
-        if (sketchSupplies != null) {
-            sketchSupplies.setMatcher(bound);
-        }
-        if (digTools != null) {
-            digTools.setMatcher(bound);
-        }
-        if (recoveredFindItem != null) {
-            recoveredFindItem.setMatcher(bound);
-        }
-        if (sketch != null) {
-            sketch.setMatcher(bound);
-        }
-        if (museum != null) {
-            museum.setMatcher(bound);
-        }
+        trackerItem.setMatcher(bound);
+        prospectItem.setMatcher(bound);
+        establishItem.setMatcher(bound);
+        brushItem.setMatcher(bound);
+        sketchSupplies.setMatcher(bound);
+        digTools.setMatcher(bound);
+        recoveredFindItem.setMatcher(bound);
+        sketch.setMatcher(bound);
+        museum.setMatcher(bound);
     }
 
     /**

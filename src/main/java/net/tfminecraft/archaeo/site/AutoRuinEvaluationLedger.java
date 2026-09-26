@@ -75,17 +75,12 @@ public class AutoRuinEvaluationLedger {
             sawDiskRoot = false;
             return;
         }
+        // Every dirty entry was marked beside its bitset, and load/clearAll/reset drop both maps.
         for (Map.Entry<String, Map<Long, Boolean>> worldEntry : dirty.entrySet()) {
             String worldName = worldEntry.getKey();
             Map<Long, BitSet> regions = worlds.get(worldName);
-            if (regions == null) {
-                continue;
-            }
             for (Long regionKey : worldEntry.getValue().keySet()) {
-                BitSet bits = regions.get(regionKey);
-                if (bits != null) {
-                    writeRegion(worldName, regionKey, bits);
-                }
+                writeRegion(worldName, regionKey, regions.get(regionKey));
             }
             worldEntry.getValue().clear();
         }
@@ -218,8 +213,8 @@ public class AutoRuinEvaluationLedger {
         try (var files = Files.list(folder)) {
             files.filter(path -> path.getFileName().toString().endsWith(".bin")).forEach(path -> {
                 String name = path.getFileName().toString();
-                // r.<rx>.<rz>.bin
-                if (!name.startsWith("r.") || !name.endsWith(".bin")) {
+                // r.<rx>.<rz>.bin; the filter above already required the suffix
+                if (!name.startsWith("r.")) {
                     return;
                 }
                 String body = name.substring(2, name.length() - 4);
@@ -337,7 +332,7 @@ public class AutoRuinEvaluationLedger {
      * @return bitset (empty when the file was blank)
      */
     private static BitSet fromBytes(byte[] raw) {
-        if (raw == null || raw.length == 0) {
+        if (raw.length == 0) {
             return new BitSet(BITS);
         }
         return BitSet.valueOf(raw);

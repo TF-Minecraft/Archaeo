@@ -36,6 +36,11 @@ final class SketchRenderer extends MapRenderer {
         this.sketches = sketches;
     }
 
+    /** Keeps renderer reuse local to the service that owns its live sheets. */
+    boolean belongsTo(SketchService service) {
+        return sketches == service;
+    }
+
     /**
      * Copies dirty sheets onto the canvas. Other viewers see the drawing without a cursor.
      *

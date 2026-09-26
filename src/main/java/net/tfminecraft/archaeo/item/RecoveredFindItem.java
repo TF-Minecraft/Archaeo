@@ -136,8 +136,9 @@ public class RecoveredFindItem {
         if (template == null) {
             return ItemRef.vanilla(Material.BRICK);
         }
+        // BuriedFind stores a blank item as null, and every stored or generated find has an id.
         String chosen = find == null ? null : find.getItem();
-        if ((chosen == null || chosen.isBlank()) && find != null && find.getId() != null) {
+        if (chosen == null && find != null) {
             long seed = find.getId().getMostSignificantBits() ^ find.getId().getLeastSignificantBits();
             chosen = template.pickItem(new Random(seed));
             find.setItem(chosen);
@@ -164,9 +165,6 @@ public class RecoveredFindItem {
             String grade,
             CatalogRegistry catalogs
     ) {
-        if (player == null || find == null || find.getId() == null) {
-            return;
-        }
         UUID recoverer = find.getRecoveredBy() == null ? player.getUniqueId() : find.getRecoveredBy();
         boolean fieldDamaged = find.isFieldDamaged();
         PlayerInventory inventory = player.getInventory();
@@ -205,7 +203,7 @@ public class RecoveredFindItem {
             String grade,
             CatalogRegistry catalogs
     ) {
-        if (stack == null || find == null || find.getId() == null || !isThisFind(stack, find.getId())) {
+        if (find == null || !isThisFind(stack, find.getId())) {
             return;
         }
         UUID recoverer = find.getRecoveredBy();
@@ -222,7 +220,7 @@ public class RecoveredFindItem {
      */
     public boolean retitle(ItemStack stack, Site site, CatalogRegistry catalogs) {
         UUID findId = findIdOf(stack);
-        if (findId == null || site == null || site.getId() == null || !site.getId().equals(siteIdOf(stack))) {
+        if (findId == null || site == null || !site.getId().equals(siteIdOf(stack))) {
             return false;
         }
         BuriedFind find = site.findById(findId).orElse(null);
@@ -267,11 +265,7 @@ public class RecoveredFindItem {
         if (stack == null || stack.getType().isAir()) {
             return null;
         }
-        ItemMeta meta = stack.getItemMeta();
-        if (meta == null) {
-            return null;
-        }
-        return meta.getPersistentDataContainer().get(siteNameKey, PersistentDataType.STRING);
+        return stack.getItemMeta().getPersistentDataContainer().get(siteNameKey, PersistentDataType.STRING);
     }
 
     /**
@@ -309,11 +303,7 @@ public class RecoveredFindItem {
         if (stack == null || stack.getType().isAir() || findId == null) {
             return false;
         }
-        ItemMeta meta = stack.getItemMeta();
-        if (meta == null) {
-            return false;
-        }
-        var pdc = meta.getPersistentDataContainer();
+        var pdc = stack.getItemMeta().getPersistentDataContainer();
         if (!pdc.has(markerKey, PersistentDataType.BYTE)) {
             return false;
         }
@@ -329,11 +319,7 @@ public class RecoveredFindItem {
         if (stack == null || stack.getType().isAir()) {
             return null;
         }
-        ItemMeta meta = stack.getItemMeta();
-        if (meta == null) {
-            return null;
-        }
-        var pdc = meta.getPersistentDataContainer();
+        var pdc = stack.getItemMeta().getPersistentDataContainer();
         if (!pdc.has(markerKey, PersistentDataType.BYTE)) {
             return null;
         }
@@ -364,11 +350,7 @@ public class RecoveredFindItem {
         if (stack == null || stack.getType().isAir()) {
             return null;
         }
-        ItemMeta meta = stack.getItemMeta();
-        if (meta == null) {
-            return null;
-        }
-        var pdc = meta.getPersistentDataContainer();
+        var pdc = stack.getItemMeta().getPersistentDataContainer();
         if (!pdc.has(markerKey, PersistentDataType.BYTE)) {
             return null;
         }
@@ -392,11 +374,11 @@ public class RecoveredFindItem {
             return "recovered find";
         }
         ItemMeta meta = stack.getItemMeta();
-        if (meta == null || !meta.hasDisplayName()) {
+        if (!meta.hasDisplayName()) {
             return "recovered find";
         }
         String name = ChatColor.stripColor(meta.getDisplayName());
-        return name == null || name.isBlank() ? "recovered find" : name;
+        return name.isBlank() ? "recovered find" : name;
     }
 
     /**
@@ -414,13 +396,11 @@ public class RecoveredFindItem {
         String grade = catalogs == null ? null : catalogs.pick().conservation().gradeLabel(find.getConservation());
         ItemStack stack = baseStack(template, find);
         ItemMeta meta = stack.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName(ChatColor.WHITE + name);
-            List<String> lines = lore(template, site, find, grade, find.isFieldDamaged(), catalogs);
-            lines.add(ChatColor.DARK_GRAY + "The real artifact stays in your hand.");
-            meta.setLore(lines);
-            stack.setItemMeta(meta);
-        }
+        meta.setDisplayName(ChatColor.WHITE + name);
+        List<String> lines = lore(template, site, find, grade, find.isFieldDamaged(), catalogs);
+        lines.add(ChatColor.DARK_GRAY + "The real artifact stays in your hand.");
+        meta.setLore(lines);
+        stack.setItemMeta(meta);
         return stack;
     }
 
@@ -444,10 +424,8 @@ public class RecoveredFindItem {
             boolean fieldDamaged,
             CatalogRegistry catalogs
     ) {
+        // Only ever a non-air stack: baseStack never returns air, and refreshed stacks are tagged finds.
         ItemMeta meta = stack.getItemMeta();
-        if (meta == null) {
-            return;
-        }
         String name = find.shownName(template == null ? null : template.displayName());
         meta.setDisplayName(ChatColor.WHITE + name);
         meta.setLore(lore(template, site, find, grade, fieldDamaged, catalogs));
@@ -460,7 +438,7 @@ public class RecoveredFindItem {
         pdc.set(findIdKey, PersistentDataType.STRING, find.getId().toString());
         pdc.set(findNumberKey, PersistentDataType.INTEGER, find.getFindNumber());
         pdc.set(artifactIdKey, PersistentDataType.STRING, find.getArtifactId());
-        pdc.set(stratumKey, PersistentDataType.STRING, find.getStratumId() == null ? "" : find.getStratumId());
+        pdc.set(stratumKey, PersistentDataType.STRING, find.getStratumId());
         pdc.set(conservationKey, PersistentDataType.INTEGER, find.getConservation());
         pdc.set(buriedConservationKey, PersistentDataType.INTEGER, find.getBuriedConservation());
         pdc.set(gradeKey, PersistentDataType.STRING, grade == null ? "" : grade);
@@ -511,7 +489,7 @@ public class RecoveredFindItem {
             lore.add(ChatColor.RED + "Hurt while digging");
         }
         if (conditionKnown(find)) {
-            if (template != null && catalogs != null) {
+            if (template != null) {
                 lore.add(ChatColor.GRAY + "Material: " + ChatColor.WHITE
                         + catalogs.materialDisplayName(template.material()));
             }
@@ -529,9 +507,10 @@ public class RecoveredFindItem {
         if (hint != null) {
             lore.add(hint);
         }
-        if (find.isStudied() && template != null) {
+        if (find.isStudied()) {
+            // The dossier's own note outlives its catalog row; the catalog note is only a fallback.
             String notes = find.getStudyNotes();
-            if (notes == null || notes.isBlank()) {
+            if ((notes == null || notes.isBlank()) && template != null) {
                 notes = template.studyNotes();
             }
             if (notes != null && !notes.isBlank()) {
@@ -619,7 +598,7 @@ public class RecoveredFindItem {
             }
         }
         if (typeLabel == null || typeLabel.isBlank()) {
-            return phrase == null ? "" : phrase;
+            return phrase;
         }
         return typeLabel + ": " + phrase;
     }
@@ -653,9 +632,8 @@ public class RecoveredFindItem {
             }
             line.append(word);
         }
-        if (line.length() > 0) {
-            lore.add(ChatColor.WHITE + prefix + line);
-        }
+        // Callers only wrap non-blank text, so the last word always leaves a line to flush.
+        lore.add(ChatColor.WHITE + prefix + line);
     }
 }
 

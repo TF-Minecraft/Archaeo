@@ -132,8 +132,8 @@ public class TrackerService {
         if (current == null) {
             return best;
         }
-        if (best != null
-                && !best.site().getId().equals(current.site().getId())
+        // The locked site is hidden, in range and ahead, so the full scan found at least that one.
+        if (!best.site().getId().equals(current.site().getId())
                 && betterLook(best, current)) {
             return best;
         }
@@ -215,13 +215,12 @@ public class TrackerService {
     /**
      * @param player scanner
      * @param site ruin
-     * @return whether the player is already in the registered chunk (look no longer matters)
+     * @return whether the player is already in the registered chunk (look no longer matters);
+     *         {@link #hitOrNull} has already matched the world
      */
     private boolean standingOnSite(Player player, Site site) {
         Location here = player.getLocation();
-        return here.getWorld() != null
-                && here.getWorld().getName().equals(site.getWorldName())
-                && here.getChunk().getX() == site.getChunkX()
+        return here.getChunk().getX() == site.getChunkX()
                 && here.getChunk().getZ() == site.getChunkZ();
     }
 
@@ -239,16 +238,14 @@ public class TrackerService {
     /**
      * @param player scanner
      * @param site ruin
-     * @return {@code 1} looking straight at the chunk, {@code 0} side-on or behind. Not used on-chunk.
+     * @return {@code 1} looking straight at the chunk, {@code 0} side-on or behind. Not used on-chunk,
+     *         so the scanner is always several blocks from the chunk centre
      */
     private double lookAlignment(Player player, Site site) {
         Location here = player.getLocation();
         double dx = site.centerBlockX() + 0.5 - here.getX();
         double dz = site.centerBlockZ() + 0.5 - here.getZ();
         double length = Math.hypot(dx, dz);
-        if (length < 0.01) {
-            return 1.0;
-        }
         double[] look = lookHeading(player);
         return Math.max(0.0, (look[0] * dx + look[1] * dz) / length);
     }
@@ -324,11 +321,9 @@ public class TrackerService {
             double radius = ringRadius(hit, bands, index, radii);
             float note = pitch + index * 0.06f;
             long delay = (long) index * step;
+            // The origin is a copy of the scanner's location, which always carries its world.
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 World world = origin.getWorld();
-                if (world == null) {
-                    return;
-                }
                 world.playSound(origin, Sound.BLOCK_NOTE_BLOCK_CHIME, SoundCategory.PLAYERS, volume, note);
                 if (settings.pulseParticles()) {
                     spawnRing(origin, radius, dense, heading, onChunk);
@@ -343,13 +338,13 @@ public class TrackerService {
      * @param hit locked site
      * @param bands 1–4
      * @param index pip index inside the burst
-     * @param radii configured sizes
+     * @param radii configured sizes; the catalogue always loads three
      * @return ring radius in blocks
      */
     private double ringRadius(ScanHit hit, int bands, int index, List<Double> radii) {
         if (bands == 1) {
             double inner = radii.get(0);
-            double outer = radii.size() > 1 ? radii.get(1) : inner * 2;
+            double outer = radii.get(1);
             double medium = mediumBand();
             double farSpan = Math.max(1.0, hit.range() - medium);
             double t = Math.min(1.0, Math.max(0.0, (hit.sensedDistance() - medium) / farSpan));
@@ -444,12 +439,10 @@ public class TrackerService {
      */
     private void spawnRing(Location origin, double radius, boolean near, double[] heading, boolean fullCircle) {
         World world = origin.getWorld();
-        if (world == null) {
-            return;
-        }
         Particle particle = settings.waveParticle();
         int points = Math.max(12, (int) Math.round(radius * (fullCircle ? 16 : near ? 14 : 10)));
-        boolean clipArc = !fullCircle && (heading[0] != 0 || heading[1] != 0);
+        // The heading is a unit vector, so an off-chunk pulse always has a direction to clip to.
+        boolean clipArc = !fullCircle;
         double headingAngle = Math.atan2(heading[1], heading[0]);
         for (int i = 0; i < points; i++) {
             double angle = (2 * Math.PI * i) / points;

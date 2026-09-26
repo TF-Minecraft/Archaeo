@@ -4,7 +4,6 @@ import net.tfminecraft.archaeo.item.ItemMatcher;
 import net.tfminecraft.archaeo.item.ItemRef;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
-import org.bukkit.block.Shelf;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemDisplay;
@@ -36,9 +35,6 @@ public record MuseumSettings(List<ItemRef> displays) {
      * @return whether that material is on the whitelist
      */
     public boolean allowsVanilla(Material material) {
-        if (material == null) {
-            return false;
-        }
         if (allowsNamed(material.name())) {
             return true;
         }
@@ -50,9 +46,6 @@ public record MuseumSettings(List<ItemRef> displays) {
      * @return whether this frame kind is listed
      */
     public boolean allowsFrame(ItemFrame frame) {
-        if (frame == null) {
-            return false;
-        }
         String name = frame.getType().name();
         if ("GLOW_ITEM_FRAME".equals(name)) {
             return allowsNamed("GLOW_ITEM_FRAME");
@@ -61,11 +54,12 @@ public record MuseumSettings(List<ItemRef> displays) {
     }
 
     /**
-     * @param entity armor stand, item display, or ItemsAdder furniture
-     * @param matcher pack lookups
+     * Vanilla entity supports. ItemsAdder furniture entities are matched by {@link #allowsSupport}.
+     *
+     * @param entity frame, armor stand, or item display
      * @return whether this support is listed
      */
-    public boolean allowsEntity(Entity entity, ItemMatcher matcher) {
+    public boolean allowsEntity(Entity entity) {
         if (entity == null) {
             return false;
         }
@@ -77,14 +71,6 @@ public record MuseumSettings(List<ItemRef> displays) {
         }
         if (entity instanceof ItemDisplay) {
             return allowsNamed("ITEM_DISPLAY");
-        }
-        if (matcher == null) {
-            return false;
-        }
-        for (ItemRef ref : displays) {
-            if (matcher.matchesEntity(entity, ref)) {
-                return true;
-            }
         }
         return false;
     }
@@ -102,19 +88,12 @@ public record MuseumSettings(List<ItemRef> displays) {
             Block block,
             ItemMatcher matcher
     ) {
-        if (allowsEntity(entity, matcher)) {
+        if (allowsEntity(entity)) {
             return true;
         }
-        if (block != null) {
-            if (allowsVanilla(block.getType())) {
-                return true;
-            }
-            if (block.getState() instanceof Shelf && allowsNamed("SHELF")) {
-                return true;
-            }
-        }
-        if (matcher == null) {
-            return false;
+        // Every shelf block is a *_SHELF material, so allowsVanilla already covers SHELF.
+        if (block != null && allowsVanilla(block.getType())) {
+            return true;
         }
         for (ItemRef ref : displays) {
             if (ref.kind() != ItemRef.Kind.ITEMSADDER) {
@@ -134,9 +113,6 @@ public record MuseumSettings(List<ItemRef> displays) {
      * @return whether that name is listed
      */
     private boolean allowsNamed(String name) {
-        if (name == null) {
-            return false;
-        }
         String wanted = name.toUpperCase(Locale.ROOT);
         for (ItemRef ref : displays) {
             if (ref.kind() == ItemRef.Kind.VANILLA && wanted.equalsIgnoreCase(ref.primary())) {

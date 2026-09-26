@@ -48,10 +48,7 @@ public enum SketchInk {
      */
     public SketchInk next() {
         SketchInk[] values = values();
-        int firstStroke = CHARCOAL.ordinal();
-        if (ordinal() < firstStroke) {
-            return CHARCOAL;
-        }
+        // PAPER sits just before CHARCOAL, so it steps straight into the stroke cycle.
         int next = ordinal() + 1;
         if (next >= values.length) {
             return CHARCOAL;

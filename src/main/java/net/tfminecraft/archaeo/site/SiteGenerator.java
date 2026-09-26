@@ -215,9 +215,6 @@ public class SiteGenerator {
         Set<BlockCell> allowed = new HashSet<>(buriedPocket(origin.getWorld(), site, band, 0));
         allowed.add(start);
         LinkedCells grown = grow(start, allowed, occupied, size, new Random());
-        if (grown.cells().isEmpty()) {
-            throw new IllegalStateException("Could not grow a find from this block");
-        }
 
         BuriedFind find = new BuriedFind();
         find.setId(UUID.randomUUID());
@@ -407,10 +404,8 @@ public class SiteGenerator {
         if (template == null) {
             return false;
         }
+        // pickArtifact only offers templates with at least one present stratum.
         List<String> compatible = template.strata().stream().filter(present::contains).toList();
-        if (compatible.isEmpty()) {
-            return false;
-        }
         String stratumId = compatible.get(random.nextInt(compatible.size()));
         StratumBand band = site.getStrata().get(stratumId);
         int size = template.sizeMin() + random.nextInt(template.sizeMax() - template.sizeMin() + 1);
@@ -439,7 +434,7 @@ public class SiteGenerator {
      *
      * @param template artifact row (its material decides how well it survives)
      * @param stratumId band that holds the find
-     * @param band that band's disturbed flag
+     * @param band that band (never {@code null}), read for its disturbed flag
      * @param random site RNG
      * @return buried condition, 1–100
      */
@@ -463,7 +458,7 @@ public class SiteGenerator {
         StratumDefinition definition = catalog.stratum(stratumId);
         int depthSteps = definition == null ? 0 : Math.max(0, definition.order() - 1);
         value -= (double) depthSteps * settings.depthPenalty();
-        if (band != null && band.isDisturbed()) {
+        if (band.isDisturbed()) {
             value -= settings.disturbedPenalty();
         }
         value *= catalog.materialSurvival(template.material());
@@ -481,15 +476,12 @@ public class SiteGenerator {
      * sight, recoverable without digging at all.
      *
      * @param world ruin world; the chunk is already loaded by the caller
-     * @param band stratum band, or {@code null}
+     * @param band present stratum band
      * @param site chunk bounds
      * @param cover fill blocks that must sit on top of a cell before it can hold a find
      * @return usable cells, empty when the terrain leaves no room in this band
      */
     private List<BlockCell> buriedPocket(World world, Site site, StratumBand band, int cover) {
-        if (band == null || !band.isPresent()) {
-            return List.of();
-        }
         int minX = site.getChunkX() << 4;
         int minZ = site.getChunkZ() << 4;
         List<BlockCell> pocket = new ArrayList<>();
@@ -528,7 +520,7 @@ public class SiteGenerator {
     /**
      * Grows a compact face-connected blob (same Y, no diagonal corners) inside a stratum's buried pocket.
      *
-     * @param pocket cells this stratum may use, or {@code null}
+     * @param pocket non-empty buried cells this stratum may use
      * @param occupied cells claimed by other finds
      * @param targetSize desired cell count
      * @param random site RNG
@@ -540,9 +532,6 @@ public class SiteGenerator {
             int targetSize,
             Random random
     ) {
-        if (pocket == null || pocket.isEmpty()) {
-            return List.of();
-        }
         Set<BlockCell> allowed = new HashSet<>(pocket);
         for (int attempt = 0; attempt < catalog.maxShapeAttempts(); attempt++) {
             BlockCell start = randomFreeCell(pocket, occupied, random);
@@ -650,9 +639,6 @@ public class SiteGenerator {
         int want = Math.min(settings.hintCount(), pool.size());
         for (int i = 0; i < want; i++) {
             HintTemplate pick = weightedHint(pool, random);
-            if (pick == null) {
-                break;
-            }
             selected.add(pick.id());
             pool.remove(pick);
         }
@@ -720,45 +706,41 @@ public class SiteGenerator {
         int total = pool.stream().mapToInt(ArtifactTemplate::weight).sum();
         int roll = random.nextInt(Math.max(1, total));
         int cursor = 0;
-        for (ArtifactTemplate template : pool) {
-            cursor += template.weight();
+        for (int i = 0; i < pool.size() - 1; i++) {
+            cursor += pool.get(i).weight();
             if (roll < cursor) {
-                return template;
+                return pool.get(i);
             }
         }
         return pool.getLast();
     }
 
     /**
-     * @param pool remaining hint templates
+     * @param pool remaining hint templates; {@link #pickHints} never passes an empty pool
      * @param random site RNG
-     * @return one template by weight, or {@code null} if {@code pool} is empty
+     * @return one template by weight
      */
     private HintTemplate weightedHint(List<HintTemplate> pool, Random random) {
-        if (pool.isEmpty()) {
-            return null;
-        }
         int total = pool.stream().mapToInt(HintTemplate::weight).sum();
         int roll = random.nextInt(Math.max(1, total));
         int cursor = 0;
-        for (HintTemplate hint : pool) {
-            cursor += hint.weight();
+        for (int i = 0; i < pool.size() - 1; i++) {
+            cursor += pool.get(i).weight();
             if (roll < cursor) {
-                return hint;
+                return pool.get(i);
             }
         }
         return pool.getLast();
     }
 
     /**
-     * @param finds placed finds
+     * @param finds finds just placed from {@link CatalogRegistry#artifacts()}, so each id resolves
      * @return union of artifact tags for the finds already placed
      */
     private Set<String> findTags(List<BuriedFind> finds) {
         return finds.stream()
                 .map(BuriedFind::getArtifactId)
                 .map(catalog::artifact)
-                .filter(template -> template != null)
                 .flatMap(template -> template.tags().stream())
                 .collect(Collectors.toCollection(HashSet::new));
     }
@@ -802,10 +784,9 @@ public class SiteGenerator {
     }
 
     /**
-     * Reads a biome id on Paper 1.21.10 ({@code Keyed.getKey}) and on later APIs
-     * ({@code getKeyOrNull}). The Maven {@code 1.21.10-R0.1-SNAPSHOT} javadoc already
-     * deprecates {@code getKey} and documents {@code getKeyOrNull}; that method is not
-     * on Paper 1.21.10 builds, so a direct call crashes at runtime.
+     * Reads a biome id on Paper ({@code Keyed.getKey}) and on Spigot, whose {@code RegistryAware}
+     * adds {@code getKeyOrNull} and makes {@code getKey} throw for an unregistered biome.
+     * paper-api 1.21.10 has no {@code getKeyOrNull}, so it is looked up reflectively.
      *
      * @param biome chunk biome
      * @return namespaced key, or {@code null} if the biome is unregistered
@@ -813,12 +794,10 @@ public class SiteGenerator {
     @SuppressWarnings("deprecation")
     private static NamespacedKey biomeKey(Biome biome) {
         try {
-            Object value = biome.getClass().getMethod("getKeyOrNull").invoke(biome);
-            if (value instanceof NamespacedKey key) {
-                return key;
-            }
+            // Spigot's RegistryAware: getKey() throws for an unregistered biome, so trust getKeyOrNull's null.
+            return (NamespacedKey) biome.getClass().getMethod("getKeyOrNull").invoke(biome);
         } catch (ReflectiveOperationException ignored) {
-            // Paper 1.21.10: RegistryAware helpers are absent
+            // Paper has no RegistryAware, so fall back to Keyed.getKey
         }
         return biome.getKey();
     }

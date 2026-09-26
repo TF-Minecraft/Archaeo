@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongSupplier;
 
 /**
  * Samples ground in a hidden ruin chunk. Confirmation is per player and does not plant a camp.
@@ -41,6 +42,8 @@ public class ProspectService {
     private ProspectSettings settings;
     private final Map<UUID, BukkitTask> channeling = new ConcurrentHashMap<>();
     private final Map<UUID, Long> cooldownUntilMs = new ConcurrentHashMap<>();
+    /** Wall clock in milliseconds for the sampling cooldown; tests replace it to step past the cooldown. */
+    LongSupplier clock = System::currentTimeMillis;
 
     /**
      * @param plugin scheduler owner
@@ -242,10 +245,8 @@ public class ProspectService {
      * @param cell sample coordinates
      */
     private void finishSample(Player player, Site site, BlockCell cell) {
-        if (!site.addProspectSample(player.getUniqueId(), cell)) {
-            player.sendMessage("You already sampled this spot. Try another point.");
-            return;
-        }
+        // begin() refused a repeated cell and one player runs one channel, so the point is new.
+        site.addProspectSample(player.getUniqueId(), cell);
         damageKit(player);
         int count = site.prospectSamples(player.getUniqueId()).size();
         int need = Math.max(1, settings.pointsRequired());
@@ -314,10 +315,8 @@ public class ProspectService {
         if (site.getInterest() == null) {
             return "The reading is inconclusive.";
         }
+        // The catalogue always holds every interest level (a failed reload keeps the old one).
         InterestSettings interest = catalogs.interest(site.getInterest());
-        if (interest == null) {
-            return "The reading is inconclusive.";
-        }
         int extra = 0;
         if (interest.variation() > 0) {
             int hash = Objects.hash(site.getId(), player.getUniqueId(), sampleIndex);
@@ -343,19 +342,15 @@ public class ProspectService {
     }
 
     /**
-     * Applies one durability point to the kit in the main hand.
+     * Applies one durability point to the kit in the main hand. The channel checked the kit is
+     * still held on this tick, and every server item meta is {@link Damageable}.
      *
      * @param player scanner
      */
     private void damageKit(Player player) {
         ItemStack stack = player.getInventory().getItemInMainHand();
-        if (!item.isProspect(stack)) {
-            return;
-        }
         ItemMeta meta = stack.getItemMeta();
-        if (!(meta instanceof Damageable damageable)) {
-            return;
-        }
+        Damageable damageable = (Damageable) meta;
         short max = stack.getType().getMaxDurability();
         if (max <= 0) {
             return;
@@ -403,7 +398,7 @@ public class ProspectService {
      */
     private boolean onCooldown(Player player) {
         Long until = cooldownUntilMs.get(player.getUniqueId());
-        return until != null && until > System.currentTimeMillis();
+        return until != null && until > clock.getAsLong();
     }
 
     /**
@@ -411,6 +406,6 @@ public class ProspectService {
      * @param millis cooldown length
      */
     private void armCooldown(Player player, long millis) {
-        cooldownUntilMs.put(player.getUniqueId(), System.currentTimeMillis() + millis);
+        cooldownUntilMs.put(player.getUniqueId(), clock.getAsLong() + millis);
     }
 }

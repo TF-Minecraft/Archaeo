@@ -1,7 +1,5 @@
 package net.tfminecraft.archaeo.site;
 
-import net.tfminecraft.archaeo.model.SiteStatus;
-
 /**
  * Snapshot of how many dossiers sit in each lifecycle bucket. Used by staff census, not by players.
  *
@@ -22,16 +20,4 @@ public record SiteCensus(int total, int hidden, int established, int exhausted, 
         return established + exhausted + closed;
     }
 
-    /**
-     * @param status lifecycle bucket
-     * @return count for that status
-     */
-    public int of(SiteStatus status) {
-        return switch (status) {
-            case HIDDEN -> hidden;
-            case ESTABLISHED -> established;
-            case EXHAUSTED -> exhausted;
-            case CLOSED -> closed;
-        };
-    }
 }

@@ -52,12 +52,9 @@ public final class SiteLabelRefresh {
      * Updates every matching stack currently loaded: players, dropped items, frames, and tile inventories.
      * Chests in unloaded chunks catch up when a player opens them.
      *
-     * @param site excavation whose public name just changed
+     * @param site stored excavation whose public name just changed
      */
     public void retitle(Site site) {
-        if (site == null || site.getId() == null) {
-            return;
-        }
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             PlayerInventory inventory = player.getInventory();
             retitleInventory(inventory, site);
@@ -105,9 +102,6 @@ public final class SiteLabelRefresh {
      */
     private void retitleArmorStand(ArmorStand stand, Site site) {
         EntityEquipment equipment = stand.getEquipment();
-        if (equipment == null) {
-            return;
-        }
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             ItemStack stack = equipment.getItem(slot);
             if (retitleStack(stack, site)) {
@@ -121,13 +115,11 @@ public final class SiteLabelRefresh {
      * @param site excavation
      */
     private void retitleInventory(Inventory inventory, Site site) {
-        if (inventory == null) {
-            return;
-        }
         ItemStack[] contents = inventory.getContents();
         for (int i = 0; i < contents.length; i++) {
             ItemStack stack = contents[i];
-            if (stack == null || stack.getType().isAir()) {
+            // getContents reports an empty slot as null, never as an air stack.
+            if (stack == null) {
                 continue;
             }
             boolean changed = retitleNested(stack, site);
@@ -159,7 +151,7 @@ public final class SiteLabelRefresh {
         boolean changed = false;
         for (int i = 0; i < contents.length; i++) {
             ItemStack nested = contents[i];
-            if (nested == null || nested.getType().isAir()) {
+            if (nested == null) {
                 continue;
             }
             if (retitleStack(nested, site)) {

@@ -81,7 +81,7 @@ public class RuinAutoSpawner implements Listener {
         this.generator = generator;
         this.ledger = ledger;
         this.policyFile = plugin.getDataFolder().toPath().resolve("auto-ruins").resolve("evaluation-policy.txt");
-        this.settings = settings == null ? AutoRuinSettings.defaults() : settings;
+        this.settings = settings;
     }
 
     /**
@@ -92,7 +92,7 @@ public class RuinAutoSpawner implements Listener {
      * @param settings latest values after reload
      */
     public void setSettings(AutoRuinSettings settings) {
-        AutoRuinSettings next = settings == null ? AutoRuinSettings.defaults() : settings;
+        AutoRuinSettings next = settings;
         boolean chanceChanged = Double.compare(this.settings.chancePerChunk(), next.chancePerChunk()) != 0;
         this.settings = next;
         if (chanceChanged) {
@@ -278,7 +278,7 @@ public class RuinAutoSpawner implements Listener {
         dropUnloadedFromQueue(unloadBudget);
         int evalBudget = Math.max(1, settings.maxEvaluationsPerTick());
         for (int i = 0; i < evalBudget; i++) {
-            Pending pending = pollLoadedPending(unloadBudget);
+            Pending pending = pollLoadedPending();
             if (pending == null) {
                 return;
             }
@@ -296,9 +296,6 @@ public class RuinAutoSpawner implements Listener {
         int n = Math.min(unloadBudget[0], queue.size());
         for (int i = 0; i < n; i++) {
             Pending pending = queue.poll();
-            if (pending == null) {
-                return;
-            }
             unloadBudget[0]--;
             if (isChunkLoaded(pending)) {
                 queue.offer(pending);
@@ -309,25 +306,22 @@ public class RuinAutoSpawner implements Listener {
     }
 
     /**
-     * @param unloadBudget remaining checks for dropping unloaded entries this tick
-     * @return next queued chunk that is still loaded, or {@code null} when none found within budget
+     * An unloaded head can only be an entry {@link #dropUnloadedFromQueue} had no budget left to
+     * check: when the budget covers the whole queue, every entry still queued was loaded this tick.
+     * It stays at the front for the next tick's purge.
+     *
+     * @return next queued chunk if it is still loaded, or {@code null} when the queue is empty or
+     *         its head is unloaded
      */
-    private Pending pollLoadedPending(int[] unloadBudget) {
-        while (!queue.isEmpty()) {
-            Pending pending = queue.poll();
-            if (pending == null) {
-                return null;
-            }
-            if (isChunkLoaded(pending)) {
-                return pending;
-            }
-            if (unloadBudget[0] <= 0) {
-                queue.addFirst(pending);
-                return null;
-            }
-            unloadBudget[0]--;
-            inflight.remove(key(pending.worldName(), pending.chunkX(), pending.chunkZ()));
+    private Pending pollLoadedPending() {
+        Pending pending = queue.poll();
+        if (pending == null) {
+            return null;
         }
+        if (isChunkLoaded(pending)) {
+            return pending;
+        }
+        queue.addFirst(pending);
         return null;
     }
 
@@ -348,11 +342,8 @@ public class RuinAutoSpawner implements Listener {
      */
     private void evaluate(Pending pending) {
         String key = key(pending.worldName(), pending.chunkX(), pending.chunkZ());
+        // pollLoadedPending just found this chunk loaded in a loaded world, on this tick.
         World world = plugin.getServer().getWorld(pending.worldName());
-        if (world == null || !world.isChunkLoaded(pending.chunkX(), pending.chunkZ())) {
-            inflight.remove(key);
-            return;
-        }
         if (settings.maxSitesPerWorld() > 0
                 && countSitesInWorld(pending.worldName()) >= settings.maxSitesPerWorld()) {
             // Under the cap later this chunk may still be eligible; do not burn the evaluation.
@@ -534,14 +525,16 @@ public class RuinAutoSpawner implements Listener {
         } else {
             roll = ThreadLocalRandom.current().nextInt(total);
         }
+        // roll < total, so it lands in some level's slot; reaching the end means the last level.
+        InterestLevel[] levels = InterestLevel.values();
         int cursor = 0;
-        for (InterestLevel level : InterestLevel.values()) {
-            cursor += Math.max(0, weights.getOrDefault(level, 0));
+        for (int i = 0; i < levels.length - 1; i++) {
+            cursor += Math.max(0, weights.getOrDefault(levels[i], 0));
             if (roll < cursor) {
-                return level;
+                return levels[i];
             }
         }
-        return InterestLevel.MEDIUM;
+        return levels[levels.length - 1];
     }
 
     /**

@@ -70,11 +70,11 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onMove(PlayerMoveEvent event) {
-        if (!sketches.editing(event.getPlayer()) || event.getTo() == null) {
+        if (!sketches.editing(event.getPlayer())) {
             return;
         }
-        if (!event.getFrom().getWorld().equals(event.getTo().getWorld())
-                || event.getFrom().getX() != event.getTo().getX()
+        // Cross-world moves are PlayerTeleportEvents, which have their own handler list.
+        if (event.getFrom().getX() != event.getTo().getX()
                 || event.getFrom().getY() != event.getTo().getY()
                 || event.getFrom().getZ() != event.getTo().getZ()) {
             Location stay = event.getFrom().clone();
@@ -138,9 +138,7 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onCombine(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player player)) {
-            return;
-        }
+        Player player = (Player) event.getWhoClicked();
         if (event.getClickedInventory() == null) {
             return;
         }
@@ -148,9 +146,7 @@ public class SketchListener implements Listener {
         if (type != InventoryType.PLAYER && type != InventoryType.CRAFTING && type != InventoryType.CREATIVE) {
             return;
         }
-        ItemStack cursor = event.getCursor() == null
-                ? new ItemStack(org.bukkit.Material.AIR)
-                : event.getCursor();
+        ItemStack cursor = event.getCursor();
         ItemStack slot = event.getCurrentItem() == null
                 ? new ItemStack(org.bukkit.Material.AIR)
                 : event.getCurrentItem();
@@ -172,10 +168,8 @@ public class SketchListener implements Listener {
      * @return {@code null} when Bukkit should treat the slot as empty
      */
     private static ItemStack emptyToNull(ItemStack stack) {
-        if (stack == null || stack.getType().isAir() || stack.getAmount() <= 0) {
-            return null;
-        }
-        return stack;
+        // Spent sheets and pencils are always set to AIR as well as amount 0.
+        return stack.getType().isAir() ? null : stack;
     }
 
     /**
@@ -188,16 +182,11 @@ public class SketchListener implements Listener {
         if (!(event.getView().getTopInventory().getHolder() instanceof SketchCabinet)) {
             return;
         }
-        if (!(event.getWhoClicked() instanceof Player player)) {
-            return;
-        }
+        Player player = (Player) event.getWhoClicked();
         Inventory top = event.getView().getTopInventory();
         if (event.getClickedInventory() == top) {
             event.setCancelled(true);
-            ItemStack cursor = event.getCursor() == null
-                    ? new ItemStack(org.bukkit.Material.AIR)
-                    : event.getCursor().clone();
-            ItemStack next = sketches.handleCabinetClick(player, top, event.getSlot(), cursor);
+            ItemStack next = sketches.handleCabinetClick(player, top, event.getSlot(), event.getCursor().clone());
             event.getView().setCursor(next);
             return;
         }
@@ -220,17 +209,12 @@ public class SketchListener implements Listener {
         if (!(event.getView().getTopInventory().getHolder() instanceof CabinetLabBoard board)) {
             return;
         }
-        if (!(event.getWhoClicked() instanceof Player player)) {
-            return;
-        }
+        Player player = (Player) event.getWhoClicked();
         event.setCancelled(true);
         if (event.getClickedInventory() != event.getView().getTopInventory()) {
             return;
         }
-        ItemStack cursor = event.getCursor() == null
-                ? new ItemStack(org.bukkit.Material.AIR)
-                : event.getCursor().clone();
-        ItemStack next = sketches.handleLabClick(player, board, event.getSlot(), cursor);
+        ItemStack next = sketches.handleLabClick(player, board, event.getSlot(), event.getCursor().clone());
         event.getView().setCursor(next);
     }
 
@@ -273,9 +257,7 @@ public class SketchListener implements Listener {
         if (!(event.getInventory().getHolder() instanceof SketchCabinet cabinet)) {
             return;
         }
-        if (event.getPlayer() instanceof Player player) {
-            cabinet.returnContents(player);
-        }
+        cabinet.returnContents((Player) event.getPlayer());
     }
 
     /**
@@ -288,9 +270,7 @@ public class SketchListener implements Listener {
         if (!(event.getInventory().getHolder() instanceof CabinetLabBoard board)) {
             return;
         }
-        if (event.getPlayer() instanceof Player player) {
-            sketches.handleLabClose(player, board);
-        }
+        sketches.handleLabClose((Player) event.getPlayer(), board);
     }
 
     /**
@@ -438,7 +418,7 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onInventory(InventoryOpenEvent event) {
-        if (!(event.getPlayer() instanceof Player player) || !sketches.editing(player)) {
+        if (!sketches.editing((Player) event.getPlayer())) {
             return;
         }
         InventoryType type = event.getInventory().getType();
@@ -455,9 +435,7 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onInventoryOpened(InventoryOpenEvent event) {
-        if (event.getPlayer() instanceof Player player) {
-            sketches.stampKitsLater(player);
-        }
+        sketches.stampKitsLater((Player) event.getPlayer());
     }
 
     /**
@@ -620,8 +598,7 @@ public class SketchListener implements Listener {
             return;
         }
         event.setCancelled(true);
-        String raw = event.getMessage() == null ? "" : event.getMessage().trim();
-        sketches.handleSignChatLater(player, raw);
+        sketches.handleSignChatLater(player, event.getMessage().trim());
     }
 
     /**
@@ -631,9 +608,7 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player player)) {
-            return;
-        }
+        Player player = (Player) event.getWhoClicked();
         ItemStack hotbar = event.getHotbarButton() >= 0
                 ? player.getInventory().getItem(event.getHotbarButton())
                 : null;
@@ -646,9 +621,7 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onInventoryDrag(InventoryDragEvent event) {
-        if (!(event.getWhoClicked() instanceof Player player)) {
-            return;
-        }
+        Player player = (Player) event.getWhoClicked();
         java.util.ArrayList<ItemStack> extras = new java.util.ArrayList<>();
         extras.add(event.getCursor());
         extras.add(event.getOldCursor());
@@ -663,10 +636,9 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onInventoryClose(InventoryCloseEvent event) {
-        if (event.getPlayer() instanceof Player player) {
-            sketches.syncHandLater(player, event.getView().getCursor());
-            sketches.stampKitsLater(player);
-        }
+        Player player = (Player) event.getPlayer();
+        sketches.syncHandLater(player, event.getView().getCursor());
+        sketches.stampKitsLater(player);
     }
 
     /**

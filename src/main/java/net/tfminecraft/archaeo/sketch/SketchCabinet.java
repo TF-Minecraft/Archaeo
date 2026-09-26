@@ -86,9 +86,6 @@ public final class SketchCabinet implements InventoryHolder {
      * @param player cataloguer
      */
     public void returnContents(Player player) {
-        if (inventory == null || player == null) {
-            return;
-        }
         give(player, inventory.getItem(SLOT_SKETCH));
         inventory.setItem(SLOT_SKETCH, null);
         inventory.setItem(SLOT_FIND, null);
@@ -109,22 +106,20 @@ public final class SketchCabinet implements InventoryHolder {
     private static ItemStack registerControl() {
         ItemStack stack = new ItemStack(Material.WRITABLE_BOOK);
         ItemMeta meta = stack.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName(ChatColor.WHITE + "Register");
-            meta.setLore(List.of(
-                    ChatColor.GRAY + "Place the drawing in the top slot.",
-                    ChatColor.GRAY + "Then click here."));
-            stack.setItemMeta(meta);
-        }
+        meta.setDisplayName(ChatColor.WHITE + "Register");
+        meta.setLore(List.of(
+                ChatColor.GRAY + "Place the drawing in the top slot.",
+                ChatColor.GRAY + "Then click here."));
+        stack.setItemMeta(meta);
         return stack;
     }
 
     /**
      * @param player receiver
-     * @param stack drawing, or empty
+     * @param stack drawing, or {@code null} for an empty slot
      */
     private static void give(Player player, ItemStack stack) {
-        if (stack == null || stack.getType().isAir() || stack.getAmount() <= 0) {
+        if (stack == null) {
             return;
         }
         player.getInventory().addItem(stack).values()

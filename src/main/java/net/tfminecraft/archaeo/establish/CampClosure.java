@@ -46,11 +46,7 @@ public final class CampClosure {
      * @return whether the camp is now closed
      */
     public boolean close(CommandSender closer, Site site) {
-        if (closer == null || site == null || !site.isCampLocked()) {
-            return false;
-        }
-        if (!site.closeCamp()) {
-            closer.sendMessage("This excavation cannot be closed.");
+        if (closer == null || site == null || !site.closeCamp()) {
             return false;
         }
         sites.save(site);
@@ -71,16 +67,14 @@ public final class CampClosure {
      * @param site just closed
      */
     private void deliverFieldBook(CommandSender closer, Site site) {
-        String author = closer instanceof Player player && player.getName() != null
-                ? player.getName()
-                : "Staff";
-        ItemStack book = archiveBook.create(author, site);
         if (closer instanceof Player player) {
-            giveStack(player, book);
+            giveStack(player, archiveBook.create(player, site));
             return;
         }
+        ItemStack book = archiveBook.create("Staff", site);
         World world = plugin.getServer().getWorld(site.getWorldName());
-        if (world == null || site.getCampX() == null || site.getCampY() == null || site.getCampZ() == null) {
+        // The dossier stores the camp origin as one unit, so a present X means Y and Z are there too.
+        if (world == null || site.getCampX() == null) {
             closer.sendMessage("No field book could be given from console.");
             return;
         }

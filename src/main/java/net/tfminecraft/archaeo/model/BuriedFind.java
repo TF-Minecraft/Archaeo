@@ -114,10 +114,11 @@ public class BuriedFind {
         if (name.isEmpty()) {
             return null;
         }
+        // The trimmed text starts with a visible character, so cutting it to 40 keeps it non-empty.
         if (name.length() > 40) {
             name = name.substring(0, 40).trim();
         }
-        return name.isEmpty() ? null : name;
+        return name;
     }
 
     /**
@@ -127,7 +128,8 @@ public class BuriedFind {
      * @return player-facing title
      */
     public String shownName(String catalogName) {
-        if (givenName != null && !givenName.isBlank()) {
+        // setGivenName stores blank names as null.
+        if (givenName != null) {
             return givenName;
         }
         if (catalogName != null && !catalogName.isBlank()) {
@@ -219,10 +221,15 @@ public class BuriedFind {
     }
 
     /**
+     * A find with nothing left is lost, as in {@link #refreshConservation()}, unless already settled.
+     *
      * @param conservation remaining quality, 0–100
      */
     public void setConservation(int conservation) {
         this.conservation = Math.max(0, Math.min(100, conservation));
+        if (this.conservation <= 0 && state != FindState.RECOVERED) {
+            state = FindState.LOST;
+        }
     }
 
     /**

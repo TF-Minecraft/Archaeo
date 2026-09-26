@@ -77,7 +77,7 @@ public final class RecoveredFindListener implements Listener {
         stamped.setAmount(result.getAmount());
         ItemMeta meta = stamped.getItemMeta();
         String typed = BuriedFind.sanitizeGivenName(strip(event.getView().getRenameText()));
-        if (meta != null && typed != null) {
+        if (typed != null) {
             meta.setDisplayName(ChatColor.WHITE + typed);
             stamped.setItemMeta(meta);
         }
@@ -131,9 +131,7 @@ public final class RecoveredFindListener implements Listener {
     @EventHandler
     public void onOpen(InventoryOpenEvent event) {
         syncInventory(event.getInventory());
-        if (event.getPlayer() instanceof Player player) {
-            syncInventory(player.getInventory());
-        }
+        syncInventory(event.getPlayer().getInventory());
     }
 
     /**
@@ -154,9 +152,6 @@ public final class RecoveredFindListener implements Listener {
      * @param inventory bag or chest
      */
     private void syncInventory(Inventory inventory) {
-        if (inventory == null) {
-            return;
-        }
         ItemStack[] contents = inventory.getContents();
         for (int i = 0; i < contents.length; i++) {
             ItemStack stack = contents[i];
@@ -172,9 +167,10 @@ public final class RecoveredFindListener implements Listener {
      * @param typed anvil line or current display name
      */
     private void applyGivenName(Player player, ItemStack stack, String typed) {
+        // onAnvilTake only gets here for a recovered piece, which always carries a find id.
         UUID findId = recovered.findIdOf(stack);
         UUID siteId = recovered.siteIdOf(stack);
-        if (findId == null || siteId == null) {
+        if (siteId == null) {
             return;
         }
         Site site = sites.findById(siteId).orElse(null);

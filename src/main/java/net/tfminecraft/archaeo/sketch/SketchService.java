@@ -118,25 +118,18 @@ public class SketchService {
     }
 
     /**
-     * @return configured sheet and pencil
-     */
-    public SketchSupplies supplies() {
-        return supplies;
-    }
-
-    /**
-     * @param settings pencil wear, cabinet block, and lab wipe after reload
+     * @param settings pencil wear, cabinet block, and lab wipe after reload; the catalogue never returns {@code null}
      */
     public void setSettings(SketchSettings settings) {
-        this.settings = settings == null ? SketchSettings.defaults() : settings;
-        this.lab.setSettings(this.settings);
+        this.settings = settings;
+        this.lab.setSettings(settings);
     }
 
     /**
-     * @param matcher ItemsAdder furniture lookup
+     * @param matcher ItemsAdder furniture lookup; the plugin already substitutes vanilla-only for {@code null}
      */
     public void setMatcher(ItemMatcher matcher) {
-        this.matcher = matcher == null ? ItemMatcher.vanillaOnly() : matcher;
+        this.matcher = matcher;
     }
 
     /**
@@ -288,7 +281,7 @@ public class SketchService {
      * @return whether this is the configured cabinet
      */
     public boolean isCabinet(Block block) {
-        return settings != null && matcher.matchesPlaced(block, settings.cabinet());
+        return matcher.matchesPlaced(block, settings.cabinet());
     }
 
     /**
@@ -306,7 +299,7 @@ public class SketchService {
      * @return whether the cabinet handled the click
      */
     public boolean tryOpenCabinet(Player player, Block block, boolean sneaking) {
-        if (settings != null && settings.cabinet().kind() == ItemRef.Kind.ITEMSADDER) {
+        if (settings.cabinet().kind() == ItemRef.Kind.ITEMSADDER) {
             return false;
         }
         return tryOpenCabinet(player, null, null, block, sneaking);
@@ -319,7 +312,7 @@ public class SketchService {
      * @param player clicker
      * @param namespacedId ItemsAdder furniture id, or {@code null}
      * @param entity furniture entity, or {@code null}
-     * @param block block under the furniture, or {@code null}
+     * @param block block under the furniture ({@code PackPluginHook} derives it from the entity), or {@code null}
      * @param sneaking whether the player is sneaking
      * @return whether the cabinet handled the click
      */
@@ -330,7 +323,7 @@ public class SketchService {
             Block block,
             boolean sneaking
     ) {
-        if (player == null || editing(player) || sneaking || settings == null) {
+        if (editing(player) || sneaking) {
             return false;
         }
         boolean cabinet = matcher.matchesNamespacedId(namespacedId, settings.cabinet())
@@ -338,9 +331,6 @@ public class SketchService {
                 || matcher.matchesPlaced(block, settings.cabinet());
         if (!cabinet) {
             return false;
-        }
-        if (block == null && entity != null) {
-            block = entity.getLocation().getBlock();
         }
         ItemStack hand = player.getInventory().getItemInMainHand();
         if (!recovered.isRecovered(hand)) {
@@ -350,7 +340,7 @@ public class SketchService {
         UUID findId = recovered.findIdOf(hand);
         UUID siteId = recovered.siteIdOf(hand);
         Site site = siteId == null ? null : sites.findById(siteId).orElse(null);
-        BuriedFind find = site == null || findId == null ? null : site.findById(findId).orElse(null);
+        BuriedFind find = site == null ? null : site.findById(findId).orElse(null);
         if (find == null) {
             player.sendMessage(ChatColor.GOLD + "This piece is not in the excavation archive.");
             return true;
@@ -359,7 +349,7 @@ public class SketchService {
             player.sendMessage(ChatColor.GOLD + "The record on this piece is complete.");
             return true;
         }
-        if (lab.tryStart(player, block, hand)) {
+        if (lab.tryStart(player, block, site, find)) {
             return true;
         }
         if (!find.hasFieldSketch()) {
@@ -433,14 +423,11 @@ public class SketchService {
      * @return cursor after the click
      */
     public ItemStack handleCabinetClick(Player player, Inventory top, int slot, ItemStack cursor) {
-        if (player == null || top == null) {
-            return cursor;
-        }
         if (slot == SketchCabinet.SLOT_REGISTER) {
             tryRegisterCabinet(player, top);
             return cursor;
         }
-        if (SketchCabinet.locked(slot) || slot != SketchCabinet.SLOT_SKETCH) {
+        if (slot != SketchCabinet.SLOT_SKETCH) {
             return cursor;
         }
         ItemStack there = top.getItem(slot);
@@ -467,10 +454,7 @@ public class SketchService {
      * @return whether the stack moved
      */
     public boolean tryDepositCabinet(Player player, Inventory top, ItemStack stack) {
-        if (top == null || isEmpty(stack)) {
-            return false;
-        }
-        if (!isEmpty(top.getItem(SketchCabinet.SLOT_SKETCH))) {
+        if (isEmpty(stack) || !isEmpty(top.getItem(SketchCabinet.SLOT_SKETCH))) {
             return false;
         }
         if (!acceptFinishedDrawing(player, stack)) {
@@ -488,13 +472,9 @@ public class SketchService {
      * @param top furnace cabinet
      */
     public void tryRegisterCabinet(Player player, Inventory top) {
-        if (player == null || top == null || !(top.getHolder() instanceof SketchCabinet cabinet)) {
-            return;
-        }
-        Site site = cabinet.siteId() == null ? null : sites.findById(cabinet.siteId()).orElse(null);
-        BuriedFind find = site == null || cabinet.findId() == null
-                ? null
-                : site.findById(cabinet.findId()).orElse(null);
+        SketchCabinet cabinet = (SketchCabinet) top.getHolder();
+        Site site = sites.findById(cabinet.siteId()).orElse(null);
+        BuriedFind find = site == null ? null : site.findById(cabinet.findId()).orElse(null);
         if (find == null) {
             refuseRegister(player, "This piece is not in the excavation archive.");
             return;
@@ -512,13 +492,10 @@ public class SketchService {
             beginCabinetReading(player, top, site, find);
             return;
         }
+        // The top slot only ever accepts inked, signed drawings (see acceptFinishedDrawing).
         ItemStack sketch = top.getItem(SketchCabinet.SLOT_SKETCH);
-        if (!isSketchMap(sketch) || !isSigned(sketch)) {
+        if (!isSigned(sketch)) {
             refuseRegister(player, "Place the drawing in the top slot.");
-            return;
-        }
-        if (!hasInk(sheetOf(sketch))) {
-            refuseRegister(player, "That drawing is still blank.");
             return;
         }
         UUID bound = boundFindId(sketch);
@@ -557,17 +534,13 @@ public class SketchService {
             player.sendMessage(ChatColor.GOLD + "You are not authorised to write this record.");
             return;
         }
-        if (!recovered.isInMainHand(player, find.getId())) {
-            player.sendMessage(ChatColor.GOLD + "Keep the artifact in your hand.");
-            return;
-        }
         if (top != null) {
             handBackCabinet(player, top);
         }
         UUID siteId = site.getId();
         UUID findId = find.getId();
         plugin.getServer().getScheduler().runTask(plugin, () -> {
-            if (player == null || !player.isOnline()) {
+            if (!player.isOnline()) {
                 return;
             }
             Site live = sites.findById(siteId).orElse(null);
@@ -597,11 +570,11 @@ public class SketchService {
      * @return whether the stack may go in
      */
     private boolean acceptFinishedDrawing(Player player, ItemStack stack) {
-        if (!isSketchMap(stack) || !isSigned(stack)) {
+        if (!isSigned(stack)) {
             refuseRegister(player, "That cannot be registered.");
             return false;
         }
-        if (!hasInk(sheetOf(stack))) {
+        if (!sheetOf(stack).hasInk()) {
             refuseRegister(player, "That drawing is still blank.");
             return false;
         }
@@ -629,7 +602,7 @@ public class SketchService {
      */
     public void stampKitsLater(Player player) {
         plugin.getServer().getScheduler().runTask(plugin, () -> {
-            if (player == null || !player.isOnline()) {
+            if (!player.isOnline()) {
                 return;
             }
             unstackCarried(player);
@@ -656,13 +629,11 @@ public class SketchService {
             ItemStack slot
     ) {
         plugin.getServer().getScheduler().runTask(plugin, () -> {
-            if (player == null || !player.isOnline()) {
+            if (!player.isOnline()) {
                 return;
             }
             player.getOpenInventory().setCursor(isEmpty(cursor) ? null : cursor);
-            if (inventory != null && slotIndex >= 0) {
-                inventory.setItem(slotIndex, isEmpty(slot) ? null : slot);
-            }
+            inventory.setItem(slotIndex, isEmpty(slot) ? null : slot);
             player.updateInventory();
             unstackCarried(player);
             supplies.stampAll(player.getInventory().getContents());
@@ -679,7 +650,7 @@ public class SketchService {
      * @param stack unsigned sketch
      */
     public void enter(Player player, ItemStack stack) {
-        if (stack == null || !isSketchMap(stack) || isSigned(stack) || editing(player)) {
+        if (!isSketchMap(stack) || isSigned(stack) || editing(player)) {
             return;
         }
         hydrate(stack);
@@ -688,11 +659,7 @@ public class SketchService {
         if (view == null) {
             return;
         }
-        SketchSheet sheet = sheets.get(view.getId());
-        if (sheet == null) {
-            return;
-        }
-        sessions.put(player.getUniqueId(), new SketchSession(player.getUniqueId(), view, sheet));
+        sessions.put(player.getUniqueId(), new SketchSession(view, sheets.get(view.getId())));
         freeze(player);
         player.sendMessage(ChatColor.GOLD + "Editing field sketch.");
         player.sendMessage(ChatColor.WHITE + "Sneak paints. Right-click erases. Space changes ink.");
@@ -700,7 +667,8 @@ public class SketchService {
     }
 
     /**
-     * Writes the sheet onto {@code stack} when possible, then thaws.
+     * Writes the sheet onto {@code stack} when possible, then thaws. Callers only leave an open
+     * session: the listener checks {@link #editing(Player)} and the service holds the session.
      *
      * @param player editor
      * @param announce whether this leave was a player action (hotbar, inventory, drop) and should tell them
@@ -710,19 +678,16 @@ public class SketchService {
         SketchSession session = sessions.remove(player.getUniqueId());
         thaw(player);
         hideHud(player);
-        if (session == null) {
-            return;
-        }
-        ItemStack target = stack != null && matchesView(stack, session.view().getId())
+        ItemStack target = matchesView(stack, session.view().getId())
                 ? stack
                 : findSaveTarget(player, session);
         if (target == null) {
             checkpoint(session);
             return;
         }
-        if (writeItem(target, session.sheet(), isSigned(target), authorOf(target))) {
-            deleteAutosave(session.view().getId());
-        }
+        // Save targets are always sketch maps, so the drawing is now on the item.
+        writeItem(target, session.sheet(), isSigned(target), authorOf(target));
+        deleteAutosave(session.view().getId());
         if (announce) {
             player.sendMessage(ChatColor.GRAY + "Sketch saved.");
         }
@@ -744,15 +709,12 @@ public class SketchService {
      * @param extras stacks that just left the inventory
      */
     public void leave(Player player, boolean announce, Iterable<ItemStack> extras) {
-        SketchSession session = sessions.get(player.getUniqueId());
+        int viewId = sessions.get(player.getUniqueId()).view().getId();
         ItemStack target = null;
-        if (session != null && extras != null) {
-            int viewId = session.view().getId();
-            for (ItemStack stack : extras) {
-                if (matchesView(stack, viewId)) {
-                    target = stack;
-                    break;
-                }
+        for (ItemStack stack : extras) {
+            if (matchesView(stack, viewId)) {
+                target = stack;
+                break;
             }
         }
         leave(player, announce, target);
@@ -799,7 +761,7 @@ public class SketchService {
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             SketchSession session = sessions.get(player.getUniqueId());
             if (session != null && !holdingThisSketch(player, session)) {
-                leave(player, true, extras == null ? java.util.List.of() : java.util.Arrays.asList(extras));
+                leave(player, true, java.util.Arrays.asList(extras));
             }
             syncHand(player);
         });
@@ -823,10 +785,7 @@ public class SketchService {
      */
     public void askToSign(Player player) {
         SketchSession session = sessions.get(player.getUniqueId());
-        if (session == null) {
-            return;
-        }
-        if (!hasInk(session.sheet())) {
+        if (!session.sheet().hasInk()) {
             refuseBlankSign(player);
             return;
         }
@@ -854,14 +813,20 @@ public class SketchService {
             player.sendMessage(ChatColor.WHITE + "Type sign to finish, or cancel to keep editing.");
             return true;
         }
-        if (!hasInk(session.sheet())) {
+        if (!session.sheet().hasInk()) {
             session.setAwaitingSign(false);
             refuseBlankSign(player);
             return true;
         }
-        ItemStack hand = player.getInventory().getItemInMainHand();
-        writeItem(hand, session.sheet(), true, player.getName());
-        leave(player, false, hand);
+        // The chat task can run before the hand sync, so lock the session's own stack, not the hand.
+        ItemStack sketch = findSaveTarget(player, session);
+        if (sketch == null) {
+            leave(player, false, (ItemStack) null);
+            player.sendMessage(ChatColor.GOLD + "The sketch is no longer with you. Nothing was signed.");
+            return true;
+        }
+        writeItem(sketch, session.sheet(), true, player.getName());
+        leave(player, false, sketch);
         player.sendMessage(ChatColor.GOLD + "Sketch signed. It can no longer be edited.");
         return true;
     }
@@ -877,14 +842,6 @@ public class SketchService {
     }
 
     /**
-     * @param sheet cells to judge, or {@code null}
-     * @return whether at least one cell is painted
-     */
-    private boolean hasInk(SketchSheet sheet) {
-        return sheet != null && sheet.hasInk();
-    }
-
-    /**
      * @param player possible editor
      * @return whether they are frozen in the prototype
      */
@@ -897,12 +854,12 @@ public class SketchService {
      * @return excavation id stamped when the drawing was registered, or {@code null}
      */
     public UUID siteIdOf(ItemStack stack) {
-        if (stack == null || !isSketchMap(stack) || !stack.hasItemMeta()) {
+        if (!isSketchMap(stack)) {
             return null;
         }
         String raw = stack.getItemMeta().getPersistentDataContainer()
                 .get(siteIdKey, PersistentDataType.STRING);
-        if (raw == null || raw.isBlank()) {
+        if (raw == null) {
             return null;
         }
         try {
@@ -936,26 +893,30 @@ public class SketchService {
      */
     private SketchSheet sheetOf(ItemStack stack) {
         hydrate(stack);
-        MapView view = mapView(stack);
-        if (view != null) {
-            SketchSheet live = sheets.get(view.getId());
-            if (live != null) {
-                return live;
-            }
-        }
-        return SketchSheet.fromBytes(cellsOf(stack));
+        return storedSheet(stack);
     }
 
     /**
-     * Clears the cursor cell. Used by right-click / interact.
+     * Same lookup without hydrating: a sketch in a chest or ender chest has no live buffer
+     * after a restart, so its own stored pixels must be kept rather than a blank page.
+     *
+     * @param stack sketch map
+     * @return live cells for its view, else the cells stored on the item; never {@code null}
+     */
+    private SketchSheet storedSheet(ItemStack stack) {
+        MapView view = mapView(stack);
+        SketchSheet live = view == null ? null : sheets.get(view.getId());
+        return live != null ? live : SketchSheet.fromBytes(cellsOf(stack));
+    }
+
+    /**
+     * Clears the cursor cell. Used by right-click / interact; the listener only calls this after
+     * {@link #editing(Player)}, so the session exists.
      *
      * @param player editor
      */
     public void erase(Player player) {
-        SketchSession session = sessions.get(player.getUniqueId());
-        if (session != null) {
-            session.beginEraseStroke();
-        }
+        sessions.get(player.getUniqueId()).beginEraseStroke();
     }
 
     /**
@@ -963,10 +924,10 @@ public class SketchService {
      * @return whether this is a prototype sketch map
      */
     public boolean isSketchMap(ItemStack stack) {
-        if (stack == null || stack.getType() != Material.FILLED_MAP || !(stack.getItemMeta() instanceof MapMeta meta)) {
+        if (stack == null || stack.getType() != Material.FILLED_MAP) {
             return false;
         }
-        return meta.getPersistentDataContainer().has(markerKey, PersistentDataType.BYTE);
+        return stack.getItemMeta().getPersistentDataContainer().has(markerKey, PersistentDataType.BYTE);
     }
 
     /**
@@ -986,16 +947,13 @@ public class SketchService {
                 }
             }
         }
-        for (UUID playerId : Map.copyOf(sessions).keySet()) {
-            Player player = Bukkit.getPlayer(playerId);
+        for (Map.Entry<UUID, SketchSession> entry : Map.copyOf(sessions).entrySet()) {
+            Player player = Bukkit.getPlayer(entry.getKey());
             if (player == null || !player.isOnline()) {
-                sessions.remove(playerId);
+                sessions.remove(entry.getKey());
                 continue;
             }
-            SketchSession session = sessions.get(playerId);
-            if (session == null) {
-                continue;
-            }
+            SketchSession session = entry.getValue();
             if (!holdingThisSketch(player, session)) {
                 leave(player, true);
                 continue;
@@ -1012,14 +970,10 @@ public class SketchService {
 
     /**
      * Saves changed sheets to disk without replacing the map item in the player's hand.
+     * Only {@link #tick()} calls this, after it has already dropped sessions of offline players.
      */
     private void autosaveOpenSessions() {
-        for (Map.Entry<UUID, SketchSession> entry : Map.copyOf(sessions).entrySet()) {
-            Player player = Bukkit.getPlayer(entry.getKey());
-            if (player == null || !player.isOnline()) {
-                continue;
-            }
-            SketchSession session = entry.getValue();
+        for (SketchSession session : sessions.values()) {
             checkpoint(session);
         }
     }
@@ -1145,35 +1099,28 @@ public class SketchService {
      * Rewrites {@code #name-n} on a registered sketch after the excavation is renamed.
      *
      * @param stack signed sketch, or {@code null}
-     * @param site excavation
+     * @param site excavation, or {@code null} once staff purged the dossier the sketch names
      * @return whether the label was rewritten
      */
     public boolean retitle(ItemStack stack, Site site) {
-        if (stack == null || site == null || site.getId() == null || !site.getId().equals(siteIdOf(stack))) {
+        if (site == null || !site.getId().equals(siteIdOf(stack))) {
             return false;
         }
         UUID findId = boundFindId(stack);
-        if (findId == null) {
+        BuriedFind find = findId == null ? null : site.findById(findId).orElse(null);
+        if (find == null) {
             return false;
         }
-        BuriedFind find = site.findById(findId).orElse(null);
-        if (find == null || !(stack.getItemMeta() instanceof MapMeta meta)) {
-            return false;
-        }
+        org.bukkit.inventory.meta.ItemMeta meta = stack.getItemMeta();
+        // Recovered finds are always numbered (Site#assignMissingFindNumbers), so the label exists.
         String label = find.publicNumber(site);
         String current = meta.getPersistentDataContainer().get(labelKey, PersistentDataType.STRING);
-        if (java.util.Objects.equals(current, label)) {
+        if (label.equals(current)) {
             return false;
         }
-        if (label == null || label.isBlank()) {
-            meta.getPersistentDataContainer().remove(labelKey);
-        } else {
-            meta.getPersistentDataContainer().set(labelKey, PersistentDataType.STRING, label);
-        }
+        meta.getPersistentDataContainer().set(labelKey, PersistentDataType.STRING, label);
         stack.setItemMeta(meta);
-        MapView view = mapView(stack);
-        SketchSheet sheet = view == null ? new SketchSheet() : sheets.getOrDefault(view.getId(), new SketchSheet());
-        writeItem(stack, sheet, isSigned(stack), authorOf(stack));
+        writeItem(stack, storedSheet(stack), isSigned(stack), authorOf(stack));
         return true;
     }
 
@@ -1195,10 +1142,10 @@ public class SketchService {
      * @return whether this sheet is locked
      */
     public boolean isSigned(ItemStack stack) {
-        if (!isSketchMap(stack) || !(stack.getItemMeta() instanceof MapMeta meta)) {
+        if (!isSketchMap(stack)) {
             return false;
         }
-        Byte flag = meta.getPersistentDataContainer().get(signedKey, PersistentDataType.BYTE);
+        Byte flag = stack.getItemMeta().getPersistentDataContainer().get(signedKey, PersistentDataType.BYTE);
         return flag != null && flag == 1;
     }
 
@@ -1210,7 +1157,7 @@ public class SketchService {
         ItemStack map = createUnsigned(player.getWorld());
         ItemStack previous = player.getInventory().getItemInMainHand();
         player.getInventory().setItemInMainHand(map);
-        if (previous != null && previous.getType() != Material.AIR) {
+        if (!previous.getType().isAir()) {
             HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(previous);
             leftover.values().forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
         }
@@ -1227,10 +1174,9 @@ public class SketchService {
         SketchSheet sheet = new SketchSheet();
         sheets.put(view.getId(), sheet);
         ItemStack map = new ItemStack(Material.FILLED_MAP);
-        if (map.getItemMeta() instanceof MapMeta meta) {
-            meta.setMapView(view);
-            map.setItemMeta(meta);
-        }
+        MapMeta meta = (MapMeta) map.getItemMeta();
+        meta.setMapView(view);
+        map.setItemMeta(meta);
         writeItem(map, sheet, false, null);
         return map;
     }
@@ -1241,9 +1187,6 @@ public class SketchService {
      * @param player holder
      */
     public void unstackCarried(Player player) {
-        if (player == null) {
-            return;
-        }
         ItemStack[] contents = player.getInventory().getContents();
         for (int i = 0; i < contents.length; i++) {
             ItemStack stack = contents[i];
@@ -1269,7 +1212,7 @@ public class SketchService {
             return;
         }
         markUnstackable(stack);
-        if (player == null || stack.getAmount() <= 1) {
+        if (stack.getAmount() <= 1) {
             return;
         }
         int extra = stack.getAmount() - 1;
@@ -1288,10 +1231,7 @@ public class SketchService {
     private ItemStack duplicateSketch(World world, ItemStack original) {
         ItemStack map = createUnsigned(world);
         SketchSheet sheet = SketchSheet.fromBytes(cellsOf(original));
-        MapView view = mapView(map);
-        if (view != null) {
-            sheets.put(view.getId(), sheet);
-        }
+        sheets.put(mapView(map).getId(), sheet);
         writeItem(map, sheet, isSigned(original), authorOf(original));
         return map;
     }
@@ -1318,7 +1258,7 @@ public class SketchService {
         view.setUnlimitedTracking(false);
         boolean ours = false;
         for (org.bukkit.map.MapRenderer renderer : view.getRenderers()) {
-            if (renderer instanceof SketchRenderer) {
+            if (renderer instanceof SketchRenderer sketchRenderer && sketchRenderer.belongsTo(this)) {
                 ours = true;
                 break;
             }
@@ -1326,21 +1266,20 @@ public class SketchService {
         if (ours) {
             return;
         }
-        view.getRenderers().clear();
+        for (org.bukkit.map.MapRenderer renderer : view.getRenderers()) {
+            view.removeRenderer(renderer);
+        }
         view.addRenderer(new SketchRenderer(this));
     }
 
     /**
-     * @param stack map item
+     * @param stack sketch map (always a {@code FILLED_MAP})
      * @param sheet pixels
      * @param signed locked
-     * @param author signer, or {@code null}
-     * @return whether the PDC write reached {@code setItemMeta}
+     * @param author signer, or {@code null} on unsigned or legacy drawings
      */
-    private boolean writeItem(ItemStack stack, SketchSheet sheet, boolean signed, String author) {
-        if (stack == null || !(stack.getItemMeta() instanceof MapMeta meta)) {
-            return false;
-        }
+    private void writeItem(ItemStack stack, SketchSheet sheet, boolean signed, String author) {
+        MapMeta meta = (MapMeta) stack.getItemMeta();
         MapView view = meta.getMapView();
         if (view == null) {
             view = mapView(stack);
@@ -1357,7 +1296,7 @@ public class SketchService {
             pdc.set(mapIdKey, PersistentDataType.INTEGER, view.getId());
             meta.setMapView(view);
         }
-        if (signed && author != null && !author.isEmpty()) {
+        if (signed && author != null) {
             pdc.set(authorKey, PersistentDataType.STRING, author);
         }
         if (!signed) {
@@ -1366,7 +1305,6 @@ public class SketchService {
         applySketchAppearance(meta, signed, boundFind, boundTitle, boundLabel);
         meta.setMaxStackSize(1);
         stack.setItemMeta(meta);
-        return true;
     }
 
     /**
@@ -1384,14 +1322,11 @@ public class SketchService {
     }
 
     /**
-     * @param stack sketch map
-     * @return persisted sheet revision, or zero for older maps
+     * @param stack sketch map (always a {@code FILLED_MAP}; {@link #hydrate} has already read its map meta)
+     * @return persisted sheet revision, or zero for maps saved before revisions were stored
      */
     private long metaRevision(ItemStack stack) {
-        if (!(stack.getItemMeta() instanceof MapMeta meta)) {
-            return 0;
-        }
-        Long revision = meta.getPersistentDataContainer().get(revisionKey, PersistentDataType.LONG);
+        Long revision = stack.getItemMeta().getPersistentDataContainer().get(revisionKey, PersistentDataType.LONG);
         return revision == null ? 0 : revision;
     }
 
@@ -1409,16 +1344,10 @@ public class SketchService {
             String boundTitle,
             String boundLabel
     ) {
-        boolean bound = boundFind != null && !boundFind.isBlank();
-        String title = boundTitle == null || boundTitle.isBlank() ? "find" : boundTitle;
-        if (signed && bound) {
-            meta.setDisplayName(ChatColor.WHITE + "Sketch of " + title);
-            java.util.ArrayList<String> lore = new java.util.ArrayList<>();
-            if (boundLabel != null && !boundLabel.isBlank()) {
-                lore.add(ChatColor.GOLD + boundLabel);
-            }
-            lore.add(ChatColor.GRAY + "Hold to look at the drawing.");
-            meta.setLore(lore);
+        // bindSketch writes the find id, title, and label together, and only on signed drawings.
+        if (boundFind != null) {
+            meta.setDisplayName(ChatColor.WHITE + "Sketch of " + boundTitle);
+            meta.setLore(java.util.List.of(ChatColor.GOLD + boundLabel, ChatColor.GRAY + "Hold to look at the drawing."));
             return;
         }
         if (signed) {
@@ -1477,10 +1406,7 @@ public class SketchService {
             giveOrDrop(player, map);
         }
         player.sendMessage(ChatColor.GOLD + "Field sketch ready. Hold it to draw.");
-        ItemStack hand = player.getInventory().getItemInMainHand();
-        if (isSketchMap(hand) && !isSigned(hand)) {
-            enter(player, hand);
-        }
+        enter(player, player.getInventory().getItemInMainHand());
         return true;
     }
 
@@ -1492,40 +1418,25 @@ public class SketchService {
      * @param site excavation
      */
     private void bindSketch(ItemStack sketch, BuriedFind find, Site site) {
-        if (!(sketch.getItemMeta() instanceof MapMeta meta) || find == null || find.getId() == null) {
-            return;
-        }
+        MapMeta meta = (MapMeta) sketch.getItemMeta();
         org.bukkit.persistence.PersistentDataContainer pdc = meta.getPersistentDataContainer();
         pdc.set(findIdKey, PersistentDataType.STRING, find.getId().toString());
-        if (site != null && site.getId() != null) {
-            pdc.set(siteIdKey, PersistentDataType.STRING, site.getId().toString());
-        }
+        pdc.set(siteIdKey, PersistentDataType.STRING, site.getId().toString());
         ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
         String title = find.shownName(template == null ? null : template.displayName());
         pdc.set(titleKey, PersistentDataType.STRING, title);
-        if (site != null) {
-            String label = find.publicNumber(site);
-            if (label != null && !label.isBlank()) {
-                pdc.set(labelKey, PersistentDataType.STRING, label);
-            }
-        }
+        pdc.set(labelKey, PersistentDataType.STRING, find.publicNumber(site));
         sketch.setItemMeta(meta);
-        hydrate(sketch);
-        MapView view = mapView(sketch);
-        SketchSheet sheet = view == null ? new SketchSheet() : sheets.getOrDefault(view.getId(), new SketchSheet());
-        writeItem(sketch, sheet, true, authorOf(sketch));
+        writeItem(sketch, sheetOf(sketch), true, authorOf(sketch));
     }
 
     /**
-     * @param stack sketch
+     * @param stack sketch map
      * @return bound find id, or {@code null}
      */
     private UUID boundFindId(ItemStack stack) {
-        if (!(stack.getItemMeta() instanceof MapMeta meta)) {
-            return null;
-        }
-        String raw = meta.getPersistentDataContainer().get(findIdKey, PersistentDataType.STRING);
-        if (raw == null || raw.isBlank()) {
+        String raw = stack.getItemMeta().getPersistentDataContainer().get(findIdKey, PersistentDataType.STRING);
+        if (raw == null) {
             return null;
         }
         try {
@@ -1539,9 +1450,6 @@ public class SketchService {
      * @param stack kit stack
      */
     private static void consumeOne(ItemStack stack) {
-        if (stack == null || stack.getType().isAir()) {
-            return;
-        }
         int left = stack.getAmount() - 1;
         if (left <= 0) {
             stack.setAmount(0);
@@ -1552,12 +1460,9 @@ public class SketchService {
     }
 
     /**
-     * @param stack kit stack to empty
+     * @param stack deposited drawing to empty
      */
     private static void consumeAll(ItemStack stack) {
-        if (stack == null || stack.getType().isAir()) {
-            return;
-        }
         stack.setAmount(0);
         stack.setType(Material.AIR);
     }
@@ -1567,7 +1472,7 @@ public class SketchService {
      * @return whether it cannot be placed back
      */
     private static boolean isEmpty(ItemStack stack) {
-        return stack == null || stack.getType().isAir() || stack.getAmount() <= 0;
+        return stack == null || stack.isEmpty();
     }
 
     /**
@@ -1580,51 +1485,35 @@ public class SketchService {
     }
 
     /**
-     * @param stack map
+     * @param stack sketch map
      * @return stored cells, or {@code null}
      */
     private byte[] cellsOf(ItemStack stack) {
-        if (!(stack.getItemMeta() instanceof MapMeta meta)) {
-            return null;
-        }
-        return meta.getPersistentDataContainer().get(cellsKey, PersistentDataType.BYTE_ARRAY);
+        return stack.getItemMeta().getPersistentDataContainer().get(cellsKey, PersistentDataType.BYTE_ARRAY);
     }
 
     /**
-     * @param stack map
+     * @param stack sketch map
      * @return signer, or {@code null}
      */
     private String authorOf(ItemStack stack) {
-        if (!(stack.getItemMeta() instanceof MapMeta meta)) {
-            return null;
-        }
-        return meta.getPersistentDataContainer().get(authorKey, PersistentDataType.STRING);
+        return stack.getItemMeta().getPersistentDataContainer().get(authorKey, PersistentDataType.STRING);
     }
 
     /**
-     * @param stack map
+     * @param stack sketch map
      * @return view, or {@code null}
      */
     @SuppressWarnings("deprecation")
     private MapView mapView(ItemStack stack) {
-        if (!(stack.getItemMeta() instanceof MapMeta meta)) {
-            return null;
-        }
+        MapMeta meta = (MapMeta) stack.getItemMeta();
         MapView view = meta.getMapView();
         if (view != null) {
             return view;
         }
+        // Paper's getMapView already resolves the vanilla map id; the stored copy covers a stripped link.
         Integer stored = meta.getPersistentDataContainer().get(mapIdKey, PersistentDataType.INTEGER);
-        if (stored != null) {
-            view = Bukkit.getMap(stored);
-            if (view != null) {
-                return view;
-            }
-        }
-        if (meta.hasMapId()) {
-            return Bukkit.getMap(meta.getMapId());
-        }
-        return null;
+        return stored == null ? null : Bukkit.getMap(stored);
     }
 
     /**
@@ -1634,10 +1523,8 @@ public class SketchService {
      * @param view resolved view
      */
     private void attachView(ItemStack stack, MapView view) {
-        if (!(stack.getItemMeta() instanceof MapMeta meta) || view == null) {
-            return;
-        }
-        if (meta.getMapView() != null && meta.getMapView().getId() == view.getId()) {
+        MapMeta meta = (MapMeta) stack.getItemMeta();
+        if (meta.getMapView() != null) {
             return;
         }
         meta.setMapView(view);
@@ -1664,9 +1551,6 @@ public class SketchService {
      * @return the item that should receive the pixels, or {@code null} if it is gone
      */
     private ItemStack findSaveTarget(Player player, SketchSession session) {
-        if (player == null || session == null) {
-            return null;
-        }
         int viewId = session.view().getId();
         ItemStack hand = player.getInventory().getItemInMainHand();
         if (matchesView(hand, viewId)) {
@@ -1676,24 +1560,13 @@ public class SketchService {
         if (matchesView(off, viewId)) {
             return off;
         }
+        // The bottom of every open view is the player's own inventory, and its cursor is theirs.
         InventoryView open = player.getOpenInventory();
-        if (open != null) {
-            if (matchesView(open.getCursor(), viewId)) {
-                return open.getCursor();
-            }
-            ItemStack inTop = firstMatch(open.getTopInventory(), viewId);
-            if (inTop != null) {
-                return inTop;
-            }
-            ItemStack inBottom = firstMatch(open.getBottomInventory(), viewId);
-            if (inBottom != null) {
-                return inBottom;
-            }
+        if (matchesView(open.getCursor(), viewId)) {
+            return open.getCursor();
         }
-        if (matchesView(player.getItemOnCursor(), viewId)) {
-            return player.getItemOnCursor();
-        }
-        return firstMatch(player.getInventory(), viewId);
+        ItemStack inTop = firstMatch(open.getTopInventory(), viewId);
+        return inTop != null ? inTop : firstMatch(open.getBottomInventory(), viewId);
     }
 
     /**
@@ -1736,19 +1609,14 @@ public class SketchService {
      * @param frozen whether movement, jump, and mining should be multiplied to zero
      */
     private void setFrozen(Player player, boolean frozen) {
-        AttributeInstance speed = player.getAttribute(Attribute.MOVEMENT_SPEED);
-        if (speed == null) {
-            player.setWalkSpeed(frozen ? 0f : 0.2f);
-        } else {
-            zeroAttribute(speed, frozen);
-        }
+        zeroAttribute(player, Attribute.MOVEMENT_SPEED, frozen);
         zeroAttribute(player, Attribute.JUMP_STRENGTH, frozen);
         zeroAttribute(player, Attribute.BLOCK_BREAK_SPEED, frozen);
     }
 
     /**
      * @param player editor
-     * @param attribute jump or mining speed
+     * @param attribute walk, jump, or mining speed
      * @param frozen whether to attach the zeroing modifier
      */
     private void zeroAttribute(Player player, Attribute attribute, boolean frozen) {

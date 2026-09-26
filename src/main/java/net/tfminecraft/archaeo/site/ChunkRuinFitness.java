@@ -131,7 +131,7 @@ public final class ChunkRuinFitness {
     }
 
     /**
-     * Same Paper 1.21.10-safe key read as {@link SiteGenerator}.
+     * Same Paper- and Spigot-safe key read as {@link SiteGenerator}.
      *
      * @param biome chunk biome
      * @return namespaced key, or {@code null} if unregistered
@@ -139,12 +139,10 @@ public final class ChunkRuinFitness {
     @SuppressWarnings("deprecation")
     private static NamespacedKey biomeKey(Biome biome) {
         try {
-            Object value = biome.getClass().getMethod("getKeyOrNull").invoke(biome);
-            if (value instanceof NamespacedKey key) {
-                return key;
-            }
+            // Spigot's RegistryAware: getKey() throws for an unregistered biome, so trust getKeyOrNull's null.
+            return (NamespacedKey) biome.getClass().getMethod("getKeyOrNull").invoke(biome);
         } catch (ReflectiveOperationException ignored) {
-            // Paper 1.21.10: RegistryAware helpers are absent
+            // Paper has no RegistryAware, so fall back to Keyed.getKey
         }
         return biome.getKey();
     }
