@@ -449,12 +449,9 @@ public class SiteRepository {
      * Commits every dirty dossier. Safe to call from the scheduler, disable, or reload.
      */
     public void flushDirty() {
+        // Every dirty id is in byId: touch and commit add both; delete, erase and loadAll drop both.
         for (UUID id : List.copyOf(dirty)) {
             Site site = byId.get(id);
-            if (site == null) {
-                dirty.remove(id);
-                continue;
-            }
             try {
                 commit(site);
             } catch (RuntimeException exception) {
@@ -503,13 +500,9 @@ public class SiteRepository {
         if (!indexFile.exists()) {
             return 1;
         }
-        try {
-            YamlConfiguration index = YamlConfiguration.loadConfiguration(indexFile);
-            return Math.max(1, index.getInt("next-serial", 1));
-        } catch (RuntimeException exception) {
-            plugin.getLogger().log(Level.WARNING, "Could not read sites-index.yml", exception);
-            return 1;
-        }
+        // loadConfiguration logs a corrupt file itself and hands back an empty configuration.
+        YamlConfiguration index = YamlConfiguration.loadConfiguration(indexFile);
+        return Math.max(1, index.getInt("next-serial", 1));
     }
 
     /**
@@ -520,10 +513,8 @@ public class SiteRepository {
      * @param target destination file
      */
     private void replaceAtomically(YamlConfiguration yaml, File target) {
-        File directory = target.getParentFile() == null ? sitesFolder : target.getParentFile();
-        if (!directory.exists() && !directory.mkdirs()) {
-            throw new IllegalStateException("Could not create " + directory.getPath());
-        }
+        // writeAtomic has just ensured sitesFolder, which holds dossiers and sits inside the index's folder.
+        File directory = target.getParentFile();
         File tmp = new File(directory, target.getName() + ".tmp");
         try {
             yaml.save(tmp);
@@ -616,10 +607,11 @@ public class SiteRepository {
             Map<String, Object> node = new java.util.LinkedHashMap<>();
             node.put("id", find.getId().toString());
             node.put("artifact-id", find.getArtifactId());
-            if (find.getItem() != null && !find.getItem().isBlank()) {
+            // BuriedFind stores a blank item or name as null.
+            if (find.getItem() != null) {
                 node.put("item", find.getItem());
             }
-            if (find.getGivenName() != null && !find.getGivenName().isBlank()) {
+            if (find.getGivenName() != null) {
                 node.put("given-name", find.getGivenName());
             }
             node.put("stratum", find.getStratumId());
@@ -1065,13 +1057,10 @@ public class SiteRepository {
     }
 
     /**
-     * @param value YAML number or missing
-     * @return integer ≥ 0, or {@code 0} when missing or unparsable
+     * @param value YAML number the caller found present
+     * @return integer ≥ 0, or {@code 0} when unparsable
      */
     private static int parsePositive(Object value) {
-        if (value == null) {
-            return 0;
-        }
         try {
             return Math.max(0, Integer.parseInt(String.valueOf(value)));
         } catch (NumberFormatException ignored) {

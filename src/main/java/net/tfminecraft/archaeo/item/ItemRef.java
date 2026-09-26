@@ -157,8 +157,9 @@ public record ItemRef(Kind kind, String primary, String secondary) {
             }
             Map.Entry<?, ?> entry = map.entrySet().iterator().next();
             String key = String.valueOf(entry.getKey()).trim();
+            // yamlToken never hands back blank text: blank scalars become null.
             String rest = yamlToken(entry.getValue());
-            if (rest == null || rest.isBlank()) {
+            if (rest == null) {
                 return key.isBlank() ? null : key;
             }
             return key + ":" + rest;
@@ -199,10 +200,8 @@ public record ItemRef(Kind kind, String primary, String secondary) {
             if ("minecraft".equals(prefix)) {
                 return vanillaName(plugin, rest);
             }
-            Material namespaced = Material.matchMaterial(token);
-            if (namespaced != null) {
-                return Optional.of(vanilla(namespaced));
-            }
+            // Any other namespace is a pack id. Material.matchMaterial strips the colon, so asking it
+            // first would turn an ItemsAdder "glow:stone" into vanilla GLOWSTONE.
             return itemsAdder(plugin, token, token);
         }
         String upper = token.toUpperCase(Locale.ROOT);
@@ -253,7 +252,8 @@ public record ItemRef(Kind kind, String primary, String secondary) {
      * @return ItemsAdder ref
      */
     private static Optional<ItemRef> itemsAdder(JavaPlugin plugin, String token, String rest) {
-        if (rest.isBlank() || !rest.contains(":")) {
+        int split = rest.indexOf(':');
+        if (split <= 0 || split == rest.length() - 1) {
             warn(plugin, "Invalid ItemsAdder id (want namespace:id): " + token);
             return Optional.empty();
         }

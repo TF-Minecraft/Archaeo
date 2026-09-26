@@ -68,17 +68,15 @@ public final class CampFindsBoard implements InventoryHolder {
      * @param site excavation
      */
     public void open(Player player, Site site) {
+        List<BuriedFind> register = site.cataloguedFinds();
         finds.clear();
-        for (BuriedFind find : site.cataloguedFinds()) {
+        for (BuriedFind find : register) {
             finds.add(find.getId());
         }
         inventory = Bukkit.createInventory(this, 27, "Finds");
-        int shown = Math.min(finds.size(), LIST_SLOTS);
+        int shown = Math.min(register.size(), LIST_SLOTS);
         for (int i = 0; i < shown; i++) {
-            BuriedFind find = site.findById(finds.get(i)).orElse(null);
-            if (find != null) {
-                inventory.setItem(i, rowItem(site, find));
-            }
+            inventory.setItem(i, rowItem(site, register.get(i)));
         }
         if (director && site.getStatus() == SiteStatus.EXHAUSTED) {
             inventory.setItem(SLOT_REPORT, named(
@@ -161,13 +159,9 @@ public final class CampFindsBoard implements InventoryHolder {
         ItemStack stack = base == null ? new ItemStack(Material.BRICK) : base.clone();
         stack.setAmount(1);
         ItemMeta meta = stack.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName(name);
-            if (lore.length > 0) {
-                meta.setLore(List.of(lore));
-            }
-            stack.setItemMeta(meta);
-        }
+        meta.setDisplayName(name);
+        meta.setLore(List.of(lore));
+        stack.setItemMeta(meta);
         return stack;
     }
 }

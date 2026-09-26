@@ -74,7 +74,7 @@ public class SketchSupplies {
         this.paper = paper;
         this.pencil = pencil;
         this.pencilUses = Math.max(0, pencilUses);
-        if (paper != null && paper.equals(pencil)) {
+        if (paper.equals(pencil)) {
             logger().warning("sketch.paper and sketch.pencil are the same item; combining them will be ambiguous.");
         }
     }
@@ -121,10 +121,12 @@ public class SketchSupplies {
         if (pencilUses <= 0 || pencil == null || pencil.getType().isAir()) {
             return false;
         }
+        // Every Paper item meta is Damageable, even on materials without a vanilla bar.
         ItemMeta meta = pencil.getItemMeta();
-        if (!(meta instanceof Damageable damageable) || meta.isUnbreakable()) {
+        if (meta.isUnbreakable()) {
             return false;
         }
+        Damageable damageable = (Damageable) meta;
         int max = maxDamage(damageable, pencil);
         return max > 0 && damageable.getDamage() >= max;
     }
@@ -142,19 +144,14 @@ public class SketchSupplies {
             return false;
         }
         ItemMeta meta = pencil.getItemMeta();
-        if (meta == null) {
-            return false;
-        }
         applyPencilDurability(meta);
-        if (!(meta instanceof Damageable damageable) || meta.isUnbreakable()) {
+        if (meta.isUnbreakable()) {
             pencil.setItemMeta(meta);
             return false;
         }
-        int max = maxDamage(damageable, pencil);
-        if (max <= 0) {
-            pencil.setItemMeta(meta);
-            return false;
-        }
+        // Finite uses always leave a configured max on the bar here.
+        Damageable damageable = (Damageable) meta;
+        int max = damageable.getMaxDamage();
         int applied = afterUnbreaking(pencil, 1);
         if (applied <= 0) {
             pencil.setItemMeta(meta);
@@ -216,9 +213,6 @@ public class SketchSupplies {
             return stack;
         }
         ItemMeta meta = stack.getItemMeta();
-        if (meta == null) {
-            return stack;
-        }
         markKit(meta, sheet);
         ItemRef ref = sheet ? paper : pencil;
         if (ownsTooltip(ref, stack)) {
@@ -240,7 +234,7 @@ public class SketchSupplies {
      * @return whether Archaeo should write name and lore (vanilla copies only)
      */
     private boolean ownsTooltip(ItemRef ref, ItemStack stack) {
-        return ref != null && ref.kind() == ItemRef.Kind.VANILLA && !matcher.isCustom(stack);
+        return ref.kind() == ItemRef.Kind.VANILLA && !matcher.isCustom(stack);
     }
 
     /**
@@ -260,9 +254,6 @@ public class SketchSupplies {
      * @return whether {@link #createPaper()} or {@link #createPencil()} tagged this stack
      */
     private boolean isMarkedKit(ItemStack stack, boolean sheet) {
-        if (stack == null || !stack.hasItemMeta()) {
-            return false;
-        }
         String kind = stack.getItemMeta().getPersistentDataContainer().get(kitKey, PersistentDataType.STRING);
         return (sheet ? KIT_PAPER : KIT_PENCIL).equals(kind);
     }
@@ -273,9 +264,7 @@ public class SketchSupplies {
      * @param meta pencil meta
      */
     private void applyPencilDurability(ItemMeta meta) {
-        if (!(meta instanceof Damageable damageable)) {
-            return;
-        }
+        Damageable damageable = (Damageable) meta;
         if (pencilUses <= 0) {
             if (damageable.hasMaxDamage()) {
                 damageable.setMaxDamage(null);

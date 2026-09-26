@@ -215,7 +215,7 @@ public class CampListener implements Listener {
         Action action = event.getAction();
         Block block = event.getClickedBlock();
         if (event.getHand() != EquipmentSlot.HAND) {
-            if (action == Action.RIGHT_CLICK_BLOCK && block != null && locked(block)) {
+            if (block != null && action == Action.RIGHT_CLICK_BLOCK && locked(block)) {
                 denyUse(event);
             }
             return;
@@ -229,20 +229,13 @@ public class CampListener implements Listener {
         if (action != Action.RIGHT_CLICK_BLOCK && action != Action.RIGHT_CLICK_AIR) {
             return;
         }
-        if (block != null && locked(block)) {
+        Site camp = block == null ? null : lockedCamp(block);
+        if (camp != null) {
             denyUse(event);
-            Site site = sites.findLockedCampBlock(
-                    block.getWorld().getName(),
-                    block.getX(),
-                    block.getY(),
-                    block.getZ()).orElse(null);
-            if (site == null) {
-                return;
-            }
             if (establish.isRelocating(event.getPlayer())) {
                 establish.tryCancelMove(event.getPlayer());
             }
-            openBoard(event.getPlayer(), site);
+            openBoard(event.getPlayer(), camp);
             return;
         }
         if (tryOpenArchive(event.getPlayer(), event.getItem(), event)) {
@@ -352,16 +345,12 @@ public class CampListener implements Listener {
         if (!(event.getInventory().getHolder() instanceof CampBoard board)) {
             return;
         }
-        event.setCancelled(true);
-        if (!(event.getWhoClicked() instanceof Player player)) {
+        Player player = topClicker(event);
+        if (player == null) {
             return;
         }
-        if (event.getClickedInventory() == null || event.getClickedInventory() != event.getView().getTopInventory()) {
-            return;
-        }
-        Site site = sites.findById(board.siteId()).orElse(null);
-        if (site == null || !site.mayConsult()) {
-            player.closeInventory();
+        Site site = consultable(player, board.siteId());
+        if (site == null) {
             return;
         }
         int slot = event.getRawSlot();
@@ -370,7 +359,7 @@ public class CampListener implements Listener {
             return;
         }
         if (slot == CampBoard.SLOT_PERSONAL) {
-            openStaff(player, site, board.director());
+            openStaff(player, site, staffing(player, site));
             return;
         }
         if (slot == CampBoard.SLOT_LIMITS) {
@@ -381,11 +370,11 @@ public class CampListener implements Listener {
             outline.show(player, site);
             return;
         }
-        if (slot == CampBoard.SLOT_CLOSE && board.canClose()) {
+        if (slot == CampBoard.SLOT_CLOSE && canCloseCamp(player, site)) {
             beginClosePrompt(player, site);
             return;
         }
-        if (!board.director()) {
+        if (!staffing(player, site)) {
             return;
         }
         if (slot == CampBoard.SLOT_RENAME) {
@@ -419,16 +408,12 @@ public class CampListener implements Listener {
         if (!(event.getInventory().getHolder() instanceof CampStaffBoard staff)) {
             return;
         }
-        event.setCancelled(true);
-        if (!(event.getWhoClicked() instanceof Player player)) {
+        Player player = topClicker(event);
+        if (player == null) {
             return;
         }
-        if (event.getClickedInventory() == null || event.getClickedInventory() != event.getView().getTopInventory()) {
-            return;
-        }
-        Site site = sites.findById(staff.siteId()).orElse(null);
-        if (site == null || !site.mayConsult()) {
-            player.closeInventory();
+        Site site = consultable(player, staff.siteId());
+        if (site == null) {
             return;
         }
         boolean director = staffing(player, site);
@@ -467,16 +452,12 @@ public class CampListener implements Listener {
         if (!(event.getInventory().getHolder() instanceof CampWorkerBoard file)) {
             return;
         }
-        event.setCancelled(true);
-        if (!(event.getWhoClicked() instanceof Player player)) {
+        Player player = topClicker(event);
+        if (player == null) {
             return;
         }
-        if (event.getClickedInventory() == null || event.getClickedInventory() != event.getView().getTopInventory()) {
-            return;
-        }
-        Site site = sites.findById(file.siteId()).orElse(null);
-        if (site == null || !site.mayConsult()) {
-            player.closeInventory();
+        Site site = consultable(player, file.siteId());
+        if (site == null) {
             return;
         }
         int slot = event.getRawSlot();
@@ -509,16 +490,12 @@ public class CampListener implements Listener {
         if (!(event.getInventory().getHolder() instanceof CampFindsBoard board)) {
             return;
         }
-        event.setCancelled(true);
-        if (!(event.getWhoClicked() instanceof Player player)) {
+        Player player = topClicker(event);
+        if (player == null) {
             return;
         }
-        if (event.getClickedInventory() == null || event.getClickedInventory() != event.getView().getTopInventory()) {
-            return;
-        }
-        Site site = sites.findById(board.siteId()).orElse(null);
-        if (site == null || !site.mayConsult()) {
-            player.closeInventory();
+        Site site = consultable(player, board.siteId());
+        if (site == null) {
             return;
         }
         int slot = event.getRawSlot();
@@ -546,16 +523,12 @@ public class CampListener implements Listener {
         if (!(event.getInventory().getHolder() instanceof CampFindBoard file)) {
             return;
         }
-        event.setCancelled(true);
-        if (!(event.getWhoClicked() instanceof Player player)) {
+        Player player = topClicker(event);
+        if (player == null) {
             return;
         }
-        if (event.getClickedInventory() == null || event.getClickedInventory() != event.getView().getTopInventory()) {
-            return;
-        }
-        Site site = sites.findById(file.siteId()).orElse(null);
-        if (site == null || !site.mayConsult()) {
-            player.closeInventory();
+        Site site = consultable(player, file.siteId());
+        if (site == null) {
             return;
         }
         int slot = event.getRawSlot();
@@ -578,16 +551,12 @@ public class CampListener implements Listener {
         if (!(event.getInventory().getHolder() instanceof CampIdentifyBoard board)) {
             return;
         }
-        event.setCancelled(true);
-        if (!(event.getWhoClicked() instanceof Player player)) {
+        Player player = topClicker(event);
+        if (player == null) {
             return;
         }
-        if (event.getClickedInventory() == null || event.getClickedInventory() != event.getView().getTopInventory()) {
-            return;
-        }
-        Site site = sites.findById(board.siteId()).orElse(null);
-        if (site == null || !site.mayConsult()) {
-            player.closeInventory();
+        Site site = consultable(player, board.siteId());
+        if (site == null) {
             return;
         }
         int slot = event.getRawSlot();
@@ -625,9 +594,6 @@ public class CampListener implements Listener {
     private void fileStationReading(Player player, Site site, CampIdentifyBoard board, String optionId) {
         if (!site.mayCatalog(player.getUniqueId())) {
             player.sendMessage("You are not authorised to write this record.");
-            return;
-        }
-        if (board.type() == null) {
             return;
         }
         BuriedFind find = site.findById(board.findId()).orElse(null);
@@ -746,19 +712,12 @@ public class CampListener implements Listener {
         if (!(event.getInventory().getHolder() instanceof CampWoolPicker picker)) {
             return;
         }
-        event.setCancelled(true);
-        if (!(event.getWhoClicked() instanceof Player player)) {
-            return;
-        }
-        if (event.getClickedInventory() == null || event.getClickedInventory() != event.getView().getTopInventory()) {
+        Player player = topClicker(event);
+        if (player == null) {
             return;
         }
         Site site = sites.findById(picker.siteId()).orElse(null);
-        if (site == null || !site.isCampLocked()) {
-            player.closeInventory();
-            return;
-        }
-        if (!site.isDirector(player.getUniqueId())) {
+        if (site == null || !staffing(player, site)) {
             player.closeInventory();
             return;
         }
@@ -798,7 +757,7 @@ public class CampListener implements Listener {
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
-        String raw = event.getMessage() == null ? "" : event.getMessage().trim();
+        String raw = event.getMessage().trim();
         if (establish.isRelocating(player) && raw.equalsIgnoreCase("cancel")) {
             event.setCancelled(true);
             plugin.getServer().getScheduler().runTask(plugin, () -> establish.tryCancelMove(player));
@@ -842,7 +801,7 @@ public class CampListener implements Listener {
             return;
         }
         OfflinePlayer target = CampNames.known(raw);
-        if (target == null || target.getUniqueId() == null) {
+        if (target == null) {
             player.sendMessage("No player with that name has joined this server.");
             inviteForSite.put(player.getUniqueId(), siteId);
             return;
@@ -859,10 +818,7 @@ public class CampListener implements Listener {
             openStaff(player, site, true);
             return;
         }
-        if (!site.grantExcavator(target.getUniqueId())) {
-            player.sendMessage("Could not add that player.");
-            return;
-        }
+        site.grantExcavator(target.getUniqueId());
         sites.save(site);
         String added = CampNames.of(player, target.getUniqueId());
         player.sendMessage("Added " + added + " to the excavation staff.");
@@ -887,9 +843,7 @@ public class CampListener implements Listener {
      * @param site excavation
      */
     private void openBoard(Player player, Site site) {
-        if (player.getWorld() != null) {
-            handPick.ensureJornada(site, player.getWorld());
-        }
+        handPick.ensureJornada(site, player.getWorld());
         new CampBoard(site.getId(), staffing(player, site), canCloseCamp(player, site), catalogs)
                 .open(player, site);
     }
@@ -940,20 +894,6 @@ public class CampListener implements Listener {
             player.sendMessage("That excavation can no longer be closed.");
             return;
         }
-        closeCamp(player, site);
-    }
-
-    /**
-     * Unlocks the camp and gives the closer a field book that still opens this record.
-     *
-     * @param player director or server staff
-     * @param site standing camp
-     */
-    private void closeCamp(Player player, Site site) {
-        if (!canCloseCamp(player, site)) {
-            player.sendMessage("Only the director or server staff may close this excavation.");
-            return;
-        }
         campClosure.close(player, site);
     }
 
@@ -979,6 +919,38 @@ public class CampListener implements Listener {
         archiveBook.refresh(stack, site);
         openBoard(player, site);
         return true;
+    }
+
+    /**
+     * Cancels every click while a camp window is open, so no item can be moved in or out.
+     *
+     * @param event click inside a camp window
+     * @return the player who clicked the window itself, or {@code null} for their own inventory
+     *         or the gap outside the window
+     */
+    private static Player topClicker(InventoryClickEvent event) {
+        event.setCancelled(true);
+        if (event.getClickedInventory() == null || event.getClickedInventory() != event.getView().getTopInventory()) {
+            return null;
+        }
+        // Only players can hold an inventory view open on a Paper server.
+        return (Player) event.getWhoClicked();
+    }
+
+    /**
+     * Re-reads the record a window was drawn from and closes the window when it is gone.
+     *
+     * @param player viewer
+     * @param siteId excavation the window belongs to
+     * @return the record if it may still be read, otherwise {@code null}
+     */
+    private Site consultable(Player player, UUID siteId) {
+        Site site = sites.findById(siteId).orElse(null);
+        if (site == null || !site.mayConsult()) {
+            player.closeInventory();
+            return null;
+        }
+        return site;
     }
 
     /**
@@ -1028,11 +1000,19 @@ public class CampListener implements Listener {
      * @return whether it belongs to a locked camp
      */
     private boolean locked(Block block) {
+        return lockedCamp(block) != null;
+    }
+
+    /**
+     * @param block world block
+     * @return locked camp owning it, or {@code null}
+     */
+    private Site lockedCamp(Block block) {
         return sites.findLockedCampBlock(
                 block.getWorld().getName(),
                 block.getX(),
                 block.getY(),
-                block.getZ()).isPresent();
+                block.getZ()).orElse(null);
     }
 
     /**

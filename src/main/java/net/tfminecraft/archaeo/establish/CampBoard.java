@@ -82,20 +82,6 @@ public final class CampBoard implements InventoryHolder {
     }
 
     /**
-     * @return whether this copy includes director actions
-     */
-    public boolean director() {
-        return director;
-    }
-
-    /**
-     * @return whether Close is on this copy
-     */
-    public boolean canClose() {
-        return canClose;
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -330,19 +316,18 @@ public final class CampBoard implements InventoryHolder {
                     site.centerBlockX(),
                     site.getSurfaceY(),
                     site.centerBlockZ());
-            NamespacedKey key = biomeKey(biome);
-            if (key == null) {
-                return "unknown";
-            }
-            return titleCase(key.getKey().replace('_', ' '));
+            return titleCase(biomeKey(biome).getKey().replace('_', ' '));
         } catch (RuntimeException ignored) {
             return "unknown";
         }
     }
 
     /**
+     * Prefers Spigot's {@code RegistryAware#getKeyOrNull}, which paper-api 1.21.10 does not
+     * have, so it is looked up reflectively; otherwise falls back to {@link Biome#getKey()}.
+     *
      * @param biome chunk biome
-     * @return namespaced key, or {@code null}
+     * @return namespaced key
      */
     @SuppressWarnings("deprecation")
     private static NamespacedKey biomeKey(Biome biome) {
@@ -352,19 +337,16 @@ public final class CampBoard implements InventoryHolder {
                 return key;
             }
         } catch (ReflectiveOperationException ignored) {
-            // Paper 1.21.10: RegistryAware helpers are absent
+            // paper-api 1.21.10 has no RegistryAware#getKeyOrNull; use getKey below.
         }
         return biome.getKey();
     }
 
     /**
-     * @param raw biome id with spaces
+     * @param raw biome key path with spaces; namespaced keys are never empty
      * @return each word capitalised
      */
     private static String titleCase(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return "unknown";
-        }
         String[] words = raw.split(" ");
         StringBuilder text = new StringBuilder();
         for (int i = 0; i < words.length; i++) {
@@ -375,10 +357,7 @@ public final class CampBoard implements InventoryHolder {
             if (text.length() > 0) {
                 text.append(' ');
             }
-            text.append(Character.toUpperCase(word.charAt(0)));
-            if (word.length() > 1) {
-                text.append(word.substring(1));
-            }
+            text.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
         }
         return text.toString();
     }
@@ -451,7 +430,7 @@ public final class CampBoard implements InventoryHolder {
         int lost = 0;
         int total = 0;
         for (BuriedFind find : site.getFinds()) {
-            if (find.getStratumId() == null || !find.getStratumId().equals(stratumId)) {
+            if (!stratumId.equals(find.getStratumId())) {
                 continue;
             }
             total++;
@@ -509,13 +488,11 @@ public final class CampBoard implements InventoryHolder {
     private static ItemStack named(Material material, String name, String... lore) {
         ItemStack stack = new ItemStack(material);
         ItemMeta meta = stack.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName(name);
-            if (lore.length > 0) {
-                meta.setLore(List.of(lore));
-            }
-            stack.setItemMeta(meta);
+        meta.setDisplayName(name);
+        if (lore.length > 0) {
+            meta.setLore(List.of(lore));
         }
+        stack.setItemMeta(meta);
         return stack;
     }
 }

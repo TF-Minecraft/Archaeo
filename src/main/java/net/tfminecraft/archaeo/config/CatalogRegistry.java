@@ -69,6 +69,10 @@ public class CatalogRegistry {
 
     /**
      * Ensures default catalog files exist on disk (first run only), then reads them into memory.
+     * The required catalogues are parsed before anything is replaced, so a malformed file leaves
+     * the previously loaded catalogue whole (a failed {@code /archaeo reload} changes nothing).
+     *
+     * @throws IllegalStateException if a required section is missing
      */
     public void load() {
         copyDefaultIfAbsent("config.yml");
@@ -81,9 +85,15 @@ public class CatalogRegistry {
 
         plugin.reloadConfig();
         FileConfiguration config = plugin.getConfig();
+        YamlConfiguration interestFile = yaml("interest.yml");
+        Map<InterestLevel, InterestSettings> loadedInterests = readInterests(interestFile, config);
+        Map<String, StratumDefinition> loadedStrata = readStrata(yaml("strata.yml"));
+        Map<String, ArtifactTemplate> loadedArtifacts = readArtifacts(yaml("artifacts.yml"));
+        Map<String, HintTemplate> loadedHints = readHints(yaml("hints.yml"));
+
         loadItems(yaml("items.yml"), config);
-        loadInterests(yaml("interest.yml"), config);
-        loadGeneration(yaml("interest.yml"), config);
+        replace(interests, loadedInterests);
+        loadGeneration(interestFile, config);
         loadTracker(config);
         loadProspect(config);
         loadEstablish(config);
@@ -96,11 +106,22 @@ public class CatalogRegistry {
         loadStaffPermission(config);
         loadRarities(config);
         loadRarityFromWeight(config);
-        loadStrata(yaml("strata.yml"));
-        loadArtifacts(yaml("artifacts.yml"));
-        loadHints(yaml("hints.yml"));
+        replace(strata, loadedStrata);
+        replace(artifacts, loadedArtifacts);
+        replace(hints, loadedHints);
         loadInterpretations(yaml("interpretations.yml"));
         loadMaterials(yaml("materials.yml"));
+    }
+
+    /**
+     * @param live catalogue map
+     * @param loaded freshly parsed rows
+     * @param <K> key type
+     * @param <V> row type
+     */
+    private static <K, V> void replace(Map<K, V> live, Map<K, V> loaded) {
+        live.clear();
+        live.putAll(loaded);
     }
 
     /**
@@ -217,13 +238,10 @@ public class CatalogRegistry {
     }
 
     /**
-     * @param id resolved rarity key
+     * @param id rarity key from {@link #resolveRarityId(String, int)}, never blank
      * @return lore line
      */
     private String rarityLoreLineForId(String id) {
-        if (id == null || id.isBlank()) {
-            return rarities.getOrDefault("common", ArtifactRarity.COMMON.style()).loreLine();
-        }
         String key = id.trim().toLowerCase(Locale.ROOT);
         RarityStyle style = rarities.get(key);
         if (style != null) {
@@ -321,7 +339,7 @@ public class CatalogRegistry {
     public List<InterpretationType> interpretationTypes(FindProfile profile) {
         FindProfile key = profile == null ? FindProfile.OBJECT : profile;
         List<String> ids = profileTypeIds.get(key);
-        if (ids == null || ids.isEmpty()) {
+        if (ids == null) {
             return interpretationTypes();
         }
         List<InterpretationType> list = new ArrayList<>();
@@ -390,8 +408,9 @@ public class CatalogRegistry {
             String artifactId,
             Set<String> tags
     ) {
+        // Loaded types always carry at least one option.
         InterpretationType type = interpretationType(typeId);
-        if (type == null || type.options() == null || type.options().isEmpty()) {
+        if (type == null) {
             return List.of();
         }
         FindProfile profile = profileOf(artifactId);
@@ -424,14 +443,13 @@ public class CatalogRegistry {
             pool.remove(floor);
             offers.add(floor);
         }
-        while (offers.size() < want && !pool.isEmpty()) {
+        // A draw only happens when the pool holds more than three phrases, so three are always taken.
+        while (offers.size() < want) {
             offers.add(takeWeighted(pool, rng, weightTags));
         }
-        if (offers.size() > 1) {
-            int slot = rng.nextInt(offers.size());
-            InterpretationTemplate first = offers.remove(0);
-            offers.add(slot, first);
-        }
+        int slot = rng.nextInt(offers.size());
+        InterpretationTemplate first = offers.remove(0);
+        offers.add(slot, first);
         return List.copyOf(offers);
     }
 
@@ -452,14 +470,12 @@ public class CatalogRegistry {
             weights[i] = pool.get(i).suggestedBy(tags) ? 3 : 1;
             total += weights[i];
         }
-        int roll = rng.nextInt(Math.max(1, total));
+        // roll < total, so the walk always stops inside the pool.
+        int roll = rng.nextInt(total);
         int index = 0;
-        for (int i = 0; i < pool.size(); i++) {
-            roll -= weights[i];
-            if (roll < 0) {
-                index = i;
-                break;
-            }
+        while (roll >= weights[index]) {
+            roll -= weights[index];
+            index++;
         }
         return pool.remove(index);
     }
@@ -680,15 +696,13 @@ public class CatalogRegistry {
      * @return first non-blank string that is not a section
      */
     private static String firstPath(Configuration root, String... paths) {
-        if (root == null) {
-            return null;
-        }
         for (String path : paths) {
             if (!root.contains(path) || root.isConfigurationSection(path)) {
                 continue;
             }
+            // A present scalar always reads back as text.
             String value = root.getString(path);
-            if (value != null && !value.isBlank()) {
+            if (!value.isBlank()) {
                 return value;
             }
         }
@@ -710,9 +724,7 @@ public class CatalogRegistry {
     ) {
         Map<String, List<ItemRef>> profiles = new LinkedHashMap<>();
         ConfigurationSection tools = config.getConfigurationSection("excavation.tools");
-        ConfigurationSection itemsExcavation = itemsFile == null
-                ? null
-                : itemsFile.getConfigurationSection("excavation");
+        ConfigurationSection itemsExcavation = itemsFile.getConfigurationSection("excavation");
         LinkedHashSet<String> ids = new LinkedHashSet<>(fallback.excavationProfiles().keySet());
         if (tools != null) {
             ids.addAll(tools.getKeys(false));
@@ -847,7 +859,7 @@ public class CatalogRegistry {
                 loadLimits(excavation, fallback.limits()),
                 firstBool(excavation, pickSection, fallback.neighborTraces(), "neighbor-traces"),
                 loadCues(excavation, fallback.cues()),
-                loadProfiles(excavation, pickSection, fallback)
+                loadProfiles(excavation)
         );
     }
 
@@ -898,12 +910,12 @@ public class CatalogRegistry {
      * @return materials, possibly empty
      */
     private Set<Material> materialsFromList(List<String> raw, String path) {
-        if (raw == null || raw.isEmpty()) {
+        if (raw.isEmpty()) {
             return Set.of();
         }
         EnumSet<Material> out = EnumSet.noneOf(Material.class);
         for (String token : raw) {
-            if (token == null || token.isBlank()) {
+            if (token.isBlank()) {
                 continue;
             }
             String trimmed = token.trim();
@@ -927,7 +939,7 @@ public class CatalogRegistry {
      * @param path warning path
      */
     private void addTagMaterials(Set<Material> out, String tagToken, String path) {
-        if (tagToken == null || tagToken.isBlank()) {
+        if (tagToken.isBlank()) {
             return;
         }
         String key = tagToken.contains(":")
@@ -1088,45 +1100,21 @@ public class CatalogRegistry {
 
     /**
      * Builds named tools from {@code excavation.tools} (whitelist, lifts, window; tempo is vanilla).
+     * One profile per whitelist from {@link #loadExcavationItemLists}; the packaged hand, light and
+     * heavy lists always survive there, so the result is never empty.
      *
      * @param excavation {@code excavation:} or {@code null}
-     * @param pickSection {@code pick:} or {@code null}
-     * @param fallback packaged profiles
-     * @return named tools; legacy {@code pick.tools} becomes one {@code hand} profile
+     * @return named tools in whitelist order
      */
-    private List<ExcavationTool> loadProfiles(
-            ConfigurationSection excavation,
-            ConfigurationSection pickSection,
-            PickSettings fallback
-    ) {
+    private List<ExcavationTool> loadProfiles(ConfigurationSection excavation) {
         ConfigurationSection tools = excavation == null ? null : excavation.getConfigurationSection("tools");
-        LinkedHashSet<String> ids = new LinkedHashSet<>(items.excavationProfiles().keySet());
-        if (tools != null) {
-            ids.addAll(tools.getKeys(false));
+        List<ExcavationTool> profiles = new ArrayList<>();
+        for (Map.Entry<String, List<ItemRef>> entry : items.excavationProfiles().entrySet()) {
+            String id = entry.getKey();
+            ConfigurationSection tool = tools == null ? null : tools.getConfigurationSection(id);
+            profiles.add(readTool(id, tool, entry.getValue(), ExcavationTool.packaged(id)));
         }
-        if (!ids.isEmpty()) {
-            List<ExcavationTool> profiles = new ArrayList<>();
-            for (String id : ids) {
-                ConfigurationSection tool = tools == null ? null : tools.getConfigurationSection(id);
-                List<ItemRef> materials = items.profileMaterials(id);
-                if (materials.isEmpty() && tool != null) {
-                    materials = toolItems(tool);
-                }
-                if (materials.isEmpty()) {
-                    continue;
-                }
-                profiles.add(readTool(id, tool, materials, ExcavationTool.packaged(id)));
-            }
-            if (!profiles.isEmpty()) {
-                return List.copyOf(profiles);
-            }
-        }
-        if (pickSection != null && !pickSection.getStringList("tools").isEmpty()) {
-            List<ItemRef> materials = ItemRef.parseAll(plugin, pickSection.getStringList("tools"));
-            ExcavationTool inherit = ExcavationTool.hand();
-            return List.of(readTool("hand", pickSection, materials, inherit));
-        }
-        return fallback.profiles();
+        return List.copyOf(profiles);
     }
 
     /**
@@ -1187,31 +1175,26 @@ public class CatalogRegistry {
      * Reads {@code tempo:} — {@code vanilla} / omit → {@code 0}; a number → Archaeo metronome ticks.
      * Legacy {@code cue-ticks} is still accepted. Omitting tempo never inherits a packaged metronome.
      *
-     * @param section tool profile
+     * @param section tool profile, never {@code null} ({@link #readTool} handles a missing block)
      * @return cue ticks; {@code 0} means vanilla mining tempo
      */
     private static int readTempo(ConfigurationSection section) {
-        if (section == null) {
-            return 0;
-        }
         if (section.contains("tempo")) {
             Object raw = section.get("tempo");
             if (raw instanceof Number number) {
                 return Math.max(0, number.intValue());
             }
-            if (raw != null) {
-                String token = raw.toString().trim();
-                if (token.isEmpty()
-                        || token.equalsIgnoreCase("vanilla")
-                        || token.equalsIgnoreCase("default")
-                        || token.equalsIgnoreCase("auto")) {
-                    return 0;
-                }
-                try {
-                    return Math.max(0, Integer.parseInt(token));
-                } catch (NumberFormatException ignored) {
-                    return 0;
-                }
+            String token = raw.toString().trim();
+            if (token.isEmpty()
+                    || token.equalsIgnoreCase("vanilla")
+                    || token.equalsIgnoreCase("default")
+                    || token.equalsIgnoreCase("auto")) {
+                return 0;
+            }
+            try {
+                return Math.max(0, Integer.parseInt(token));
+            } catch (NumberFormatException ignored) {
+                return 0;
             }
         }
         Integer legacy = sectionIntOrNull(
@@ -1263,14 +1246,11 @@ public class CatalogRegistry {
     /**
      * First defined string list among {@code keys} on {@code section}.
      *
-     * @param section YAML map, or {@code null}
+     * @param section YAML map
      * @param keys preference order
      * @return list, or empty when none is present
      */
     private static List<String> firstStringList(ConfigurationSection section, String... keys) {
-        if (section == null || keys == null) {
-            return List.of();
-        }
         for (String key : keys) {
             if (section.contains(key)) {
                 return section.getStringList(key);
@@ -1282,15 +1262,12 @@ public class CatalogRegistry {
     /**
      * First defined double among {@code keys} on {@code section}.
      *
-     * @param section YAML map, or {@code null}
+     * @param section YAML map
      * @param fallback when none is present
      * @param keys preference order
      * @return value
      */
     private static double firstDouble(ConfigurationSection section, double fallback, String... keys) {
-        if (section == null || keys == null) {
-            return fallback;
-        }
         for (String key : keys) {
             if (section.contains(key)) {
                 return section.getDouble(key);
@@ -1317,15 +1294,12 @@ public class CatalogRegistry {
      * @return first present float, or {@code fallback}
      */
     private static Float sectionFloat(ConfigurationSection section, Float fallback, String... keys) {
-        if (section == null) {
-            return fallback;
-        }
         for (String key : keys) {
             if (!section.contains(key) || section.isConfigurationSection(key)) {
                 continue;
             }
             String raw = section.getString(key);
-            if (raw == null || raw.isBlank()) {
+            if (raw.isBlank()) {
                 return null;
             }
             return (float) section.getDouble(key);
@@ -1357,9 +1331,6 @@ public class CatalogRegistry {
      * @return double value
      */
     private static double sectionDouble(ConfigurationSection section, double fallback, String... keys) {
-        if (section == null) {
-            return fallback;
-        }
         for (String key : keys) {
             if (section.contains(key)) {
                 return section.getDouble(key);
@@ -1374,9 +1345,6 @@ public class CatalogRegistry {
      * @return first present string, or {@code null}
      */
     private static String sectionString(ConfigurationSection section, String... keys) {
-        if (section == null) {
-            return null;
-        }
         for (String key : keys) {
             if (section.contains(key) && !section.isConfigurationSection(key)) {
                 return section.getString(key);
@@ -1496,11 +1464,11 @@ public class CatalogRegistry {
         if (!section.contains(key)) {
             return fallback;
         }
-        if (section.isDouble(key) || section.isInt(key) || section.isLong(key)) {
+        if (section.get(key) instanceof Number) {
             return section.getDouble(key);
         }
         String raw = section.getString(key);
-        if (raw == null || raw.isBlank()) {
+        if (raw.isBlank()) {
             return fallback;
         }
         try {
@@ -1579,7 +1547,7 @@ public class CatalogRegistry {
      * @return packaged wipe sound
      */
     private static org.bukkit.Sound defaultToolSound(String id) {
-        return switch (id == null ? "" : id.toLowerCase(java.util.Locale.ROOT)) {
+        return switch (id.toLowerCase(java.util.Locale.ROOT)) {
             case "water" -> org.bukkit.Sound.ITEM_BUCKET_EMPTY;
             case "air" -> org.bukkit.Sound.ITEM_BRUSH_BRUSHING_SAND;
             case "brush" -> org.bukkit.Sound.ITEM_BRUSH_BRUSHING_GENERIC;
@@ -1592,7 +1560,7 @@ public class CatalogRegistry {
      * @return packaged clean pane
      */
     private static Material defaultCleanGlass(String id) {
-        return switch (id == null ? "" : id.toLowerCase(java.util.Locale.ROOT)) {
+        return switch (id.toLowerCase(java.util.Locale.ROOT)) {
             case "metal" -> Material.GRAY_STAINED_GLASS_PANE;
             case "organic" -> Material.LIME_STAINED_GLASS_PANE;
             case "stone" -> Material.LIGHT_GRAY_STAINED_GLASS_PANE;
@@ -1605,7 +1573,7 @@ public class CatalogRegistry {
      * @return packaged stain ids for that material
      */
     private static List<String> defaultStains(String id) {
-        return switch (id == null ? "" : id.toLowerCase(java.util.Locale.ROOT)) {
+        return switch (id.toLowerCase(java.util.Locale.ROOT)) {
             case "ceramic" -> List.of("limescale", "soil");
             case "stone" -> List.of("limescale");
             case "metal" -> List.of("rust");
@@ -1621,7 +1589,7 @@ public class CatalogRegistry {
      */
     private void loadStaffPermission(org.bukkit.configuration.file.FileConfiguration config) {
         String node = config.getString("permissions.staff", "archaeo.admin");
-        staffPermission = node == null || node.isBlank() ? "archaeo.admin" : node.trim();
+        staffPermission = node.isBlank() ? "archaeo.admin" : node.trim();
     }
 
     /**
@@ -1635,7 +1603,7 @@ public class CatalogRegistry {
         ConfigurationSection root = config.getConfigurationSection("rarity");
         if (root != null) {
             for (String id : root.getKeys(false)) {
-                if (id == null || id.isBlank()) {
+                if (id.isBlank()) {
                     continue;
                 }
                 String key = id.trim().toLowerCase(Locale.ROOT);
@@ -1648,7 +1616,7 @@ public class CatalogRegistry {
                     continue;
                 }
                 String label = section.getString("label", fallback.label());
-                if (label == null || label.isBlank()) {
+                if (label.isBlank()) {
                     label = fallback.label();
                 }
                 ChatColor color = parseChatColor(section.getString("color"), fallback.color());
@@ -1672,7 +1640,7 @@ public class CatalogRegistry {
         }
         List<WeightRarityBand> bands = new ArrayList<>();
         for (String id : root.getKeys(false)) {
-            if (id == null || id.isBlank()) {
+            if (id.isBlank()) {
                 continue;
             }
             String key = id.trim().toLowerCase(Locale.ROOT);
@@ -1735,10 +1703,11 @@ public class CatalogRegistry {
      *
      * @param interest parsed interest file
      * @param config root plugin config
+     * @return every interest level
      * @throws IllegalStateException if an interest-levels block is missing
      */
-    private void loadInterests(YamlConfiguration interest, FileConfiguration config) {
-        interests.clear();
+    private static Map<InterestLevel, InterestSettings> readInterests(YamlConfiguration interest, FileConfiguration config) {
+        Map<InterestLevel, InterestSettings> interests = new EnumMap<>(InterestLevel.class);
         ConfigurationSection root = sectionOr(interest, config, "interest-levels");
         if (root == null) {
             throw new IllegalStateException("Missing interest-levels in interest.yml");
@@ -1762,15 +1731,18 @@ public class CatalogRegistry {
                     section.getDouble("disturbed-chance")
             ));
         }
+        return interests;
     }
 
     /**
      * Reads stratum depth bands from {@code strata.yml}.
      *
      * @param yaml parsed strata file
+     * @return stratum rows in file order
+     * @throws IllegalStateException if {@code strata} is missing
      */
-    private void loadStrata(YamlConfiguration yaml) {
-        strata.clear();
+    private static Map<String, StratumDefinition> readStrata(YamlConfiguration yaml) {
+        Map<String, StratumDefinition> strata = new LinkedHashMap<>();
         ConfigurationSection root = yaml.getConfigurationSection("strata");
         if (root == null) {
             throw new IllegalStateException("Missing strata in strata.yml");
@@ -1789,15 +1761,18 @@ public class CatalogRegistry {
                     section.getBoolean("always-present", true)
             ));
         }
+        return strata;
     }
 
     /**
      * Reads find templates (size, tags, relic flag) from {@code artifacts.yml}.
      *
      * @param yaml parsed artifacts file
+     * @return artifact rows in file order
+     * @throws IllegalStateException if {@code artifacts} is missing
      */
-    private void loadArtifacts(YamlConfiguration yaml) {
-        artifacts.clear();
+    private Map<String, ArtifactTemplate> readArtifacts(YamlConfiguration yaml) {
+        Map<String, ArtifactTemplate> artifacts = new LinkedHashMap<>();
         ConfigurationSection root = yaml.getConfigurationSection("artifacts");
         if (root == null) {
             throw new IllegalStateException("Missing artifacts in artifacts.yml");
@@ -1823,6 +1798,7 @@ public class CatalogRegistry {
                     section.getString("study-notes", "")
             ));
         }
+        return artifacts;
     }
 
     /**
@@ -2004,9 +1980,11 @@ public class CatalogRegistry {
      * Reads site hint texts and filter rules from {@code hints.yml}.
      *
      * @param yaml parsed hints file
+     * @return hint rows in file order
+     * @throws IllegalStateException if {@code hints} is missing
      */
-    private void loadHints(YamlConfiguration yaml) {
-        hints.clear();
+    private static Map<String, HintTemplate> readHints(YamlConfiguration yaml) {
+        Map<String, HintTemplate> hints = new LinkedHashMap<>();
         ConfigurationSection root = yaml.getConfigurationSection("hints");
         if (root == null) {
             throw new IllegalStateException("Missing hints in hints.yml");
@@ -2031,6 +2009,7 @@ public class CatalogRegistry {
                     section.contains("require-disturbed") ? section.getBoolean("require-disturbed") : null
             ));
         }
+        return hints;
     }
 
     /**
@@ -2044,13 +2023,11 @@ public class CatalogRegistry {
             FileConfiguration fallback,
             String path
     ) {
-        if (preferred != null) {
-            ConfigurationSection section = preferred.getConfigurationSection(path);
-            if (section != null) {
-                return section;
-            }
+        ConfigurationSection section = preferred.getConfigurationSection(path);
+        if (section != null) {
+            return section;
         }
-        return fallback == null ? null : fallback.getConfigurationSection(path);
+        return fallback.getConfigurationSection(path);
     }
 
     /**

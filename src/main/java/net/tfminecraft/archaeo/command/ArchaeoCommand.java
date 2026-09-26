@@ -242,14 +242,10 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     catalogs.items().sketchPencil(),
                     catalogs.sketch().pencilUses());
             plugin.sketch().setSettings(catalogs.sketch());
-            if (autoRuins != null) {
-                autoRuins.setSettings(catalogs.autoRuins());
-            }
+            autoRuins.setSettings(catalogs.autoRuins());
             sites.loadAll();
             sender.sendMessage("Reloaded Archaeo config, catalogs, and sites from disk.");
-            if (autoRuins != null) {
-                sender.sendMessage(autoRuins.statusLine());
-            }
+            sender.sendMessage(autoRuins.statusLine());
         } catch (RuntimeException exception) {
             sender.sendMessage("Reload failed: " + exception.getMessage());
         }
@@ -373,7 +369,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             String givenLabel,
             String receivedMessage
     ) {
-        if (stack == null || stack.getType().isAir()) {
+        if (stack.getType().isAir()) {
             sender.sendMessage("Could not create that item. Check pack plugins and config.yml.");
             return true;
         }
@@ -897,10 +893,6 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      * @return {@code true} always (handled)
      */
     private boolean handleRuinAuto(CommandSender sender, String[] args) {
-        if (autoRuins == null) {
-            sender.sendMessage("Auto-ruins are not available on this server.");
-            return true;
-        }
         if (args.length < 3) {
             sender.sendMessage("Usage: /archaeo ruin auto status|reset");
             return true;
@@ -944,7 +936,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage("Console must name a player before a serial: /archaeo ruin camps <player> #serial");
                     return true;
                 }
-                return teleportToCamp(sender, (Player) sender, onlySerial.get(), null);
+                return teleportToCamp((Player) sender, onlySerial.get(), null);
             }
             director = CampNames.known(args[2]);
             if (director == null) {
@@ -969,7 +961,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage("Only a player can teleport to a camp.");
                 return true;
             }
-            return teleportToCamp(sender, player, serial.get(), directorId);
+            return teleportToCamp(player, serial.get(), directorId);
         }
         List<Site> camps = sites.findDirectedCamps(directorId);
         String who = CampNames.of(sender instanceof Player player ? player : null, directorId);
@@ -979,12 +971,12 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         }
         if (camps.size() == 1 && sender instanceof Player player) {
             Site only = camps.getFirst();
-            sendCampLine(sender, only, false);
-            return teleportPlayerToCamp(sender, player, only);
+            sendCampLine(sender, only, null);
+            return teleportPlayerToCamp(player, only);
         }
         sender.sendMessage(who + " directs " + camps.size() + " camp" + (camps.size() == 1 ? "" : "s") + ":");
         for (Site camp : camps) {
-            sendCampLine(sender, camp, sender instanceof Player);
+            sendCampLine(sender, camp, sender instanceof Player player ? player : null);
         }
         if (camps.size() > 1 && sender instanceof Player) {
             sender.sendMessage("Click [tp] or run /archaeo ruin camps "
@@ -997,51 +989,45 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     /**
      * Teleports the issuer to a directed camp after checking the optional director filter.
      *
-     * @param sender who receives errors
-     * @param traveler player to move
+     * @param traveler issuing player, who also receives errors
      * @param serial site serial
      * @param expectedDirector required director, or {@code null} to accept any locked camp
      * @return {@code true} always
      */
-    private boolean teleportToCamp(
-            CommandSender sender,
-            Player traveler,
-            int serial,
-            UUID expectedDirector
-    ) {
+    private boolean teleportToCamp(Player traveler, int serial, UUID expectedDirector) {
         Optional<Site> resolved = sites.findBySerial(serial);
         if (resolved.isEmpty()) {
-            sender.sendMessage("No site with serial #" + serial + ".");
+            traveler.sendMessage("No site with serial #" + serial + ".");
             return true;
         }
         Site site = resolved.get();
         if (!site.isCampLocked() || site.getCampX() == null) {
-            sender.sendMessage(site.displayLabel() + " has no standing camp to teleport to.");
+            traveler.sendMessage(site.displayLabel() + " has no standing camp to teleport to.");
             return true;
         }
         if (expectedDirector != null && !site.isDirector(expectedDirector)) {
-            sender.sendMessage(site.displayLabel() + " is not directed by that player.");
+            traveler.sendMessage(site.displayLabel() + " is not directed by that player.");
             return true;
         }
-        return teleportPlayerToCamp(sender, traveler, site);
+        return teleportPlayerToCamp(traveler, site);
     }
 
     /**
-     * Moves {@code traveler} to the camp table block of {@code site}.
+     * Moves the issuing player to the camp table block of {@code site}.
      *
-     * @param sender who receives confirmations
-     * @param traveler player to move
+     * @param traveler issuing player, who also receives confirmations
      * @param site locked camp
      * @return {@code true} always
      */
-    private boolean teleportPlayerToCamp(CommandSender sender, Player traveler, Site site) {
+    private boolean teleportPlayerToCamp(Player traveler, Site site) {
         World world = Bukkit.getWorld(site.getWorldName());
         if (world == null) {
-            sender.sendMessage("World not loaded: " + site.getWorldName());
+            traveler.sendMessage("World not loaded: " + site.getWorldName());
             return true;
         }
-        if (site.getCampX() == null || site.getCampY() == null || site.getCampZ() == null) {
-            sender.sendMessage(site.displayLabel() + " has no camp coordinates.");
+        // The table's three coordinates are written together (Site#establish, dossier load).
+        if (site.getCampX() == null) {
+            traveler.sendMessage(site.displayLabel() + " has no camp coordinates.");
             return true;
         }
         Location destination = new Location(
@@ -1050,12 +1036,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                 site.getCampY() + 1.0,
                 site.getCampZ() + 0.5);
         traveler.teleport(destination);
-        sender.sendMessage("Teleported to " + site.displayLabel()
+        traveler.sendMessage("Teleported to " + site.displayLabel()
                 + " · camp " + site.getCampX() + "," + site.getCampY() + "," + site.getCampZ()
                 + " (" + site.getWorldName() + ").");
-        if (traveler != sender) {
-            traveler.sendMessage("Staff moved you to camp " + site.publicName() + ".");
-        }
         return true;
     }
 
@@ -1064,9 +1047,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      *
      * @param sender who receives the line
      * @param site locked camp
-     * @param clickable whether to attach a {@code [tp]} run-command
+     * @param clickable player to receive a {@code [tp]} run-command, or {@code null} for plain text
      */
-    private void sendCampLine(CommandSender sender, Site site, boolean clickable) {
+    private void sendCampLine(CommandSender sender, Site site, Player clickable) {
         String coords = site.getCampX() == null
                 ? "unknown"
                 : site.getCampX() + "," + site.getCampY() + "," + site.getCampZ();
@@ -1074,7 +1057,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                 + " · " + site.getStatus().name().toLowerCase(Locale.ROOT)
                 + " · " + site.getWorldName()
                 + " · camp " + coords;
-        if (!clickable || !(sender instanceof Player player)) {
+        if (clickable == null) {
             sender.sendMessage("  " + body);
             return;
         }
@@ -1087,7 +1070,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         tp.setHoverEvent(new HoverEvent(
                 HoverEvent.Action.SHOW_TEXT,
                 new Text("Teleport to this camp")));
-        player.spigot().sendMessage(prefix, tp);
+        clickable.spigot().sendMessage(prefix, tp);
     }
 
     /**
@@ -1127,9 +1110,6 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      * @return serial if the whole query is a number
      */
     private Optional<Integer> parseSerial(String raw) {
-        if (raw == null) {
-            return Optional.empty();
-        }
         String trimmed = raw.trim();
         if (trimmed.startsWith("#")) {
             trimmed = trimmed.substring(1).trim();
@@ -1316,7 +1296,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         if (args.length == 3 && "stats".equalsIgnoreCase(args[1])) {
             return worldNamesStartingWith(args[2]);
         }
-        if (args.length >= 3 && "set-interest".equalsIgnoreCase(args[1])) {
+        // From here every ruin action has at least one token after it (args.length >= 3).
+        if ("set-interest".equalsIgnoreCase(args[1])) {
             if (args.length == 3) {
                 return INTERESTS.stream()
                         .filter(value -> value.startsWith(args[2].toLowerCase(Locale.ROOT)))
@@ -1327,7 +1308,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     args.length == 4,
                     site -> site.getStatus() == SiteStatus.HIDDEN);
         }
-        if (args.length >= 3 && "close".equalsIgnoreCase(args[1])) {
+        if ("close".equalsIgnoreCase(args[1])) {
             String last = args[args.length - 1].toLowerCase(Locale.ROOT);
             if ("confirm".equals(last) && args.length > 3) {
                 return List.of();
@@ -1341,7 +1322,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             }
             return suggestions;
         }
-        if (args.length >= 3 && "delete".equalsIgnoreCase(args[1])) {
+        if ("delete".equalsIgnoreCase(args[1])) {
             String last = args[args.length - 1].toLowerCase(Locale.ROOT);
             if ("confirm".equals(last) && args.length > 3) {
                 return List.of();
@@ -1355,7 +1336,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             }
             return suggestions;
         }
-        if (args.length >= 3 && "create".equalsIgnoreCase(args[1])) {
+        if ("create".equalsIgnoreCase(args[1])) {
             if (args.length == 3) {
                 return INTERESTS.stream()
                         .filter(value -> value.startsWith(args[2].toLowerCase(Locale.ROOT)))
@@ -1363,7 +1344,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             }
             return List.of();
         }
-        if (args.length >= 3 && "info".equalsIgnoreCase(args[1])) {
+        if ("info".equalsIgnoreCase(args[1]) || "tp".equalsIgnoreCase(args[1])) {
             String typed = Arrays.stream(args).skip(2).collect(Collectors.joining(" "));
             List<String> names = new ArrayList<>(sites.namesStartingWith(typed));
             if (args.length == 3) {
@@ -1377,21 +1358,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             }
             return names;
         }
-        if (args.length >= 3 && "tp".equalsIgnoreCase(args[1])) {
-            String typed = Arrays.stream(args).skip(2).collect(Collectors.joining(" "));
-            List<String> names = new ArrayList<>(sites.namesStartingWith(typed));
-            if (args.length == 3) {
-                String token = args[2].toLowerCase(Locale.ROOT);
-                for (Site site : sites.all()) {
-                    String serial = "#" + site.getSerial();
-                    if (serial.startsWith(token) || String.valueOf(site.getSerial()).startsWith(token)) {
-                        names.add(serial);
-                    }
-                }
-            }
-            return names;
-        }
-        if (args.length >= 3 && "camps".equalsIgnoreCase(args[1])) {
+        if ("camps".equalsIgnoreCase(args[1])) {
             if (args.length == 3) {
                 List<String> suggestions = new ArrayList<>(onlineNamesStartingWith(args[2]));
                 String token = args[2].toLowerCase(Locale.ROOT);
@@ -1429,13 +1396,12 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     /**
      * Name and serial suggestions for a staff site query, optionally filtered.
      *
-     * @param typed text after the subcommand
+     * @param needle text after the subcommand
      * @param includeSerials whether the current token can still be a serial
      * @param filter sites to offer
      * @return matching names and serials
      */
-    private List<String> suggestSiteQueries(String typed, boolean includeSerials, Predicate<Site> filter) {
-        String needle = typed == null ? "" : typed;
+    private List<String> suggestSiteQueries(String needle, boolean includeSerials, Predicate<Site> filter) {
         List<String> names = new ArrayList<>();
         for (String name : sites.namesStartingWith(needle)) {
             boolean allowed = false;

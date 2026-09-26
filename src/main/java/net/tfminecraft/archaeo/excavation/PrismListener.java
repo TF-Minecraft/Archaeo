@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongSupplier;
 
 /**
  * Optionally locks all prism fill of an established excavation; vanilla holes
@@ -37,6 +38,8 @@ public class PrismListener implements Listener {
     private final SiteRepository sites;
     private final DigTools tools;
     private final Map<UUID, Long> lastWarn = new ConcurrentHashMap<>();
+    /** Wall clock in milliseconds for the warning cooldown; tests replace it to step past the cooldown. */
+    LongSupplier clock = System::currentTimeMillis;
     private boolean protectDigSite;
 
     /**
@@ -288,13 +291,10 @@ public class PrismListener implements Listener {
     }
 
     /**
-     * @param player breaker, or {@code null}
+     * @param player breaker
      */
     private void warn(Player player) {
-        if (player == null) {
-            return;
-        }
-        long now = System.currentTimeMillis();
+        long now = clock.getAsLong();
         Long previous = lastWarn.get(player.getUniqueId());
         if (previous != null && now - previous < MESSAGE_COOLDOWN_MS) {
             return;

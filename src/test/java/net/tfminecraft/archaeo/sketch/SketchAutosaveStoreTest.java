@@ -32,4 +32,18 @@ public class SketchAutosaveStoreTest {
         store.delete(42);
         assertNull(store.load(42));
     }
+
+    /** Verifies a short or padded file is refused rather than read as a shifted drawing. */
+    @Test
+    public void checkpointOfTheWrongSizeIsRejectedWithTheMapIdInTheMessage() throws Exception {
+        SketchAutosaveStore store = new SketchAutosaveStore(temporaryFolder.getRoot().toPath());
+        store.save(42, new SketchSheet());
+        java.nio.file.Path file = temporaryFolder.getRoot().toPath().resolve("sketch-autosaves").resolve("42.bin");
+        byte[] valid = java.nio.file.Files.readAllBytes(file);
+        for (int length : new int[]{0, valid.length - 1, valid.length + 1}) {
+            java.nio.file.Files.write(file, java.util.Arrays.copyOf(valid, length));
+            java.io.IOException refused = org.junit.Assert.assertThrows(java.io.IOException.class, () -> store.load(42));
+            org.junit.Assert.assertEquals("Invalid sketch autosave size for map 42", refused.getMessage());
+        }
+    }
 }

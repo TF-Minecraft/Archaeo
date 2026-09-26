@@ -148,9 +148,6 @@ public class DigTools {
             return;
         }
         ItemMeta meta = stack.getItemMeta();
-        if (meta == null) {
-            return;
-        }
         boolean changed = false;
         Collection<AttributeModifier> modifiers = meta.getAttributeModifiers(Attribute.BLOCK_BREAK_SPEED);
         if (modifiers != null) {
@@ -166,11 +163,9 @@ public class DigTools {
         // Do not rewrite a healthy ToolComponent — pack tools often share WOODEN_PICKAXE
         // as base material and keep their own defaultMiningSpeed.
         if (meta.getTool().getDefaultMiningSpeed() <= 0f) {
-            ItemMeta vanilla = new ItemStack(stack.getType()).getItemMeta();
-            if (vanilla != null) {
-                meta.setTool(vanilla.getTool());
-                changed = true;
-            }
+            // A non-air item type always has default metadata.
+            meta.setTool(new ItemStack(stack.getType()).getItemMeta().getTool());
+            changed = true;
         }
         if (changed) {
             stack.setItemMeta(meta);
@@ -183,8 +178,7 @@ public class DigTools {
      */
     private static boolean isLegacyArchaeoMineLock(AttributeModifier modifier) {
         NamespacedKey key = modifier.getKey();
-        return key != null
-                && "archaeo".equals(key.getNamespace())
+        return "archaeo".equals(key.getNamespace())
                 && "no_vanilla_mine".equals(key.getKey());
     }
 }

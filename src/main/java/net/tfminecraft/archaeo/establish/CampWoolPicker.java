@@ -107,13 +107,9 @@ public final class CampWoolPicker implements InventoryHolder {
     private static ItemStack named(Material material, String name, String... lore) {
         ItemStack stack = new ItemStack(material);
         ItemMeta meta = stack.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName(name);
-            if (lore.length > 0) {
-                meta.setLore(List.of(lore));
-            }
-            stack.setItemMeta(meta);
-        }
+        meta.setDisplayName(name);
+        meta.setLore(List.of(lore));
+        stack.setItemMeta(meta);
         return stack;
     }
 }

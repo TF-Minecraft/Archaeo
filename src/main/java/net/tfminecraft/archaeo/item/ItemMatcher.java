@@ -139,7 +139,8 @@ public final class ItemMatcher {
                 miPlugin = mmoClass.getField("plugin").get(null);
                 miTypeName = mmoClass.getMethod("getTypeName", ItemStack.class);
                 miId = mmoClass.getMethod("getID", ItemStack.class);
-                miGetItem = findGetItem(mmoClass);
+                Class<?> mmoType = Class.forName("net.Indyuce.mmoitems.api.Type");
+                miGetItem = mmoClass.getMethod("getItem", mmoType, String.class);
             } catch (ClassNotFoundException | NoSuchMethodException | NoSuchFieldException | IllegalAccessException exception) {
                 plugin.getLogger().log(Level.WARNING, "MMOItems is enabled but its API could not be bound.", exception);
             }
@@ -281,7 +282,8 @@ public final class ItemMatcher {
      * @return pack stack or air
      */
     private ItemStack createItemsAdder(ItemRef ref) {
-        if (iaGetInstance == null || iaGetItemStack == null) {
+        // detect binds getItemStack after getInstance, so one check covers both.
+        if (iaGetItemStack == null) {
             warn("ItemsAdder is not loaded; cannot create " + ref.primary());
             return new ItemStack(Material.AIR);
         }
@@ -306,7 +308,9 @@ public final class ItemMatcher {
      * @return pack stack or air
      */
     private ItemStack createMmoItems(ItemRef ref) {
-        if (miPlugin == null || miGetItem == null) {
+        // detect binds getItem after reading the singleton, and MMOItems sets that in its constructor,
+        // long before it reports enabled, so a bound getItem always has its plugin.
+        if (miGetItem == null) {
             warn("MMOItems is not loaded; cannot create " + ref.primary() + ":" + ref.secondary());
             return new ItemStack(Material.AIR);
         }
@@ -333,7 +337,8 @@ public final class ItemMatcher {
      * @return {@code namespace:id}, or {@code null}
      */
     private String itemsAdderId(ItemStack stack) {
-        if (iaByStack == null || iaNamespacedId == null || stack == null) {
+        // detect binds getNamespacedID after byItemStack, so one check covers both.
+        if (iaNamespacedId == null || stack == null) {
             return null;
         }
         try {
@@ -375,7 +380,8 @@ public final class ItemMatcher {
      * @return id, or {@code null}
      */
     private String invokeNamespaced(Method lookup, Method idMethod, Object argument) {
-        if (lookup == null || idMethod == null || argument == null) {
+        // detect binds each id method after its lookup; matchesPlaced/matchesEntity reject null arguments.
+        if (idMethod == null) {
             return null;
         }
         try {
@@ -392,11 +398,11 @@ public final class ItemMatcher {
 
     /**
      * @param left live id
-     * @param right configured id
+     * @param right configured ItemsAdder id, never {@code null}
      * @return case-insensitive match
      */
     private static boolean idEquals(String left, String right) {
-        return left != null && right != null && left.equalsIgnoreCase(right);
+        return left != null && left.equalsIgnoreCase(right);
     }
 
     /**
@@ -429,25 +435,6 @@ public final class ItemMatcher {
         } catch (ReflectiveOperationException ignored) {
             return null;
         }
-    }
-
-    /**
-     * @param mmoClass {@code net.Indyuce.mmoitems.MMOItems}
-     * @return {@code getItem(Type, String)} if present
-     */
-    private static Method findGetItem(Class<?> mmoClass) {
-        for (Method method : mmoClass.getMethods()) {
-            if (!"getItem".equals(method.getName()) || method.getParameterCount() != 2) {
-                continue;
-            }
-            if (method.getParameterTypes()[1] != String.class) {
-                continue;
-            }
-            if (ItemStack.class.isAssignableFrom(method.getReturnType())) {
-                return method;
-            }
-        }
-        return null;
     }
 
     /**

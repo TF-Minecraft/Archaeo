@@ -71,13 +71,6 @@ public final class CampWorkerBoard implements InventoryHolder {
     }
 
     /**
-     * @return whether this copy includes role buttons and the dismissal
-     */
-    public boolean director() {
-        return director;
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -91,11 +84,8 @@ public final class CampWorkerBoard implements InventoryHolder {
      */
     public void open(Player player, Site site) {
         String name = CampNames.of(player, member);
-        String title = name;
-        if (title.length() > 32) {
-            title = title.substring(0, 32);
-        }
-        inventory = Bukkit.createInventory(this, 27, title);
+        // Player names and the short-id fallback both fit the 32-character title limit.
+        inventory = Bukkit.createInventory(this, 27, name);
         ItemStack filler = named(Material.GRAY_STAINED_GLASS_PANE, " ");
         for (int slot = 0; slot < 27; slot++) {
             inventory.setItem(slot, filler);
@@ -161,9 +151,6 @@ public final class CampWorkerBoard implements InventoryHolder {
     private ItemStack headItem(String name, SiteRole role, WorkerRecord record) {
         ItemStack stack = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) stack.getItemMeta();
-        if (meta == null) {
-            return stack;
-        }
         OfflinePlayer owner = Bukkit.getOfflinePlayer(member);
         meta.setOwningPlayer(owner);
         meta.setDisplayName(ChatColor.WHITE + name);
@@ -346,16 +333,14 @@ public final class CampWorkerBoard implements InventoryHolder {
     private static ItemStack named(Material material, String name, boolean glint, String... lore) {
         ItemStack stack = new ItemStack(material);
         ItemMeta meta = stack.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName(name);
-            if (lore.length > 0) {
-                meta.setLore(List.of(lore));
-            }
-            if (glint) {
-                meta.setEnchantmentGlintOverride(true);
-            }
-            stack.setItemMeta(meta);
+        meta.setDisplayName(name);
+        if (lore.length > 0) {
+            meta.setLore(List.of(lore));
         }
+        if (glint) {
+            meta.setEnchantmentGlintOverride(true);
+        }
+        stack.setItemMeta(meta);
         return stack;
     }
 }

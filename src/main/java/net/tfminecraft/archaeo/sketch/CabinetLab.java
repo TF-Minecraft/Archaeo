@@ -63,7 +63,7 @@ final class CabinetLab {
         this.sites = sites;
         this.catalogs = catalogs;
         this.recovered = recovered;
-        this.settings = settings == null ? SketchSettings.defaults() : settings;
+        this.settings = settings;
         this.kindKey = new NamespacedKey(plugin, "lab_kind");
         this.toolKey = new NamespacedKey(plugin, "lab_tool");
         this.stainKey = new NamespacedKey(plugin, "lab_stain");
@@ -73,26 +73,20 @@ final class CabinetLab {
      * @param settings rack tools after reload
      */
     void setSettings(SketchSettings settings) {
-        this.settings = settings == null ? SketchSettings.defaults() : settings;
+        this.settings = settings;
     }
 
     /**
-     * Opens the wipe window when the player has an uncleaned recovered piece in hand.
+     * Opens the wipe window for the archived piece the player holds, unless it is already clean.
      *
      * @param player clicker
-     * @param block cabinet
-     * @param hand main-hand stack
+     * @param block cabinet, or {@code null}
+     * @param site excavation that owns the piece
+     * @param find archive row of the piece in hand
      * @return whether the lab window opened (or is already open)
      */
-    boolean tryStart(Player player, Block block, ItemStack hand) {
-        if (player == null || !recovered.isRecovered(hand)) {
-            return false;
-        }
-        UUID findId = recovered.findIdOf(hand);
-        UUID siteId = recovered.siteIdOf(hand);
-        Site site = siteId == null ? null : sites.findById(siteId).orElse(null);
-        BuriedFind find = site == null || findId == null ? null : site.findById(findId).orElse(null);
-        if (find == null || find.getState() != FindState.RECOVERED || find.isLabCleaned() || find.isCatalogued()) {
+    boolean tryStart(Player player, Block block, Site site, BuriedFind find) {
+        if (find.getState() != FindState.RECOVERED || find.isLabCleaned() || find.isCatalogued()) {
             return false;
         }
         if (open.containsKey(player.getUniqueId())) {
@@ -110,7 +104,11 @@ final class CabinetLab {
                 toolKey,
                 stainKey);
         open.put(player.getUniqueId(), board);
-        board.open(player);
+        if (!board.open(player)) {
+            // Another plugin cancelled the open; no close will follow to unregister the board.
+            open.remove(player.getUniqueId(), board);
+            return true;
+        }
         player.sendMessage(ChatColor.GOLD + "Pick a tool and wipe the dirt. "
                 + ChatColor.WHITE + material.firstStepGerund() + ".");
         return true;
@@ -122,19 +120,10 @@ final class CabinetLab {
      * @param player worker
      */
     void cancel(Player player) {
-        if (player == null) {
-            return;
-        }
-        CabinetLabBoard board = open.get(player.getUniqueId());
-        if (board == null) {
-            return;
-        }
-        if (player.getOpenInventory().getTopInventory().getHolder() instanceof CabinetLabBoard) {
+        // A board stays registered only while its window is open: every close runs handleClose.
+        if (open.containsKey(player.getUniqueId())) {
             player.closeInventory();
-            return;
         }
-        open.remove(player.getUniqueId());
-        stripLabItems(player);
     }
 
     /**
@@ -161,12 +150,12 @@ final class CabinetLab {
      * @return cursor after the click
      */
     ItemStack handleClick(Player player, CabinetLabBoard board, int slot, ItemStack cursor) {
-        if (player == null || board == null || board.finished()) {
+        if (board.finished()) {
             return cursor;
         }
         if (board.isToolSlot(slot)) {
             ItemStack picked = board.copyTool(slot);
-            if (isEmpty(cursor) || !board.isTool(cursor)) {
+            if (!board.isTool(cursor)) {
                 playTool(player, board.tool(board.toolId(picked)));
                 return picked;
             }
@@ -176,7 +165,7 @@ final class CabinetLab {
             playTool(player, board.tool(board.toolId(picked)));
             return picked;
         }
-        if (slot < 0 || slot >= LabSettings.FIELD_SLOTS) {
+        if (slot >= LabSettings.FIELD_SLOTS) {
             return cursor;
         }
         if (!board.isTool(cursor)) {
@@ -197,9 +186,6 @@ final class CabinetLab {
      * @param board window that closed
      */
     void handleClose(Player player, CabinetLabBoard board) {
-        if (player == null) {
-            return;
-        }
         open.remove(player.getUniqueId(), board);
         stripLabItems(player);
         plugin.getServer().getScheduler().runTask(plugin, () -> stripLabItems(player));
@@ -217,20 +203,17 @@ final class CabinetLab {
         }
         String toolId = board.toolId(cursor);
         LabStain stain = board.stainOf(slot);
-        if (stain == null || !stain.allowsTool(toolId)) {
+        if (!stain.allowsTool(toolId)) {
             if (!board.warnedWrongTool()) {
                 board.markWarnedWrongTool();
-                String label = stain == null ? "this dirt" : stain.label().toLowerCase(java.util.Locale.ROOT);
+                String label = stain.label().toLowerCase(java.util.Locale.ROOT);
                 player.sendMessage(ChatColor.GOLD + "That tool is not for " + label + ".");
             }
             player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, SoundCategory.PLAYERS, 0.4f, 0.7f);
             return;
         }
-        if (!board.wipe(slot)) {
-            return;
-        }
-        LabTool tool = board.tool(toolId);
-        cue(player, board, tool);
+        board.wipe(slot);
+        cue(player, board, board.tool(toolId));
         if (board.dirtyLeft() > 0) {
             return;
         }
@@ -264,13 +247,12 @@ final class CabinetLab {
     /**
      * @param player worker
      * @param board open window
-     * @param tool successful tool, or {@code null}
+     * @param tool rack tool that wiped the pane
      */
     private void cue(Player player, CabinetLabBoard board, LabTool tool) {
         playTool(player, tool);
-        String id = tool == null ? "" : tool.id();
-        Location at = board.cabinet() == null ? player.getLocation() : board.cabinet();
-        if ("water".equals(id)) {
+        Location at = board.cabinet();
+        if ("water".equals(tool.id())) {
             player.getWorld().spawnParticle(Particle.SPLASH, at, 8, 0.2, 0.1, 0.2, 0.01);
             return;
         }
@@ -279,12 +261,9 @@ final class CabinetLab {
 
     /**
      * @param player listener
-     * @param tool rack tool, or {@code null}
+     * @param tool rack tool; config always resolves a sound
      */
     private static void playTool(Player player, LabTool tool) {
-        if (player == null || tool == null || tool.sound() == null) {
-            return;
-        }
         player.playSound(player.getLocation(), tool.sound(), SoundCategory.PLAYERS, 0.4f, 1.2f);
     }
 
@@ -294,21 +273,19 @@ final class CabinetLab {
      * @param player worker
      */
     private void stripLabItems(Player player) {
-        if (player == null || !player.isOnline()) {
+        if (!player.isOnline()) {
             return;
         }
         if (isLabStack(player.getItemOnCursor())) {
             player.setItemOnCursor(null);
         }
+        // Player contents include armour and the off-hand, so this reaches every slot.
         PlayerInventory inventory = player.getInventory();
         ItemStack[] contents = inventory.getContents();
         for (int i = 0; i < contents.length; i++) {
             if (isLabStack(contents[i])) {
                 inventory.setItem(i, null);
             }
-        }
-        if (isLabStack(inventory.getItemInOffHand())) {
-            inventory.setItemInOffHand(null);
         }
     }
 
@@ -325,7 +302,7 @@ final class CabinetLab {
      * @return whether this stack was spawned by a lab window
      */
     private boolean isLabStack(ItemStack stack) {
-        if (stack == null || stack.getType().isAir() || !stack.hasItemMeta()) {
+        if (stack == null || !stack.hasItemMeta()) {
             return false;
         }
         return stack.getItemMeta().getPersistentDataContainer().has(kindKey, org.bukkit.persistence.PersistentDataType.STRING);
@@ -344,8 +321,7 @@ final class CabinetLab {
      * @return current lab settings
      */
     private LabSettings lab() {
-        LabSettings lab = settings.lab();
-        return lab == null ? LabSettings.defaults() : lab;
+        return settings.lab();
     }
 
     /**
@@ -355,17 +331,7 @@ final class CabinetLab {
      * @return whether both are the same rack tool
      */
     private static boolean sameTool(CabinetLabBoard board, ItemStack a, ItemStack b) {
-        String left = board.toolId(a);
-        String right = board.toolId(b);
-        return left != null && left.equals(right);
-    }
-
-    /**
-     * @param stack candidate
-     * @return whether the stack is missing
-     */
-    private static boolean isEmpty(ItemStack stack) {
-        return stack == null || stack.getType().isAir() || stack.getAmount() <= 0;
+        return board.toolId(a).equals(board.toolId(b));
     }
 
     /**

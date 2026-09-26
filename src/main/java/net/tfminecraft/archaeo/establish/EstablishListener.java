@@ -1,6 +1,8 @@
 package net.tfminecraft.archaeo.establish;
 
 import net.tfminecraft.archaeo.item.EstablishItem;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -11,12 +13,18 @@ import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlot;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
 /**
  * Routes establishment-kit clicks into {@link EstablishService}.
  */
 public class EstablishListener implements Listener {
     private final EstablishItem item;
     private final EstablishService service;
+    /** Server tick of each player's last main-hand kit click, until the matching off-hand event. */
+    private final Map<UUID, Integer> mainHandKitTick = new HashMap<>();
 
     /**
      * @param item kit recognition
@@ -29,15 +37,28 @@ public class EstablishListener implements Listener {
 
     /**
      * Right-click plants; sneak+left-click cycles wool on first plant; left-click aborts a camp move.
+     * The server fires one event per hand, so a kit held only in the off hand arrives on the
+     * off-hand event. When the main hand held a kit for the same click, the main-hand event has
+     * already acted, even if it spent the last kit there.
      *
      * @param event interact event
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
     public void onInteract(PlayerInteractEvent event) {
-        if (event.getHand() != EquipmentSlot.HAND) {
-            return;
+        Player player = event.getPlayer();
+        if (event.getHand() == EquipmentSlot.OFF_HAND) {
+            // Same tick-key as wool cycling. Removing the mark here keeps it from outliving the click.
+            Integer mainTick = mainHandKitTick.remove(player.getUniqueId());
+            if (mainTick != null && mainTick == Bukkit.getCurrentTick()) {
+                return;
+            }
         }
         if (!item.isEstablish(event.getItem())) {
+            return;
+        }
+        if (event.getHand() == EquipmentSlot.HAND) {
+            mainHandKitTick.put(player.getUniqueId(), Bukkit.getCurrentTick());
+        } else if (item.isEstablish(player.getInventory().getItemInMainHand())) {
             return;
         }
         Action action = event.getAction();
@@ -92,6 +113,7 @@ public class EstablishListener implements Listener {
      */
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
+        mainHandKitTick.remove(event.getPlayer().getUniqueId());
         service.clearSession(event.getPlayer());
         service.clearPreview(event.getPlayer());
         service.hideHud(event.getPlayer());

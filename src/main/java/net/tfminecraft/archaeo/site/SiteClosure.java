@@ -49,9 +49,6 @@ public final class SiteClosure {
             int cx = site.getChunkX();
             int cz = site.getChunkZ();
             for (Player player : world.getPlayers()) {
-                if (player.getLocation().getWorld() != world) {
-                    continue;
-                }
                 int px = player.getLocation().getBlockX() >> 4;
                 int pz = player.getLocation().getBlockZ() >> 4;
                 if (Math.abs(px - cx) <= 1 && Math.abs(pz - cz) <= 1) {

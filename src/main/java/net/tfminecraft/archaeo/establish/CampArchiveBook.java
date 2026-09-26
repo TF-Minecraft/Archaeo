@@ -37,8 +37,7 @@ public final class CampArchiveBook {
      * @return written book that opens the archive GUI
      */
     public ItemStack create(Player closer, Site site) {
-        String author = closer.getName() == null ? "Director" : closer.getName();
-        return create(author, site);
+        return create(closer.getName(), site);
     }
 
     /**
@@ -51,9 +50,6 @@ public final class CampArchiveBook {
     public ItemStack create(String authorName, Site site) {
         ItemStack stack = new ItemStack(Material.WRITTEN_BOOK);
         BookMeta meta = (BookMeta) stack.getItemMeta();
-        if (meta == null) {
-            return stack;
-        }
         String title = RecoveredFindItem.siteName(site);
         if (title.length() > 32) {
             title = title.substring(0, 32);
@@ -97,15 +93,10 @@ public final class CampArchiveBook {
         ItemStack stamped = crafted.clone();
         BookMeta from = (BookMeta) original.getItemMeta();
         BookMeta to = (BookMeta) stamped.getItemMeta();
-        if (from == null || to == null) {
-            return crafted;
-        }
         if (from.hasDisplayName()) {
             to.setDisplayName(from.getDisplayName());
         }
-        if (from.hasLore()) {
-            to.setLore(from.getLore());
-        }
+        to.setLore(from.getLore());
         String siteId = from.getPersistentDataContainer().get(siteIdKey, PersistentDataType.STRING);
         to.getPersistentDataContainer().set(markerKey, PersistentDataType.BYTE, (byte) 1);
         if (siteId != null) {
@@ -126,9 +117,6 @@ public final class CampArchiveBook {
             return;
         }
         BookMeta meta = (BookMeta) stack.getItemMeta();
-        if (meta == null) {
-            return;
-        }
         meta.setDisplayName(displayName(site));
         meta.setLore(loreOf(site));
         stack.setItemMeta(meta);

@@ -35,13 +35,8 @@ public final class CampWools {
      * @return wool block for that dye
      */
     public static Material woolOf(String name, DyeColor fallback) {
-        DyeColor color = parse(name, fallback);
-        Material material = Material.matchMaterial(color.name() + "_WOOL");
-        if (material != null) {
-            return material;
-        }
-        Material fallbackWool = Material.matchMaterial(fallback.name() + "_WOOL");
-        return fallbackWool != null ? fallbackWool : Material.RED_WOOL;
+        // Every dye colour has a matching wool block.
+        return Material.valueOf(parse(name, fallback).name() + "_WOOL");
     }
 
     /**

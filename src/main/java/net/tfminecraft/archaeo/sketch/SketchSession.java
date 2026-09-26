@@ -2,8 +2,6 @@ package net.tfminecraft.archaeo.sketch;
 
 import org.bukkit.map.MapView;
 
-import java.util.UUID;
-
 /**
  * One player frozen in front of one prototype map: cursor, current ink, and the sheet they stamp.
  */
@@ -12,7 +10,6 @@ final class SketchSession {
     private static final int REPEAT_INTERVAL_TICKS = 2;
     private static final int ERASE_STROKE_GRACE_TICKS = 5;
 
-    private final UUID playerId;
     private final MapView view;
     private final SketchSheet sheet;
     private int cursorX = SketchSheet.SIZE / 2;
@@ -30,22 +27,13 @@ final class SketchSession {
     private boolean awaitingSign;
 
     /**
-     * @param playerId editor
      * @param view locked map the renderer owns
      * @param sheet pixels for that view
      */
-    SketchSession(UUID playerId, MapView view, SketchSheet sheet) {
-        this.playerId = playerId;
+    SketchSession(MapView view, SketchSheet sheet) {
         this.view = view;
         this.sheet = sheet;
         this.autosavedRevision = sheet.revision();
-    }
-
-    /**
-     * @return editor
-     */
-    UUID playerId() {
-        return playerId;
     }
 
     /**

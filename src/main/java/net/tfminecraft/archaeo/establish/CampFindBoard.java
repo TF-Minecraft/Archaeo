@@ -181,8 +181,9 @@ public final class CampFindBoard implements InventoryHolder {
         List<String> lore = new ArrayList<>();
         if (RecoveredFindItem.conditionKnown(find)) {
             lore.add(ChatColor.GRAY + "Conservation: " + ChatColor.WHITE + find.getConservation() + "%"
-                    + (grade == null || grade.isBlank() ? "" : ChatColor.GRAY + " · " + grade));
-        } else if (find.getState() == FindState.RECOVERED) {
+                    + (grade.isBlank() ? "" : ChatColor.GRAY + " · " + grade));
+        } else {
+            // Register rows have left the cut, so a piece that is neither cleaned nor lost is recovered.
             lore.add(ChatColor.DARK_GRAY + "Clean the piece to read its condition.");
         }
         if (find.isDisturbedBeforeDig()) {
@@ -223,13 +224,11 @@ public final class CampFindBoard implements InventoryHolder {
     private static ItemStack named(Material material, String name, String... lore) {
         ItemStack stack = new ItemStack(material);
         ItemMeta meta = stack.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName(name);
-            if (lore.length > 0) {
-                meta.setLore(List.of(lore));
-            }
-            stack.setItemMeta(meta);
+        meta.setDisplayName(name);
+        if (lore.length > 0) {
+            meta.setLore(List.of(lore));
         }
+        stack.setItemMeta(meta);
         return stack;
     }
 }

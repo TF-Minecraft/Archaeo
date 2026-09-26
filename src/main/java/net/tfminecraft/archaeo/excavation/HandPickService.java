@@ -10,7 +10,6 @@ import net.tfminecraft.archaeo.model.BlockCell;
 import net.tfminecraft.archaeo.model.BuriedFind;
 import net.tfminecraft.archaeo.model.FindState;
 import net.tfminecraft.archaeo.model.Site;
-import net.tfminecraft.archaeo.model.StratumBand;
 import net.tfminecraft.archaeo.model.WorkerRecord;
 import net.tfminecraft.archaeo.site.SiteClosure;
 import net.tfminecraft.archaeo.site.SiteRepository;
@@ -41,6 +40,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongSupplier;
 
 /**
  * Hand Pick: client mining is frozen. Cue beats follow {@code cue-ticks} on the tool profile,
@@ -66,6 +66,8 @@ public class HandPickService {
     private int gameTick;
     private final Map<UUID, Cycle> cycles = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastWarn = new ConcurrentHashMap<>();
+    /** Wall clock in milliseconds for the warning cooldown; tests replace it to step past the cooldown. */
+    LongSupplier clock = System::currentTimeMillis;
 
     /**
      * @param plugin scheduler
@@ -114,17 +116,11 @@ public class HandPickService {
             task.cancel();
             task = null;
         }
-        for (UUID id : new ArrayList<>(cycles.keySet())) {
-            Player player = Bukkit.getPlayer(id);
-            if (player != null) {
-                finish(player);
-            } else {
-                cycles.remove(id);
-            }
-        }
         for (Player player : Bukkit.getOnlinePlayers()) {
+            finish(player);
             setVanillaMineLocked(player, false);
         }
+        cycles.clear();
     }
 
     /**
@@ -137,14 +133,7 @@ public class HandPickService {
         if (!settings.enabled()) {
             return;
         }
-        if (!isExcavationFill(block)) {
-            return;
-        }
-        Site site = sites.findEstablishedPrism(
-                block.getWorld().getName(),
-                block.getX(),
-                block.getY(),
-                block.getZ()).orElse(null);
+        Site site = excavationAt(block);
         if (site == null) {
             return;
         }
@@ -246,9 +235,8 @@ public class HandPickService {
     public void suppressVanillaBreak(Player player, Block block) {
         pinBlock(player, block);
         syncHeldTool(player);
-        if (isExcavationFill(block)) {
-            noteMining(player, block);
-        }
+        // noteMining ignores cells that are not prism fill, such as a break predicted mid-hold elsewhere.
+        noteMining(player, block);
     }
 
     /**
@@ -258,7 +246,7 @@ public class HandPickService {
      */
     public void finish(Player player) {
         Cycle cycle = cycles.remove(player.getUniqueId());
-        if (cycle == null || cycle.resolved) {
+        if (cycle == null) {
             return;
         }
         if (cycle.clangTick < 0) {
@@ -266,15 +254,6 @@ public class HandPickService {
         }
         boolean late = cycle.lastActiveTick - cycle.clangTick > cycle.tool.readyWindowTicks();
         resolveCut(player, cycle, late);
-    }
-
-    /**
-     * Action-bar hint when the pick is used off the excavation prism.
-     *
-     * @param player holder
-     */
-    public void warnOffCut(Player player) {
-        warn(player, "This tool is only for the open cut of an excavation.");
     }
 
     /**
@@ -356,7 +335,7 @@ public class HandPickService {
         for (Map.Entry<UUID, Cycle> entry : new ArrayList<>(cycles.entrySet())) {
             Player player = Bukkit.getPlayer(entry.getKey());
             Cycle cycle = entry.getValue();
-            if (player == null || !player.isOnline()) {
+            if (player == null) {
                 cycles.remove(entry.getKey());
                 continue;
             }
@@ -438,14 +417,22 @@ public class HandPickService {
      * @return whether the Hand Pick clock runs here (excavation prism fill)
      */
     private boolean isExcavationFill(Block block) {
+        return excavationAt(block) != null;
+    }
+
+    /**
+     * @param block world cell
+     * @return established excavation whose prism fill this cell is, or {@code null}
+     */
+    private Site excavationAt(Block block) {
         if (!PrismFill.isTerrainFill(block.getType())) {
-            return false;
+            return null;
         }
         return sites.findEstablishedPrism(
                 block.getWorld().getName(),
                 block.getX(),
                 block.getY(),
-                block.getZ()).isPresent();
+                block.getZ()).orElse(null);
     }
 
     /**
@@ -539,20 +526,9 @@ public class HandPickService {
      * @param late whether the ready window was missed
      */
     private void resolveCut(Player player, Cycle cycle, boolean late) {
-        if (cycle.resolved) {
-            return;
-        }
-        cycle.resolved = true;
         cycles.remove(player.getUniqueId());
         Block block = player.getWorld().getBlockAt(cycle.x, cycle.y, cycle.z);
-        if (!isExcavationFill(block)) {
-            return;
-        }
-        Site site = sites.findEstablishedPrism(
-                block.getWorld().getName(),
-                block.getX(),
-                block.getY(),
-                block.getZ()).orElse(null);
+        Site site = excavationAt(block);
         if (site == null) {
             return;
         }
@@ -588,9 +564,8 @@ public class HandPickService {
             smashedFind |= wounded;
             liftFill(cell, tool);
         }
-        if (log != null) {
-            log.addBlocksRemoved(lifted.size());
-        }
+        // mayWork above means a director or excavator, so the staff log exists.
+        log.addBlocksRemoved(lifted.size());
         ToolWear.spend(
                 player,
                 tool,
@@ -651,17 +626,13 @@ public class HandPickService {
      * @param lifted cell that just became air (or the origin of the column)
      */
     private void playLateSmash(Block lifted) {
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (!plugin.isEnabled()) {
-                return;
-            }
-            lifted.getWorld().playSound(
-                    lifted.getLocation(),
-                    Sound.ITEM_MACE_SMASH_GROUND,
-                    SoundCategory.BLOCKS,
-                    0.9f,
-                    0.7f);
-        }, 2L);
+        // Bukkit cancels a plugin's pending tasks when it is disabled.
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> lifted.getWorld().playSound(
+                lifted.getLocation(),
+                Sound.ITEM_MACE_SMASH_GROUND,
+                SoundCategory.BLOCKS,
+                0.9f,
+                0.7f), 2L);
     }
 
     /**
@@ -758,14 +729,11 @@ public class HandPickService {
      * @param player viewer
      */
     private void showHud(Player player) {
+        // Only called while cycling or while the crosshair is on the prism, so a target exists.
         Cycle cycle = cycles.get(player.getUniqueId());
-        Block target = player.getTargetBlockExact(6);
-        if (target == null && cycle == null) {
-            return;
-        }
-        if (cycle != null) {
-            target = player.getWorld().getBlockAt(cycle.x, cycle.y, cycle.z);
-        }
+        Block target = cycle != null
+                ? player.getWorld().getBlockAt(cycle.x, cycle.y, cycle.z)
+                : player.getTargetBlockExact(6);
         Site site = sites.findEstablishedPrism(
                 target.getWorld().getName(),
                 target.getX(),
@@ -781,8 +749,7 @@ public class HandPickService {
             return;
         }
         ensureJornada(site, player.getWorld());
-        StratumBand band = site.stratumAt(target.getY());
-        String layer = band == null ? "—" : band.getId();
+        String layer = site.stratumAt(target.getY()).getId();
         String pick = settings.unlimitedWorkday() ? "∞" : String.valueOf(site.getJornadaPickLeft());
         String text = "STRATUM " + layer + "  ⛏ " + pick;
         BuriedFind aimed = site.findAt(new BlockCell(target.getX(), target.getY(), target.getZ())).orElse(null);
@@ -809,7 +776,7 @@ public class HandPickService {
      * @return opened prism cell, or {@code null} when still facing unrevealed fill from outside
      */
     private static Block openedPrismCell(Player player, Site site, Cycle cycle, Block target) {
-        if (!PrismFill.isTerrainFill(target.getType()) && site.isInPrism(target.getX(), target.getY(), target.getZ())) {
+        if (!PrismFill.isTerrainFill(target.getType())) {
             return target;
         }
         if (cycle != null) {
@@ -834,7 +801,7 @@ public class HandPickService {
      * @param message English line
      */
     private void warn(Player player, String message) {
-        long now = System.currentTimeMillis();
+        long now = clock.getAsLong();
         Long previous = lastWarn.get(player.getUniqueId());
         if (previous != null && now - previous < WARN_MS) {
             return;
@@ -857,7 +824,6 @@ public class HandPickService {
         private int lastStrikeTick;
         private float progress;
         private int clangTick = -1;
-        private boolean resolved;
 
         /**
          * @param x block X
@@ -884,7 +850,7 @@ public class HandPickService {
             this.lastStrikeTick = tick;
             this.cues = cues;
             this.tool = tool;
-            this.digClass = digClass == null ? DigClass.NONE : digClass;
+            this.digClass = digClass;
         }
 
         /**

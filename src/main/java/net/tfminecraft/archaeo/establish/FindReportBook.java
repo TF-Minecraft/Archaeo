@@ -50,19 +50,13 @@ public final class FindReportBook {
     public ItemStack create(Player director, Site site, CatalogRegistry catalogs) {
         ItemStack stack = new ItemStack(Material.WRITTEN_BOOK);
         BookMeta meta = (BookMeta) stack.getItemMeta();
-        if (meta == null) {
-            return stack;
-        }
         String title = RecoveredFindItem.siteName(site);
         if (title.length() > 32) {
             title = title.substring(0, 32);
         }
         meta.setTitle(title);
-        String author = director.getName() == null ? "Director" : director.getName();
-        if (author.length() > 32) {
-            author = author.substring(0, 32);
-        }
-        meta.setAuthor(author);
+        // Online player names are at most 16 characters, well inside the book author limit.
+        meta.setAuthor(director.getName());
         meta.setGeneration(BookMeta.Generation.ORIGINAL);
         addPages(meta, buildPages(director, site, catalogs));
         var pdc = meta.getPersistentDataContainer();
@@ -194,7 +188,8 @@ public final class FindReportBook {
     }
 
     /**
-     * Splits overlong pages so the client can still open the book.
+     * Splits overlong pages so the client can still open the book. Every page built above
+     * has a heading, so none is blank.
      *
      * @param meta book being filled
      * @param pages raw pages
@@ -203,9 +198,6 @@ public final class FindReportBook {
         int count = 0;
         for (String raw : pages) {
             String text = ChatColor.stripColor(raw);
-            if (text.isBlank()) {
-                continue;
-            }
             int start = 0;
             while (start < text.length() && count < MAX_PAGES) {
                 int end = Math.min(text.length(), start + PAGE_CHARS);
@@ -216,9 +208,6 @@ public final class FindReportBook {
             if (count >= MAX_PAGES) {
                 return;
             }
-        }
-        if (count == 0) {
-            meta.addPage("Empty report.");
         }
     }
 }

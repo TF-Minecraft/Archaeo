@@ -48,9 +48,9 @@ public final class CampNames {
         if (online != null) {
             return online.getName();
         }
-        OfflinePlayer offline = Bukkit.getOfflinePlayer(id);
-        String name = offline.getName();
-        if (name != null && !name.isBlank()) {
+        // Paper and Spigot answer a real name or null here, never a blank one.
+        String name = Bukkit.getOfflinePlayer(id).getName();
+        if (name != null) {
             return name;
         }
         return id.toString().substring(0, 8);
@@ -59,11 +59,11 @@ public final class CampNames {
     /**
      * Matches an online player or someone who has already joined this server.
      *
-     * @param raw chat name
+     * @param raw chat or command name, never {@code null}
      * @return known player, or {@code null}
      */
     public static OfflinePlayer known(String raw) {
-        if (raw == null || raw.isBlank()) {
+        if (raw.isBlank()) {
             return null;
         }
         String name = raw.trim();

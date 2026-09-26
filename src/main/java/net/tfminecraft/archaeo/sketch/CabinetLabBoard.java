@@ -144,12 +144,13 @@ public final class CabinetLabBoard implements InventoryHolder {
 
     /**
      * @param player worker
+     * @return whether the window opened; another plugin may cancel the open
      */
-    void open(org.bukkit.entity.Player player) {
+    boolean open(org.bukkit.entity.Player player) {
         inventory = Bukkit.createInventory(this, 27, material.firstStepGerund());
         fillField();
         fillTools();
-        player.openInventory(inventory);
+        return player.openInventory(inventory) != null;
     }
 
     /**
@@ -181,7 +182,7 @@ public final class CabinetLabBoard implements InventoryHolder {
      * @return rack id, or {@code null}
      */
     String toolId(ItemStack stack) {
-        if (stack == null || stack.getType().isAir() || !stack.hasItemMeta()) {
+        if (stack == null || !stack.hasItemMeta()) {
             return null;
         }
         return stack.getItemMeta().getPersistentDataContainer().get(toolKey, PersistentDataType.STRING);
@@ -196,15 +197,14 @@ public final class CabinetLabBoard implements InventoryHolder {
     }
 
     /**
-     * @param slot dirty field index
-     * @return stain on that pane, or {@code null}
+     * @param slot field index
+     * @return stain on that pane, or {@code null} once it is clean
      */
     LabStain stainOf(int slot) {
-        ItemStack stack = slotItem(slot);
-        if (stack == null || stack.getType().isAir() || !stack.hasItemMeta()) {
+        if (!isDirty(slot)) {
             return null;
         }
-        String id = stack.getItemMeta().getPersistentDataContainer().get(stainKey, PersistentDataType.STRING);
+        String id = slotItem(slot).getItemMeta().getPersistentDataContainer().get(stainKey, PersistentDataType.STRING);
         return lab.stain(id);
     }
 
@@ -215,7 +215,7 @@ public final class CabinetLabBoard implements InventoryHolder {
      * @return whether a dirty cell was cleaned
      */
     boolean wipe(int slot) {
-        if (!isDirty(slot) || inventory == null) {
+        if (!isDirty(slot)) {
             return false;
         }
         inventory.setItem(slot, cleanPane());
@@ -245,7 +245,7 @@ public final class CabinetLabBoard implements InventoryHolder {
      */
     private void fillField() {
         List<LabStain> pool = stainPool();
-        int want = pool.isEmpty() ? 0 : Math.max(1, Math.min(LabSettings.FIELD_SLOTS, lab.dirtyCount()));
+        int want = Math.max(1, Math.min(LabSettings.FIELD_SLOTS, lab.dirtyCount()));
         List<Integer> slots = new ArrayList<>();
         for (int slot = 0; slot < LabSettings.FIELD_SLOTS; slot++) {
             slots.add(slot);
@@ -267,20 +267,20 @@ public final class CabinetLabBoard implements InventoryHolder {
     }
 
     /**
+     * Falls back to the first configured stain when none of the material's stains resolves;
+     * config always keeps at least one stain, so the pool is never empty.
+     *
      * @return stains this material may roll, skipping unknown ids
      */
     private List<LabStain> stainPool() {
         List<LabStain> pool = new ArrayList<>();
-        List<String> ids = material.stains();
-        if (ids != null) {
-            for (String id : ids) {
-                LabStain stain = lab.stain(id);
-                if (stain != null) {
-                    pool.add(stain);
-                }
+        for (String id : material.stains()) {
+            LabStain stain = lab.stain(id);
+            if (stain != null) {
+                pool.add(stain);
             }
         }
-        if (pool.isEmpty() && lab.stains() != null && !lab.stains().isEmpty()) {
+        if (pool.isEmpty()) {
             pool.add(lab.stains().get(0));
         }
         return pool;
@@ -290,7 +290,7 @@ public final class CabinetLabBoard implements InventoryHolder {
      * Places rack tools on the last row, centred.
      */
     private void fillTools() {
-        List<LabTool> tools = lab.tools() == null ? List.of() : lab.tools();
+        List<LabTool> tools = lab.tools();
         int count = Math.min(9, tools.size());
         int start = LabSettings.FIELD_SLOTS + Math.max(0, (9 - count) / 2);
         for (int i = 0; i < count; i++) {
@@ -304,11 +304,9 @@ public final class CabinetLabBoard implements InventoryHolder {
     private ItemStack cleanPane() {
         ItemStack stack = new ItemStack(material.cleanPane());
         ItemMeta meta = stack.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName(ChatColor.WHITE + "Clean");
-            meta.getPersistentDataContainer().set(kindKey, PersistentDataType.STRING, KIND_CLEAN);
-            stack.setItemMeta(meta);
-        }
+        meta.setDisplayName(ChatColor.WHITE + "Clean");
+        meta.getPersistentDataContainer().set(kindKey, PersistentDataType.STRING, KIND_CLEAN);
+        stack.setItemMeta(meta);
         return stack;
     }
 
@@ -319,18 +317,16 @@ public final class CabinetLabBoard implements InventoryHolder {
     private ItemStack dirtyPane(LabStain stain) {
         ItemStack stack = new ItemStack(stain.pane());
         ItemMeta meta = stack.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName(ChatColor.GOLD + stain.label());
-            LabTool needed = lab.tool(stain.toolId());
-            String toolName = needed == null || needed.displayName() == null || needed.displayName().isBlank()
-                    ? stain.toolId()
-                    : needed.displayName();
-            meta.setLore(List.of(ChatColor.GRAY + "Wipe with " + toolName + "."));
-            var pdc = meta.getPersistentDataContainer();
-            pdc.set(kindKey, PersistentDataType.STRING, KIND_DIRTY);
-            pdc.set(stainKey, PersistentDataType.STRING, stain.id());
-            stack.setItemMeta(meta);
-        }
+        meta.setDisplayName(ChatColor.GOLD + stain.label());
+        LabTool needed = lab.tool(stain.toolId());
+        String toolName = needed == null || needed.displayName().isBlank()
+                ? stain.toolId()
+                : needed.displayName();
+        meta.setLore(List.of(ChatColor.GRAY + "Wipe with " + toolName + "."));
+        var pdc = meta.getPersistentDataContainer();
+        pdc.set(kindKey, PersistentDataType.STRING, KIND_DIRTY);
+        pdc.set(stainKey, PersistentDataType.STRING, stain.id());
+        stack.setItemMeta(meta);
         return stack;
     }
 
@@ -341,21 +337,19 @@ public final class CabinetLabBoard implements InventoryHolder {
     private ItemStack toolStack(LabTool tool) {
         ItemStack stack = new ItemStack(tool.item());
         ItemMeta meta = stack.getItemMeta();
-        if (meta != null) {
-            String name = tool.displayName() == null || tool.displayName().isBlank()
-                    ? tool.id()
-                    : tool.displayName();
-            meta.setDisplayName(ChatColor.WHITE + name);
-            List<String> lore = new ArrayList<>();
-            lore.add(ChatColor.GRAY + "Click to pick up.");
-            lore.add(ChatColor.GRAY + "Click the dirt to clean it.");
-            addDescription(lore, tool.description());
-            meta.setLore(lore);
-            var pdc = meta.getPersistentDataContainer();
-            pdc.set(kindKey, PersistentDataType.STRING, KIND_TOOL);
-            pdc.set(toolKey, PersistentDataType.STRING, tool.id());
-            stack.setItemMeta(meta);
-        }
+        String name = tool.displayName().isBlank()
+                ? tool.id()
+                : tool.displayName();
+        meta.setDisplayName(ChatColor.WHITE + name);
+        List<String> lore = new ArrayList<>();
+        lore.add(ChatColor.GRAY + "Click to pick up.");
+        lore.add(ChatColor.GRAY + "Click the dirt to clean it.");
+        addDescription(lore, tool.description());
+        meta.setLore(lore);
+        var pdc = meta.getPersistentDataContainer();
+        pdc.set(kindKey, PersistentDataType.STRING, KIND_TOOL);
+        pdc.set(toolKey, PersistentDataType.STRING, tool.id());
+        stack.setItemMeta(meta);
         return stack;
     }
 
@@ -364,7 +358,7 @@ public final class CabinetLabBoard implements InventoryHolder {
      * @return stack, or {@code null}
      */
     private ItemStack slotItem(int slot) {
-        if (inventory == null || slot < 0 || slot >= inventory.getSize()) {
+        if (slot < 0 || slot >= inventory.getSize()) {
             return null;
         }
         return inventory.getItem(slot);
@@ -375,7 +369,7 @@ public final class CabinetLabBoard implements InventoryHolder {
      * @return kind token, or {@code null}
      */
     private String kindOf(ItemStack stack) {
-        if (stack == null || stack.getType().isAir() || !stack.hasItemMeta()) {
+        if (stack == null || !stack.hasItemMeta()) {
             return null;
         }
         return stack.getItemMeta().getPersistentDataContainer().get(kindKey, PersistentDataType.STRING);
@@ -388,7 +382,7 @@ public final class CabinetLabBoard implements InventoryHolder {
      * @param text tool description, or blank
      */
     private static void addDescription(List<String> lore, String text) {
-        if (text == null || text.isBlank()) {
+        if (text.isBlank()) {
             return;
         }
         for (String paragraph : text.split("\\R")) {
@@ -416,8 +410,7 @@ public final class CabinetLabBoard implements InventoryHolder {
             }
             line.append(word);
         }
-        if (line.length() > 0) {
-            lore.add(ChatColor.DARK_GRAY + line.toString());
-        }
+        // A trimmed, non-empty paragraph always leaves its last words here.
+        lore.add(ChatColor.DARK_GRAY + line.toString());
     }
 }

@@ -59,10 +59,11 @@ public final class MuseumListener implements Listener {
     }
 
     /**
-     * @param matcher ItemsAdder furniture lookup
+     * @param matcher ItemsAdder furniture lookup; {@link net.tfminecraft.archaeo.ArcheologyPlugin#bindItemMatcher}
+     *                never passes {@code null}
      */
     public void setMatcher(ItemMatcher matcher) {
-        this.matcher = matcher == null ? ItemMatcher.vanillaOnly() : matcher;
+        this.matcher = matcher;
     }
 
     /**
@@ -83,8 +84,9 @@ public final class MuseumListener implements Listener {
         if (!sneaking(player)) {
             return;
         }
+        // RIGHT_CLICK_BLOCK always carries the clicked block.
         Block block = event.getClickedBlock();
-        if (block == null || !catalogs.museum().allowsSupport(null, null, block, matcher)) {
+        if (!catalogs.museum().allowsSupport(null, null, block, matcher)) {
             return;
         }
         ItemStack displayed = firstRecovered(displayedOnBlock(block.getState(), event.getClickedPosition()));
@@ -133,8 +135,7 @@ public final class MuseumListener implements Listener {
         if (!sneaking(event.getPlayer())) {
             return;
         }
-        if (!catalogs.museum().allowsVanilla(Material.ARMOR_STAND)
-                && !catalogs.museum().allowsEntity(event.getRightClicked(), matcher)) {
+        if (!catalogs.museum().allowsEntity(event.getRightClicked())) {
             return;
         }
         ItemStack worn = event.getArmorStandItem();
@@ -148,7 +149,7 @@ public final class MuseumListener implements Listener {
     /**
      * ItemsAdder furniture click (from {@code FurnitureInteractEvent}).
      *
-     * @param player clicker
+     * @param player clicker from the furniture event
      * @param namespacedId furniture id, or {@code null}
      * @param entity furniture entity, or {@code null}
      * @param block block under the furniture, or {@code null}
@@ -162,7 +163,7 @@ public final class MuseumListener implements Listener {
             Block block,
             boolean sneaking
     ) {
-        if (player == null || !sneaking) {
+        if (!sneaking) {
             return false;
         }
         if (!catalogs.museum().allowsSupport(namespacedId, entity, block, matcher)) {
@@ -247,9 +248,6 @@ public final class MuseumListener implements Listener {
         }
         if (entity instanceof ArmorStand stand) {
             EntityEquipment equipment = stand.getEquipment();
-            if (equipment == null) {
-                return stacks;
-            }
             stacks.add(equipment.getItemInMainHand());
             stacks.add(equipment.getItemInOffHand());
             stacks.add(equipment.getHelmet());
@@ -265,9 +263,6 @@ public final class MuseumListener implements Listener {
      * @return first recovered find, or {@code null}
      */
     private ItemStack firstRecovered(List<ItemStack> stacks) {
-        if (stacks == null) {
-            return null;
-        }
         for (ItemStack stack : stacks) {
             if (recovered.isRecovered(stack)) {
                 return stack;
@@ -287,7 +282,7 @@ public final class MuseumListener implements Listener {
         UUID siteId = recovered.siteIdOf(stack);
         UUID findId = recovered.findIdOf(stack);
         Site site = siteId == null ? null : sites.findById(siteId).orElse(null);
-        if (site == null || !site.mayConsult() || findId == null) {
+        if (site == null || !site.mayConsult()) {
             player.sendMessage("That excavation record is missing.");
             return;
         }
