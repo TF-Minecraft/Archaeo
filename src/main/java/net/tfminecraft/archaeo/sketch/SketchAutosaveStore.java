@@ -9,15 +9,26 @@ import java.nio.file.StandardCopyOption;
 
 /** Durable recovery copies for open sheets, without changing the map held by the player. */
 final class SketchAutosaveStore {
+    /** Autosaved cells and the sheet revision they contain. */
     record Snapshot(long revision, byte[] cells) {
     }
 
     private final Path directory;
 
+    /**
+     * @param pluginDataFolder plugin data directory
+     */
     SketchAutosaveStore(Path pluginDataFolder) {
         this.directory = pluginDataFolder.resolve("sketch-autosaves");
     }
 
+    /**
+     * Loads the recovery copy for one map.
+     *
+     * @param mapId Bukkit map ID
+     * @return saved revision and cells, or {@code null} when no checkpoint exists
+     * @throws IOException if the checkpoint cannot be read or is malformed
+     */
     Snapshot load(int mapId) throws IOException {
         Path file = fileFor(mapId);
         if (!Files.exists(file)) {
@@ -34,6 +45,13 @@ final class SketchAutosaveStore {
         return new Snapshot(revision, cells);
     }
 
+    /**
+     * Atomically replaces the recovery copy for one map.
+     *
+     * @param mapId Bukkit map ID
+     * @param sheet current drawing
+     * @throws IOException if the checkpoint cannot be written
+     */
     void save(int mapId, SketchSheet sheet) throws IOException {
         Files.createDirectories(directory);
         Path destination = fileFor(mapId);
@@ -54,10 +72,20 @@ final class SketchAutosaveStore {
         }
     }
 
+    /**
+     * Removes the recovery copy after the item has been saved.
+     *
+     * @param mapId Bukkit map ID
+     * @throws IOException if the checkpoint cannot be removed
+     */
     void delete(int mapId) throws IOException {
         Files.deleteIfExists(fileFor(mapId));
     }
 
+    /**
+     * @param mapId Bukkit map ID
+     * @return path for that map's checkpoint
+     */
     private Path fileFor(int mapId) {
         return directory.resolve(mapId + ".bin");
     }

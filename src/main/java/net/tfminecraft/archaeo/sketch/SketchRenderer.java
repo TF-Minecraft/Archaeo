@@ -53,6 +53,13 @@ final class SketchRenderer extends MapRenderer {
         paint(canvas, sheet, session != null && session.view().getId() == view.getId() ? session : null);
     }
 
+    /**
+     * Updates changed sheet cells and the active cursor on one viewer's canvas.
+     *
+     * @param canvas viewer's map pixels
+     * @param sheet live sketch cells
+     * @param session active editor, or {@code null} for a viewer without a cursor
+     */
     void paint(MapCanvas canvas, SketchSheet sheet, SketchSession session) {
         CanvasState state = canvases.computeIfAbsent(canvas, ignored -> new CanvasState());
         if (state.sheet != sheet) {

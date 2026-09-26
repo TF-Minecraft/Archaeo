@@ -10,6 +10,7 @@ import java.util.UUID;
 import static org.junit.Assert.assertEquals;
 
 public class SketchRendererTest {
+    /** Verifies that stable cells are untouched and old cursors are cleared. */
     @Test
     public void redrawsOnlyChangedCellsAndClearsTheOldCursor() {
         Color[][] pixels = new Color[128][128];

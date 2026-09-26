@@ -44,6 +44,9 @@ final class SketchSheet {
         return true;
     }
 
+    /**
+     * @return number of cell changes since this sheet was loaded
+     */
     long revision() {
         return revision;
     }
@@ -88,6 +91,13 @@ final class SketchSheet {
         return fromBytes(data, 0);
     }
 
+    /**
+     * Restores cells and their persisted revision.
+     *
+     * @param data stored cell ordinals, or {@code null}
+     * @param revision persisted revision number
+     * @return restored sheet
+     */
     static SketchSheet fromBytes(byte[] data, long revision) {
         SketchSheet sheet = new SketchSheet();
         sheet.revision = Math.max(0, revision);

@@ -7,6 +7,7 @@ import java.util.UUID;
 import static org.junit.Assert.assertEquals;
 
 public class SketchSessionTest {
+    /** Verifies one immediate step followed by deterministic held-key repeats. */
     @Test
     public void tapMovesOnceAndHeldDirectionRepeatsAfterDelay() {
         SketchSession session = new SketchSession(UUID.randomUUID(), null, new SketchSheet());
@@ -36,6 +37,7 @@ public class SketchSessionTest {
         assertEquals(15, session.cursorY());
     }
 
+    /** Verifies that erasing fills every cell crossed between cursor steps. */
     @Test
     public void eraserFillsEveryCellBetweenCursorSteps() {
         SketchSheet sheet = new SketchSheet();

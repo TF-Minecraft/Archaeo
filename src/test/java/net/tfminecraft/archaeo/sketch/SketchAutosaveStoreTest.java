@@ -11,6 +11,7 @@ public class SketchAutosaveStoreTest {
     @Rule
     public final TemporaryFolder temporaryFolder = new TemporaryFolder();
 
+    /** Verifies atomic replacement, revision preservation, and cleanup. */
     @Test
     public void checkpointsChangedSheetAndRemovesItAfterItemSave() throws Exception {
         SketchAutosaveStore store = new SketchAutosaveStore(temporaryFolder.getRoot().toPath());

@@ -156,6 +156,10 @@ final class SketchSession {
         }
     }
 
+    /**
+     * @param heldTicks ticks since the direction was first pressed
+     * @return whether this tick is a cursor repeat
+     */
     private static boolean repeats(int heldTicks) {
         return heldTicks >= REPEAT_DELAY_TICKS
                 && (heldTicks - REPEAT_DELAY_TICKS) % REPEAT_INTERVAL_TICKS == 0;
@@ -179,6 +183,7 @@ final class SketchSession {
         return sheet.set(cursorX, cursorY, SketchInk.PAPER);
     }
 
+    /** Starts a short eraser stroke that follows subsequent cursor steps. */
     void beginEraseStroke() {
         eraseStrokeTicks = ERASE_STROKE_GRACE_TICKS;
         lastEraseX = cursorX;
@@ -186,6 +191,7 @@ final class SketchSession {
         erase();
     }
 
+    /** Erases the cells between the previous and current cursor positions. */
     void updateEraseStroke() {
         if (eraseStrokeTicks <= 0) {
             return;
@@ -199,6 +205,14 @@ final class SketchSession {
         }
     }
 
+    /**
+     * Erases every cell on a discrete line between two cursor positions.
+     *
+     * @param x0 starting column
+     * @param y0 starting row
+     * @param x1 ending column
+     * @param y1 ending row
+     */
     private void eraseLine(int x0, int y0, int x1, int y1) {
         int dx = Math.abs(x1 - x0);
         int sx = x0 < x1 ? 1 : -1;
@@ -222,10 +236,14 @@ final class SketchSession {
         }
     }
 
+    /**
+     * @return whether the sheet changed since its last successful checkpoint
+     */
     boolean needsAutosave() {
         return autosavedRevision != sheet.revision();
     }
 
+    /** Marks the current sheet revision as safely checkpointed. */
     void markAutosaved() {
         autosavedRevision = sheet.revision();
     }

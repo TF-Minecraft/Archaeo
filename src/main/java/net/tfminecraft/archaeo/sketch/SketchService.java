@@ -1024,6 +1024,11 @@ public class SketchService {
         }
     }
 
+    /**
+     * Persists a changed session without updating its held map item.
+     *
+     * @param session open sketch
+     */
     private void checkpoint(SketchSession session) {
         if (!session.needsAutosave()) {
             return;
@@ -1364,6 +1369,11 @@ public class SketchService {
         return true;
     }
 
+    /**
+     * Removes a checkpoint after its drawing has been written onto the map item.
+     *
+     * @param mapId Bukkit map ID
+     */
     private void deleteAutosave(int mapId) {
         try {
             autosaves.delete(mapId);
@@ -1373,6 +1383,10 @@ public class SketchService {
         }
     }
 
+    /**
+     * @param stack sketch map
+     * @return persisted sheet revision, or zero for older maps
+     */
     private long metaRevision(ItemStack stack) {
         if (!(stack.getItemMeta() instanceof MapMeta meta)) {
             return 0;
