@@ -8,6 +8,7 @@ final class SketchSheet {
     static final int PIXEL_SCALE = 4;
 
     private final SketchInk[] cells = new SketchInk[SIZE * SIZE];
+    private long revision;
 
     /**
      * Fills the sheet with paper.
@@ -39,7 +40,15 @@ final class SketchSheet {
             return false;
         }
         cells[i] = ink;
+        revision++;
         return true;
+    }
+
+    /**
+     * @return number of cell changes since this sheet was loaded
+     */
+    long revision() {
+        return revision;
     }
 
     /**
@@ -79,7 +88,19 @@ final class SketchSheet {
      * @return sheet; unknown or short data becomes paper
      */
     static SketchSheet fromBytes(byte[] data) {
+        return fromBytes(data, 0);
+    }
+
+    /**
+     * Restores cells and their persisted revision.
+     *
+     * @param data stored cell ordinals, or {@code null}
+     * @param revision persisted revision number
+     * @return restored sheet
+     */
+    static SketchSheet fromBytes(byte[] data, long revision) {
         SketchSheet sheet = new SketchSheet();
+        sheet.revision = Math.max(0, revision);
         if (data == null) {
             return sheet;
         }
