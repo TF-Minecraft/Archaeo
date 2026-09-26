@@ -85,7 +85,12 @@ final class SketchSheet {
      * @return sheet; unknown or short data becomes paper
      */
     static SketchSheet fromBytes(byte[] data) {
+        return fromBytes(data, 0);
+    }
+
+    static SketchSheet fromBytes(byte[] data, long revision) {
         SketchSheet sheet = new SketchSheet();
+        sheet.revision = Math.max(0, revision);
         if (data == null) {
             return sheet;
         }

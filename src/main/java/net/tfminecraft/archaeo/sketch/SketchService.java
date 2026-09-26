@@ -68,6 +68,7 @@ public class SketchService {
     private final NamespacedKey signedKey;
     private final NamespacedKey authorKey;
     private final NamespacedKey mapIdKey;
+    private final NamespacedKey revisionKey;
     private final NamespacedKey findIdKey;
     private final NamespacedKey siteIdKey;
     private final NamespacedKey titleKey;
@@ -108,6 +109,7 @@ public class SketchService {
         this.signedKey = new NamespacedKey(plugin, "sketch_signed");
         this.authorKey = new NamespacedKey(plugin, "sketch_author");
         this.mapIdKey = new NamespacedKey(plugin, "sketch_map_id");
+        this.revisionKey = new NamespacedKey(plugin, "sketch_revision");
         this.findIdKey = new NamespacedKey(plugin, "sketch_find_id");
         this.siteIdKey = new NamespacedKey(plugin, "sketch_site_id");
         this.titleKey = new NamespacedKey(plugin, "sketch_title");
@@ -715,6 +717,7 @@ public class SketchService {
                 ? stack
                 : findSaveTarget(player, session);
         if (target == null) {
+            checkpoint(session);
             return;
         }
         if (writeItem(target, session.sheet(), isSigned(target), authorOf(target))) {
@@ -1017,16 +1020,20 @@ public class SketchService {
                 continue;
             }
             SketchSession session = entry.getValue();
-            if (!session.needsAutosave()) {
-                continue;
-            }
-            try {
-                autosaves.save(session.view().getId(), session.sheet());
-                session.markAutosaved();
-            } catch (IOException exception) {
-                plugin.getLogger().warning("Could not autosave field sketch "
-                        + session.view().getId() + ": " + exception.getMessage());
-            }
+            checkpoint(session);
+        }
+    }
+
+    private void checkpoint(SketchSession session) {
+        if (!session.needsAutosave()) {
+            return;
+        }
+        try {
+            autosaves.save(session.view().getId(), session.sheet());
+            session.markAutosaved();
+        } catch (IOException exception) {
+            plugin.getLogger().warning("Could not autosave field sketch "
+                    + session.view().getId() + ": " + exception.getMessage());
         }
     }
 
@@ -1112,14 +1119,19 @@ public class SketchService {
         markUnstackable(stack);
         int id = view.getId();
         if (!sheets.containsKey(id)) {
-            byte[] saved = null;
+            long itemRevision = metaRevision(stack);
+            SketchAutosaveStore.Snapshot saved = null;
             try {
                 saved = autosaves.load(id);
             } catch (IOException exception) {
                 plugin.getLogger().warning("Could not load field sketch autosave "
                         + id + ": " + exception.getMessage());
             }
-            sheets.put(id, SketchSheet.fromBytes(saved == null ? cellsOf(stack) : saved));
+            if (saved != null && saved.revision() > itemRevision) {
+                sheets.put(id, SketchSheet.fromBytes(saved.cells(), saved.revision()));
+            } else {
+                sheets.put(id, SketchSheet.fromBytes(cellsOf(stack), itemRevision));
+            }
         }
         retitleFromLive(stack);
     }
@@ -1334,6 +1346,7 @@ public class SketchService {
         String boundLabel = pdc.get(labelKey, PersistentDataType.STRING);
         pdc.set(markerKey, PersistentDataType.BYTE, (byte) 1);
         pdc.set(cellsKey, PersistentDataType.BYTE_ARRAY, sheet.toBytes());
+        pdc.set(revisionKey, PersistentDataType.LONG, sheet.revision());
         pdc.set(signedKey, PersistentDataType.BYTE, (byte) (signed ? 1 : 0));
         if (view != null) {
             pdc.set(mapIdKey, PersistentDataType.INTEGER, view.getId());
@@ -1358,6 +1371,14 @@ public class SketchService {
             plugin.getLogger().warning("Could not remove field sketch autosave "
                     + mapId + ": " + exception.getMessage());
         }
+    }
+
+    private long metaRevision(ItemStack stack) {
+        if (!(stack.getItemMeta() instanceof MapMeta meta)) {
+            return 0;
+        }
+        Long revision = meta.getPersistentDataContainer().get(revisionKey, PersistentDataType.LONG);
+        return revision == null ? 0 : revision;
     }
 
     /**

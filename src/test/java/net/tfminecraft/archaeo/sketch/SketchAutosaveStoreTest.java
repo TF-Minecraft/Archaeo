@@ -18,11 +18,15 @@ public class SketchAutosaveStoreTest {
         sheet.set(7, 12, SketchInk.OCHRE);
 
         store.save(42, sheet);
-        assertArrayEquals(sheet.toBytes(), store.load(42));
+        SketchAutosaveStore.Snapshot first = store.load(42);
+        assertArrayEquals(sheet.toBytes(), first.cells());
+        org.junit.Assert.assertEquals(sheet.revision(), first.revision());
 
         sheet.set(7, 12, SketchInk.SLATE);
         store.save(42, sheet);
-        assertArrayEquals(sheet.toBytes(), store.load(42));
+        SketchAutosaveStore.Snapshot second = store.load(42);
+        assertArrayEquals(sheet.toBytes(), second.cells());
+        org.junit.Assert.assertEquals(sheet.revision(), second.revision());
 
         store.delete(42);
         assertNull(store.load(42));
