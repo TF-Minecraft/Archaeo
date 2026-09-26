@@ -8,6 +8,7 @@ final class SketchSheet {
     static final int PIXEL_SCALE = 4;
 
     private final SketchInk[] cells = new SketchInk[SIZE * SIZE];
+    private long revision;
 
     /**
      * Fills the sheet with paper.
@@ -39,7 +40,12 @@ final class SketchSheet {
             return false;
         }
         cells[i] = ink;
+        revision++;
         return true;
+    }
+
+    long revision() {
+        return revision;
     }
 
     /**

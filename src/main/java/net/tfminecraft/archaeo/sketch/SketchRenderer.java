@@ -6,6 +6,9 @@ import org.bukkit.map.MapRenderer;
 import org.bukkit.map.MapView;
 
 import java.awt.Color;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
  * Blits one sheet onto a 128×128 map, four pixels per cell, and frames the editor's cursor.
@@ -15,6 +18,15 @@ final class SketchRenderer extends MapRenderer {
     private static final Color CURSOR_DARK = new Color(20, 20, 20);
 
     private final SketchService sketches;
+    private final Map<MapCanvas, CanvasState> canvases = new WeakHashMap<>();
+
+    private static final class CanvasState {
+        private final byte[] cells = new byte[SketchSheet.SIZE * SketchSheet.SIZE];
+        private SketchSheet sheet;
+        private long revision = -1;
+        private int cursorX = -1;
+        private int cursorY = -1;
+    }
 
     /**
      * @param sketches live sessions; the sheet lives there so the map stays after the player leaves
@@ -37,9 +49,35 @@ final class SketchRenderer extends MapRenderer {
         if (sheet == null) {
             return;
         }
-        blit(canvas, sheet);
         SketchSession session = sketches.session(player);
-        if (session != null && session.view().getId() == view.getId()) {
+        paint(canvas, sheet, session != null && session.view().getId() == view.getId() ? session : null);
+    }
+
+    void paint(MapCanvas canvas, SketchSheet sheet, SketchSession session) {
+        CanvasState state = canvases.computeIfAbsent(canvas, ignored -> new CanvasState());
+        if (state.sheet != sheet) {
+            state.sheet = sheet;
+            state.revision = -1;
+            Arrays.fill(state.cells, (byte) -1);
+        }
+        int cursorX = session != null ? session.cursorX() : -1;
+        int cursorY = cursorX >= 0 ? session.cursorY() : -1;
+        boolean redrawCursor = cursorX >= 0 && (state.cursorX != cursorX || state.cursorY != cursorY
+                || state.cells[cursorY * SketchSheet.SIZE + cursorX]
+                != (byte) sheet.at(cursorX, cursorY).ordinal());
+        if (state.revision != sheet.revision()) {
+            blitChanges(canvas, sheet, state);
+            state.revision = sheet.revision();
+        }
+        if (state.cursorX != cursorX || state.cursorY != cursorY) {
+            if (state.cursorX >= 0) {
+                fillCell(canvas, state.cursorX, state.cursorY,
+                        sheet.at(state.cursorX, state.cursorY).color());
+            }
+            state.cursorX = cursorX;
+            state.cursorY = cursorY;
+        }
+        if (redrawCursor) {
             frameCursor(canvas, session, sheet);
         }
     }
@@ -48,10 +86,15 @@ final class SketchRenderer extends MapRenderer {
      * @param canvas map pixels
      * @param sheet cells
      */
-    private static void blit(MapCanvas canvas, SketchSheet sheet) {
+    private static void blitChanges(MapCanvas canvas, SketchSheet sheet, CanvasState state) {
         for (int cellX = 0; cellX < SketchSheet.SIZE; cellX++) {
             for (int cellY = 0; cellY < SketchSheet.SIZE; cellY++) {
-                fillCell(canvas, cellX, cellY, sheet.at(cellX, cellY).color());
+                SketchInk ink = sheet.at(cellX, cellY);
+                int index = cellY * SketchSheet.SIZE + cellX;
+                if (state.cells[index] != (byte) ink.ordinal()) {
+                    fillCell(canvas, cellX, cellY, ink.color());
+                    state.cells[index] = (byte) ink.ordinal();
+                }
             }
         }
     }

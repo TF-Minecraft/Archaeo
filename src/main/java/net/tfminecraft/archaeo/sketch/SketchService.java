@@ -39,6 +39,7 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -49,8 +50,8 @@ import java.util.UUID;
  * with the recovered piece in hand.
  */
 public class SketchService {
-    private static final long TICK_PERIOD = 2L;
-    /** How often an open sheet is written onto its map item (~2 s). */
+    private static final long TICK_PERIOD = 1L;
+    /** How often changed open sheets are checkpointed to disk (~2 s). */
     private static final int AUTOSAVE_PERIOD_TICKS = 40;
 
     private final JavaPlugin plugin;
@@ -61,6 +62,7 @@ public class SketchService {
     private SketchSettings settings;
     private ItemMatcher matcher = ItemMatcher.vanillaOnly();
     private final CabinetLab lab;
+    private final SketchAutosaveStore autosaves;
     private final NamespacedKey markerKey;
     private final NamespacedKey cellsKey;
     private final NamespacedKey signedKey;
@@ -100,6 +102,7 @@ public class SketchService {
         this.catalogs = catalogs;
         this.settings = settings == null ? SketchSettings.defaults() : settings;
         this.lab = new CabinetLab(plugin, sites, catalogs, recovered, this.settings);
+        this.autosaves = new SketchAutosaveStore(plugin.getDataFolder().toPath());
         this.markerKey = new NamespacedKey(plugin, "sketch_proto");
         this.cellsKey = new NamespacedKey(plugin, "sketch_cells");
         this.signedKey = new NamespacedKey(plugin, "sketch_signed");
@@ -714,7 +717,9 @@ public class SketchService {
         if (target == null) {
             return;
         }
-        writeItem(target, session.sheet(), isSigned(target), authorOf(target));
+        if (writeItem(target, session.sheet(), isSigned(target), authorOf(target))) {
+            deleteAutosave(session.view().getId());
+        }
         if (announce) {
             player.sendMessage(ChatColor.GRAY + "Sketch saved.");
         }
@@ -946,7 +951,7 @@ public class SketchService {
     public void erase(Player player) {
         SketchSession session = sessions.get(player.getUniqueId());
         if (session != null) {
-            session.erase();
+            session.beginEraseStroke();
         }
     }
 
@@ -1003,7 +1008,7 @@ public class SketchService {
     }
 
     /**
-     * Copies each live sheet onto its {@code FILLED_MAP} without ending the session.
+     * Saves changed sheets to disk without replacing the map item in the player's hand.
      */
     private void autosaveOpenSessions() {
         for (Map.Entry<UUID, SketchSession> entry : Map.copyOf(sessions).entrySet()) {
@@ -1012,11 +1017,16 @@ public class SketchService {
                 continue;
             }
             SketchSession session = entry.getValue();
-            ItemStack target = findSaveTarget(player, session);
-            if (target == null) {
+            if (!session.needsAutosave()) {
                 continue;
             }
-            writeItem(target, session.sheet(), isSigned(target), authorOf(target));
+            try {
+                autosaves.save(session.view().getId(), session.sheet());
+                session.markAutosaved();
+            } catch (IOException exception) {
+                plugin.getLogger().warning("Could not autosave field sketch "
+                        + session.view().getId() + ": " + exception.getMessage());
+            }
         }
     }
 
@@ -1026,9 +1036,10 @@ public class SketchService {
      */
     private void applyInput(Player player, SketchSession session) {
         Input input = player.getCurrentInput();
-        session.move(
+        session.moveFromInput(
                 (input.isLeft() ? -1 : 0) + (input.isRight() ? 1 : 0),
                 (input.isForward() ? -1 : 0) + (input.isBackward() ? 1 : 0));
+        session.updateEraseStroke();
         if (input.isJump() && !session.jumpHeld()) {
             session.cycleInk();
         }
@@ -1101,7 +1112,14 @@ public class SketchService {
         markUnstackable(stack);
         int id = view.getId();
         if (!sheets.containsKey(id)) {
-            sheets.put(id, SketchSheet.fromBytes(cellsOf(stack)));
+            byte[] saved = null;
+            try {
+                saved = autosaves.load(id);
+            } catch (IOException exception) {
+                plugin.getLogger().warning("Could not load field sketch autosave "
+                        + id + ": " + exception.getMessage());
+            }
+            sheets.put(id, SketchSheet.fromBytes(saved == null ? cellsOf(stack) : saved));
         }
         retitleFromLive(stack);
     }
@@ -1331,6 +1349,15 @@ public class SketchService {
         meta.setMaxStackSize(1);
         stack.setItemMeta(meta);
         return true;
+    }
+
+    private void deleteAutosave(int mapId) {
+        try {
+            autosaves.delete(mapId);
+        } catch (IOException exception) {
+            plugin.getLogger().warning("Could not remove field sketch autosave "
+                    + mapId + ": " + exception.getMessage());
+        }
     }
 
     /**
