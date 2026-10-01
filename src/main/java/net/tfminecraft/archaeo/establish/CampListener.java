@@ -802,7 +802,7 @@ public class CampListener implements Listener {
         }
         OfflinePlayer target = CampNames.known(raw);
         if (target == null) {
-            player.sendMessage("No player with that name has joined this server.");
+            player.sendMessage("No one by that name is known here.");
             inviteForSite.put(player.getUniqueId(), siteId);
             return;
         }
