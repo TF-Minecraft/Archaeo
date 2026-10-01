@@ -154,7 +154,7 @@ public class CampListenerTest {
     @Test public void invitesValidateKnownPlayersAndPersistOnlyAfterMainThreadConfirmation() {
         invite(); AsyncPlayerChatEvent unknown = chat(director, "Nobody"); listener.onChat(unknown);
         assertTrue(unknown.isCancelled()); server.getScheduler().performOneTick();
-        assertEquals(List.of(director.getUniqueId()), site.getExcavators()); assertTrue(messages(director).contains("No player with that name has joined this server."));
+        assertEquals(List.of(director.getUniqueId()), site.getExcavators()); assertTrue(messages(director).contains("No one by that name is known here."));
         AsyncPlayerChatEvent accepted = chat(director, "  wOrKeR  "); listener.onChat(accepted);
         assertTrue(accepted.isCancelled()); assertEquals(List.of(director.getUniqueId()), site.getExcavators());
         server.getScheduler().performOneTick(); assertTrue(site.getExcavators().contains(worker.getUniqueId()));
@@ -650,7 +650,7 @@ public class CampListenerTest {
 
     @Test public void staffInvitesRejectBlankNamesAndClosedCampsAndFileADoubleSubmissionOnce() {
         invite(); listener.onChat(chat(director, "   ")); server.getScheduler().performOneTick();
-        assertTrue(messages(director).contains("No player with that name has joined this server."));
+        assertTrue(messages(director).contains("No one by that name is known here."));
         listener.onChat(chat(director, "Worker")); listener.onChat(chat(director, "Worker")); // Two lines before the next tick.
         server.getScheduler().performOneTick();
         assertEquals(1, messages(director).stream().filter(line -> line.startsWith("Added")).count());

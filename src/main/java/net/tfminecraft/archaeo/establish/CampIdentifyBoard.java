@@ -216,7 +216,7 @@ public final class CampIdentifyBoard implements InventoryHolder {
                 Material.BOOK,
                 ChatColor.WHITE + option.displayName(),
                 ChatColor.GRAY + "Click to sign this reading.",
-                ChatColor.DARK_GRAY + "It cannot be unpicked in this version.");
+                ChatColor.DARK_GRAY + "Once signed, it cannot be unpicked.");
     }
 
     /**
