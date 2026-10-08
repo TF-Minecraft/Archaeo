@@ -34,31 +34,15 @@ Technical documentation is maintained in [TF-Minecraft/Docs](https://github.com/
 
 ## Tests
 
-With Java 21 and Maven installed, run `mvn clean verify`. Tests exercise domain
-rules, YAML persistence, and plugin workflows using JUnit, Mockito, and MockBukkit.
-JaCoCo measures all production classes and writes its HTML report to
-`target/site/jacoco/index.html` and machine-readable results to
-`target/site/jacoco/jacoco.xml`. The build workflow uploads the coverage report.
+With Java 21 and Maven installed, run `mvn clean verify`. JUnit 4, Mockito and
+MockBukkit test domain rules, YAML persistence and plugin workflows. Surefire
+results are in `target/surefire-reports/`. JaCoCo reports all production classes
+in `target/site/jacoco/index.html` and `target/site/jacoco/jacoco.xml`; no minimum
+coverage gate is enforced. The Build workflow uploads both report directories.
 
-Tests should assert gameplay behavior, data preservation, or failure handling.
-Do not add tests solely to execute a line or manufacture unreachable states to
-increase coverage. MockBukkit tests do not replace testing on a real Paper server
-with the optional ItemsAdder and MMOItems integrations installed.
-
-Adapter contract tests can also run against locally supplied plugin jars:
-
-```sh
-mvn -Ppack-api-tests clean verify \
-  -Ditemsadder.jar=/path/to/ItemsAdder.jar \
-  -Dfastnbt.jar=/path/to/FastNbt-jar.jar \
-  -Dmmoitems.jar=/path/to/MMOItems.jar \
-  -Dmythiclib.jar=/path/to/MythicLib.jar
-```
-
-These tests bind the actual API classes and mock their external operations; they
-do not start those plugins. The jars remain outside this repository and are used
-only on the test runtime classpath. Use the FastNbt version declared by your
-ItemsAdder jar. The ordinary test suite needs none of these files.
+The ordinary suite needs no private plugin JARs and does not start a live Paper
+server. See the [testing guide](https://github.com/TF-Minecraft/Docs/blob/main/projects/Archaeo/docs/testing.md)
+for optional adapter contract tests with ItemsAdder and MMOItems API JARs.
 
 ## License
 
