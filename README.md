@@ -28,6 +28,14 @@ them before they ever reach the surface.
 
 ## Documentation
 
+Staff can give any configured artifact with `/archaeo give artifact <artifact> <#serial> [player]`.
+Tab completion lists IDs from `artifacts.yml`, ruin serials, and online players. The player
+defaults to the issuer; console must specify one. The command creates one recovered piece,
+records it in the selected ruin's archive, and includes that ruin in its item metadata and
+label. It uses the configured item pool and conservation rules, and the piece can be studied
+at the cabinet as usual. If the inventory is full, the piece drops at the recipient's feet.
+Access uses `config.yml` `permissions.staff` (default `archaeo.admin`).
+
 [Project documentation](https://github.com/TF-Minecraft/Docs/blob/main/projects/Archaeo/README.md)
 
 Technical documentation is maintained in [TF-Minecraft/Docs](https://github.com/TF-Minecraft/Docs).
