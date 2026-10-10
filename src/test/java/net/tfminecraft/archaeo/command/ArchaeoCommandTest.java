@@ -586,6 +586,21 @@ public class ArchaeoCommandTest {
         assertTrue(staff.getInventory().isEmpty());
     }
 
+    @Test public void resolvesMixedCaseInputAndKeepsTheConfiguredArtifactId() throws Exception {
+        Site site = dossier(12, "Test ruin");
+        assertContains(run("give artifact CoIn #12"), "Gave Coin");
+        assertEquals("coin", site.getFinds().getFirst().getArtifactId());
+        writeData("artifacts.yml", "artifacts:\n  CuStOm_Find:\n    display-name: Custom find\n    item: BRICK\n    strata: [I]\n");
+        assertContains(run("reload"), "Reloaded Archaeo");
+        assertEquals(List.of("CuStOm_Find"), complete("give", "artifact", "cuST"));
+        assertContains(run("give artifact custom_FIND #12"), "Gave Custom find");
+        Site reloaded = plugin.sites().findBySerial(12).orElseThrow();
+        assertEquals("CuStOm_Find", reloaded.getFinds().getLast().getArtifactId());
+        assertEquals(2, reloaded.getRecoveredCount());
+        assertContains(run("give artifact unknown #12"), "Unknown artifact");
+        assertEquals(2, reloaded.getFinds().size());
+    }
+
     private void stoneColumn() {
         // Give all configured strata room below the surface in MockBukkit's shallow world.
         for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) for (int y = 4; y <= 40; y++) staff.getWorld().getBlockAt(x, y, z).setType(Material.STONE);

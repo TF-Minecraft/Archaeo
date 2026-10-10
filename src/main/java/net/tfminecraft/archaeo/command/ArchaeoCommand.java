@@ -344,6 +344,13 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         }
         ArtifactTemplate template = catalogs.artifact(args[2]);
         if (template == null) {
+            template = catalogs.artifacts().entrySet().stream()
+                    .filter(entry -> entry.getKey().equalsIgnoreCase(args[2]))
+                    .map(entry -> entry.getValue())
+                    .findFirst()
+                    .orElse(null);
+        }
+        if (template == null) {
             sender.sendMessage("Unknown artifact. Try: " + String.join(", ", catalogs.artifacts().keySet()));
             return true;
         }
