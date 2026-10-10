@@ -102,6 +102,26 @@ public class RecoveredFindItemTest {
         assertEquals(Material.FLOWER_POT, items.baseStack(template, find).getType());
     }
 
+    @Test public void piecesStillInTheGroundFollowACatalogChangeButRecoveredPiecesKeepTheirItem() {
+        find.setItem("GOLD_NUGGET");
+        assertEquals(Material.GOLD_NUGGET, items.baseStack(template, find).getType());
+        assertEquals("GOLD_NUGGET", find.getItem());
+        for (FindState state : List.of(FindState.HIDDEN, FindState.PARTIAL, FindState.DISCOVERED, FindState.LOST)) {
+            find.setState(state);
+            find.setItem("GOLD_NUGGET");
+            Material picked = items.baseStack(template, find).getType();
+            assertTrue(state + " " + picked, picked == Material.BRICK || picked == Material.FLOWER_POT);
+            assertTrue(template.offers(find.getItem()));
+            String stored = find.getItem();
+            find.setItem("GOLD_NUGGET");
+            assertEquals(stored, items.standIn(template, site, find, catalogs).getType().name());
+        }
+        find.setState(FindState.HIDDEN);
+        find.setItem("flower_pot");
+        assertEquals(Material.FLOWER_POT, items.baseStack(template, find).getType());
+        assertEquals("flower_pot", find.getItem());
+    }
+
     @Test public void cabinetProgressRevealsConditionThenRarityThenSignedStudy() {
         assertFalse(RecoveredFindItem.conditionKnown(find));
         List<String> initial = plain(items.lore(template, site, find, "Good", false, catalogs));

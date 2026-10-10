@@ -75,6 +75,18 @@ public record ArtifactTemplate(
     }
 
     /**
+     * @param token item token stored on a find
+     * @return whether the current catalog pool still lists it
+     */
+    public boolean offers(String token) {
+        if (token == null || token.isBlank()) {
+            return false;
+        }
+        String trimmed = token.trim();
+        return items.stream().anyMatch(ref -> ref.commandToken().equalsIgnoreCase(trimmed));
+    }
+
+    /**
      * Resolves a stored token or a catalog pool entry. Unknown names fall back to the first pool item.
      *
      * @param chosen token stored on the find, or {@code null} to use the first catalog entry
