@@ -497,7 +497,7 @@ public class SiteGenerator {
         StratumDefinition definition = catalog.stratum(stratumId);
         int depthSteps = definition == null ? 0 : Math.max(0, definition.order() - 1);
         value -= (double) depthSteps * settings.depthPenalty();
-        if (band.isDisturbed()) {
+        if (band != null && band.isDisturbed()) {
             value -= settings.disturbedPenalty();
         }
         value *= catalog.materialSurvival(template.material());
