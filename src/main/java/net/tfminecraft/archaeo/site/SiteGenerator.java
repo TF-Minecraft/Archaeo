@@ -266,6 +266,45 @@ public class SiteGenerator {
     }
 
     /**
+     * Builds an already recovered staff piece without touching terrain or buried finds.
+     * Uses a compatible present layer when possible; staff can give any template, so otherwise
+     * any present layer is allowed. A dossier without layers uses a template layer or I.
+     * The caller saves the row in the ruin's archive before delivering its item.
+     *
+     * @param site provenance ruin
+     * @param template any loaded artifact template
+     * @param recipient player receiving the recovered piece
+     * @return new numbered row, with the normal item-pool and buried-conservation rolls
+     */
+    public BuriedFind createStaffRecoveredFind(Site site, ArtifactTemplate template, UUID recipient) {
+        if (site == null || site.getId() == null || template == null || recipient == null) {
+            throw new IllegalArgumentException("Ruin, artifact template, and recipient are required");
+        }
+        Random random = new Random();
+        List<String> present = site.getStrata().values().stream()
+                .filter(StratumBand::isPresent)
+                .map(StratumBand::getId)
+                .toList();
+        List<String> compatible = present.stream().filter(template.strata()::contains).toList();
+        List<String> candidates = compatible.isEmpty() ? present : compatible;
+        String stratumId = candidates.isEmpty()
+                ? template.strata().stream().sorted().findFirst().orElse("I")
+                : candidates.get(random.nextInt(candidates.size()));
+        BuriedFind find = new BuriedFind();
+        find.setId(UUID.randomUUID());
+        find.setArtifactId(template.id());
+        find.setItem(template.pickItem(random));
+        find.setStratumId(stratumId);
+        find.setState(FindState.RECOVERED);
+        find.setBuriedConservation(rollBuriedConservation(
+                template, stratumId, site.getStrata().get(stratumId), random));
+        find.setFindNumber(site.getFinds().stream().mapToInt(BuriedFind::getFindNumber).max().orElse(0) + 1);
+        find.setRecoveredBy(recipient);
+        find.setRecoveredAt(Instant.now());
+        return find;
+    }
+
+    /**
      * Widens a present stratum so {@code y} plus padding sits inside the prism.
      *
      * @param site excavation
@@ -458,7 +497,7 @@ public class SiteGenerator {
         StratumDefinition definition = catalog.stratum(stratumId);
         int depthSteps = definition == null ? 0 : Math.max(0, definition.order() - 1);
         value -= (double) depthSteps * settings.depthPenalty();
-        if (band.isDisturbed()) {
+        if (band != null && band.isDisturbed()) {
             value -= settings.disturbedPenalty();
         }
         value *= catalog.materialSurvival(template.material());

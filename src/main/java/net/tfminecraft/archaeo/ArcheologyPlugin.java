@@ -171,7 +171,8 @@ public class ArcheologyPlugin extends JavaPlugin {
                 recover,
                 autoRuins,
                 campClosure,
-                sitePurge);
+                sitePurge,
+                recoveredFindItem);
         // plugin.yml in this jar declares the command, so Bukkit always returns it.
         PluginCommand pluginCommand = getCommand("archaeo");
         pluginCommand.setExecutor(command);

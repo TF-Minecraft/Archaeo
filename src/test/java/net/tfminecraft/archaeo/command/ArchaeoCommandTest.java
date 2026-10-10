@@ -548,6 +548,59 @@ public class ArchaeoCommandTest {
         assertTrue(staff.getInventory().contains(Material.STONE_PICKAXE));
     }
 
+    @Test public void grantsArtifactsWithPersistentRuinAndFindProvenance() {
+        Site site = dossier(12, "Test ruin");
+        assertContains(run("give artifact coin #12"), "from ruin");
+        var stack = staff.getInventory().getItem(0);
+        assertNotNull(stack);
+        var item = new net.tfminecraft.archaeo.item.RecoveredFindItem(plugin);
+        BuriedFind find = site.getFinds().getFirst();
+        assertEquals(site.getId(), item.siteIdOf(stack));
+        assertEquals(find.getId(), item.findIdOf(stack));
+        assertEquals(FindState.RECOVERED, find.getState());
+        assertEquals(staff.getUniqueId(), find.getRecoveredBy());
+        assertEquals(1, find.getFindNumber());
+        assertEquals(1, site.getRecoveredCount());
+        assertEquals(SiteStatus.HIDDEN, site.getStatus());
+        assertTrue(find.getCells().isEmpty());
+        assertTrue(stack.getItemMeta().getLore().stream().anyMatch(line -> line.contains("#Test ruin-1")));
+        plugin.sites().loadAll();
+        Site reloaded = plugin.sites().findById(site.getId()).orElseThrow();
+        assertEquals(1, reloaded.getRecoveredCount());
+        assertEquals(find.getId(), reloaded.getFinds().getFirst().getId());
+        assertEquals(FindState.RECOVERED, reloaded.getFinds().getFirst().getState());
+    }
+
+    @Test public void grantsArtifactsToNamedPlayersAndCompletesTheirNames() {
+        Site site = dossier(12, "Test ruin");
+        PlayerMock recipient = player("Recipient");
+        assertEquals(List.of("#12"), complete("give", "artifact", "coin", "1"));
+        assertEquals(List.of("Recipient"), complete("give", "artifact", "coin", "#12", "rec"));
+        assertContains(console("give artifact coin #12"), "Console must name a player");
+        assertContains(console("give artifact coin #12 Missing"), "Player not online");
+        assertTrue(site.getFinds().isEmpty());
+        assertContains(console("give artifact coin #12 Recipient"), "to Recipient");
+        assertFalse(recipient.getInventory().isEmpty());
+        assertEquals(recipient.getUniqueId(), site.getFinds().getFirst().getRecoveredBy());
+        assertTrue(recipient.nextMessage().contains("Test ruin"));
+        assertTrue(staff.getInventory().isEmpty());
+    }
+
+    @Test public void resolvesMixedCaseInputAndKeepsTheConfiguredArtifactId() throws Exception {
+        Site site = dossier(12, "Test ruin");
+        assertContains(run("give artifact CoIn #12"), "Gave Coin");
+        assertEquals("coin", site.getFinds().getFirst().getArtifactId());
+        writeData("artifacts.yml", "artifacts:\n  CuStOm_Find:\n    display-name: Custom find\n    item: BRICK\n    strata: [I]\n");
+        assertContains(run("reload"), "Reloaded Archaeo");
+        assertEquals(List.of("CuStOm_Find"), complete("give", "artifact", "cuST"));
+        assertContains(run("give artifact custom_FIND #12"), "Gave Custom find");
+        Site reloaded = plugin.sites().findBySerial(12).orElseThrow();
+        assertEquals("CuStOm_Find", reloaded.getFinds().getLast().getArtifactId());
+        assertEquals(2, reloaded.getRecoveredCount());
+        assertContains(run("give artifact unknown #12"), "Unknown artifact");
+        assertEquals(2, reloaded.getFinds().size());
+    }
+
     private void stoneColumn() {
         // Give all configured strata room below the surface in MockBukkit's shallow world.
         for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) for (int y = 4; y <= 40; y++) staff.getWorld().getBlockAt(x, y, z).setType(Material.STONE);

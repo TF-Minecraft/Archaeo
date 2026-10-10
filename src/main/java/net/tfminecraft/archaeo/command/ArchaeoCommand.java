@@ -14,6 +14,7 @@ import net.tfminecraft.archaeo.item.BrushItem;
 import net.tfminecraft.archaeo.item.EstablishItem;
 import net.tfminecraft.archaeo.item.ItemMatcher;
 import net.tfminecraft.archaeo.item.ProspectItem;
+import net.tfminecraft.archaeo.item.RecoveredFindItem;
 import net.tfminecraft.archaeo.item.TrackerItem;
 import net.tfminecraft.archaeo.model.BuriedFind;
 import net.tfminecraft.archaeo.model.InterestLevel;
@@ -66,7 +67,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             "create", "info", "stats", "set-interest", "close", "delete", "camps", "tp", "auto");
     private static final List<String> RUIN_AUTO_ACTIONS = List.of("status", "reset");
     private static final List<String> GIVE_KINDS = List.of(
-            "tracker", "prospect", "establish", "tool", "brush", "paper", "pencil");
+            "tracker", "prospect", "establish", "tool", "brush", "paper", "pencil", "artifact");
     private static final List<String> WORKDAY_ACTIONS = List.of("reset");
     private static final List<String> FIND_ACTIONS = List.of("spawn");
 
@@ -88,6 +89,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private final RuinAutoSpawner autoRuins;
     private final CampClosure campClosure;
     private final SitePurge sitePurge;
+    private final RecoveredFindItem recoveredItem;
 
     /**
      * @param plugin owner used to re-bind ItemsAdder / MMOItems on reload
@@ -108,6 +110,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      * @param autoRuins trial chunk auto-spawner, updated on reload
      * @param campClosure staff close of a standing camp, same path as the board
      * @param sitePurge staff wipe of a ruin in any status
+     * @param recoveredItem factory for staff-given artifacts with ruin provenance
      */
     public ArchaeoCommand(
             ArcheologyPlugin plugin,
@@ -127,7 +130,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             RecoverService recover,
             RuinAutoSpawner autoRuins,
             CampClosure campClosure,
-            SitePurge sitePurge
+            SitePurge sitePurge,
+            RecoveredFindItem recoveredItem
     ) {
         this.plugin = plugin;
         this.catalogs = catalogs;
@@ -147,6 +151,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         this.autoRuins = autoRuins;
         this.campClosure = campClosure;
         this.sitePurge = sitePurge;
+        this.recoveredItem = recoveredItem;
     }
 
     /**
@@ -261,8 +266,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      */
     private boolean handleGive(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage("Usage: /archaeo give <tracker|prospect|establish|tool|brush|paper|pencil> [player]");
+            sender.sendMessage("Usage: /archaeo give <tracker|prospect|establish|tool|brush|paper|pencil|artifact> [player]");
             sender.sendMessage("       /archaeo give tool <item> [player]");
+            sender.sendMessage("       /archaeo give artifact <artifact> <#serial> [player]");
             return true;
         }
         String kind = args[1].toLowerCase(Locale.ROOT);
@@ -271,6 +277,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         }
         if ("tool".equals(kind)) {
             return handleGiveTool(sender, args);
+        }
+        if ("artifact".equals(kind)) {
+            return handleGiveArtifact(sender, args);
         }
         Player target = resolveOnlinePlayer(sender, args, 2, "/archaeo give <kind> <player>");
         if (target == null) {
@@ -314,10 +323,79 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     "a field pencil",
                     "You received a field pencil. Click a paper onto it; the pencil wears like a tool.");
             default -> {
-                sender.sendMessage("Unknown item. Use: tracker, prospect, establish, tool, brush, paper, or pencil.");
+                sender.sendMessage("Unknown item. Use: tracker, prospect, establish, tool, brush, paper, pencil, or artifact.");
                 yield true;
             }
         };
+    }
+
+    /**
+     * Gives a recovered catalog artifact and records it in the selected ruin's archive.
+     *
+     * @param sender staff issuer
+     * @param args {@code give artifact <artifact> <#serial> [player]}
+     * @return {@code true} always
+     */
+    private boolean handleGiveArtifact(CommandSender sender, String[] args) {
+        String usage = "/archaeo give artifact <artifact> <#serial> [player]";
+        if (args.length < 4 || args.length > 5) {
+            sender.sendMessage("Usage: " + usage);
+            return true;
+        }
+        ArtifactTemplate template = catalogs.artifact(args[2]);
+        if (template == null) {
+            template = catalogs.artifacts().entrySet().stream()
+                    .filter(entry -> entry.getKey().equalsIgnoreCase(args[2]))
+                    .map(entry -> entry.getValue())
+                    .findFirst()
+                    .orElse(null);
+        }
+        if (template == null) {
+            sender.sendMessage("Unknown artifact. Try: " + String.join(", ", catalogs.artifacts().keySet()));
+            return true;
+        }
+        Optional<Integer> serial = parseSerial(args[3]);
+        if (serial.isEmpty()) {
+            sender.sendMessage("Choose a ruin by its serial, for example #12. Tab-complete lists the ruins.");
+            return true;
+        }
+        Optional<Site> resolved = resolveQuery(sender, args[3]);
+        if (resolved.isEmpty()) {
+            return true;
+        }
+        Player target = resolveOnlinePlayer(sender, args, 4, usage);
+        if (target == null) {
+            return true;
+        }
+        Site site = resolved.get();
+        try {
+            BuriedFind find = generator.createStaffRecoveredFind(site, template, target.getUniqueId());
+            String grade = catalogs.pick().conservation().gradeLabel(find.getConservation());
+            ItemStack stack = recoveredItem.create(
+                    template, site, find, target.getUniqueId(), grade, false, catalogs);
+            int previousCount = site.getRecoveredCount();
+            site.getFinds().add(find);
+            site.setRecoveredCount(previousCount + 1);
+            try {
+                sites.save(site);
+            } catch (RuntimeException exception) {
+                site.getFinds().remove(find);
+                site.setRecoveredCount(previousCount);
+                throw exception;
+            }
+            // The archive is saved before delivery so the item always has a live dossier.
+            target.getInventory().addItem(stack).values().forEach(leftover ->
+                    target.getWorld().dropItemNaturally(target.getLocation(), leftover));
+            sender.sendMessage("Gave " + template.displayName() + " (" + find.publicNumber(site)
+                    + ") from ruin " + site.displayLabel() + " to " + target.getName() + ".");
+            if (target != sender) {
+                target.sendMessage("You received " + template.displayName() + " (" + find.publicNumber(site)
+                        + ") from ruin " + site.displayLabel() + ".");
+            }
+        } catch (IllegalStateException | IllegalArgumentException exception) {
+            sender.sendMessage("Could not give the artifact: " + exception.getMessage());
+        }
+        return true;
     }
 
     /**
@@ -1191,6 +1269,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("       /archaeo ruin auto status|reset");
         sender.sendMessage("       /archaeo give tracker|prospect|establish|tool|brush|paper|pencil [player]");
         sender.sendMessage("       /archaeo give tool <item> [player]");
+        sender.sendMessage("       /archaeo give artifact <artifact> <#serial> [player]");
         sender.sendMessage("       /archaeo workday reset [player|all]");
         sender.sendMessage("       /archaeo find spawn [artifact] [size]");
         sender.sendMessage("       /archaeo sketch");
@@ -1236,6 +1315,23 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                 return GIVE_KINDS.stream()
                         .filter(value -> value.startsWith(args[1].toLowerCase(Locale.ROOT)))
                         .toList();
+            }
+            if ("artifact".equalsIgnoreCase(args[1])) {
+                if (args.length == 3) {
+                    String typed = args[2].toLowerCase(Locale.ROOT);
+                    return catalogs.artifacts().keySet().stream()
+                            .filter(id -> id.toLowerCase(Locale.ROOT).startsWith(typed))
+                            .toList();
+                }
+                if (args.length == 4) {
+                    String typed = args[3];
+                    return sites.all().stream()
+                            .map(site -> "#" + site.getSerial())
+                            .filter(id -> id.startsWith(typed) || id.substring(1).startsWith(typed))
+                            .sorted()
+                            .toList();
+                }
+                return args.length == 5 ? onlineNamesStartingWith(args[4]) : List.of();
             }
             if (args.length == 3) {
                 if ("tool".equalsIgnoreCase(args[1]) || "pick".equalsIgnoreCase(args[1])) {
