@@ -126,7 +126,8 @@ public class RecoveredFindItem {
     }
 
     /**
-     * Catalog item stored on this find, or a stable pick from the template pool for old dossiers.
+     * Catalog item stored on this find, or a stable pick from the template pool for old dossiers
+     * and for unrecovered finds whose stored item the catalog no longer lists.
      *
      * @param template catalog row
      * @param find archive row
@@ -138,7 +139,9 @@ public class RecoveredFindItem {
         }
         // BuriedFind stores a blank item as null, and every stored or generated find has an id.
         String chosen = find == null ? null : find.getItem();
-        if (chosen == null && find != null) {
+        // A catalog change re-picks pieces still in the ground; a recovered piece keeps the item it became.
+        boolean retired = chosen != null && find.getState() != FindState.RECOVERED && !template.offers(chosen);
+        if ((chosen == null || retired) && find != null) {
             long seed = find.getId().getMostSignificantBits() ^ find.getId().getLeastSignificantBits();
             chosen = template.pickItem(new Random(seed));
             find.setItem(chosen);

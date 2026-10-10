@@ -11,6 +11,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
@@ -55,6 +56,21 @@ public final class RecoveredFindListener implements Listener {
         this.sites = sites;
         this.catalogs = catalogs;
         this.recovered = recovered;
+    }
+
+    /**
+     * A placed block would lose the archive tag, so recovered pieces stay items. Displays such as
+     * item frames take the whole stack and keep it. Plain items on the same base are unaffected.
+     *
+     * @param event block placement, including beds and doors
+     */
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onPlace(BlockPlaceEvent event) {
+        if (!recovered.isRecovered(event.getItemInHand())) {
+            return;
+        }
+        event.setCancelled(true);
+        event.getPlayer().sendMessage(ChatColor.RED + "Artifacts can only be placed on displays.");
     }
 
     /**

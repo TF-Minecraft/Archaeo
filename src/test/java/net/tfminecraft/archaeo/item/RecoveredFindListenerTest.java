@@ -10,13 +10,16 @@ import net.tfminecraft.archaeo.site.SiteRepository;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Item;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.inventory.PrepareAnvilEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.AnvilInventory;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -57,6 +60,19 @@ public class RecoveredFindListenerTest {
         listener = new RecoveredFindListener(plugin, sites, catalogs, recovered);
     }
     @After public void tearDown() { MockBukkit.unmock(); }
+
+    @Test public void artifactsCannotBePlacedButPlainItemsOnTheSameBaseCan() {
+        template = new ArtifactTemplate("pot", "Ancient pot", 1, 1, "ceramic", null, false, 1, Set.of(), Set.of(), FindProfile.OBJECT, List.of(ItemRef.vanilla(Material.DECORATED_POT)), "");
+        ItemStack artifact = create();
+        assertEquals(Material.DECORATED_POT, artifact.getType());
+        BlockPlaceEvent placed = place(artifact, EquipmentSlot.OFF_HAND);
+        assertTrue(placed.isCancelled());
+        assertEquals(ChatColor.RED + "Artifacts can only be placed on displays.", player.nextMessage());
+
+        BlockPlaceEvent plain = place(new ItemStack(Material.DECORATED_POT), EquipmentSlot.HAND);
+        assertFalse(plain.isCancelled());
+        assertNull(player.nextMessage());
+    }
 
     @Test public void anvilPreviewPreservesArchiveTagWhenVanillaOutputLosesIt() {
         ItemStack left = create();
@@ -207,6 +223,12 @@ public class RecoveredFindListenerTest {
     }
 
     private ItemStack create() { return recovered.create(template, site, find, player.getUniqueId(), "Good", false, catalogs); }
+    private BlockPlaceEvent place(ItemStack item, EquipmentSlot hand) {
+        Block block = server.addSimpleWorld("world").getBlockAt(0, 64, 0);
+        BlockPlaceEvent event = new BlockPlaceEvent(block, block.getState(), block.getRelative(0, -1, 0), item, player, true, hand);
+        listener.onPlace(event);
+        return event;
+    }
     private PrepareAnvilEvent preview(ItemStack left, ItemStack result, String name) {
         PrepareAnvilEvent event = mock(PrepareAnvilEvent.class);
         AnvilInventory inventory = mock(AnvilInventory.class); AnvilView view = mock(AnvilView.class);
