@@ -26,7 +26,7 @@ public class CampFindBoardTest {
     private CatalogRegistry catalogs;
 
     @Before public void setUp() {
-        MockBukkit.mock(); viewer = MockBukkit.getMock().addPlayer("Curator");
+        net.tfminecraft.archaeo.CharacterTestSupport.mock(); viewer = MockBukkit.getMock().addPlayer("Curator");
         catalogs = mock(CatalogRegistry.class);
         when(catalogs.pick()).thenReturn(PickSettings.defaults());
         when(catalogs.materialOf(any())).thenReturn(new FindMaterial("ceramic", "Ceramic", 1, null, List.of()));

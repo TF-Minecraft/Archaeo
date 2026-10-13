@@ -28,16 +28,16 @@ public class SiteClosureTest {
     private BuriedFind find;
 
     @Before public void setUp() {
-        server = MockBukkit.mock();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock();
         world = server.addSimpleWorld("world");
         plugin = MockBukkit.createMockPlugin();
         sites = new SiteRepository(plugin); sites.loadAll();
         director = server.addPlayer("Director");
         site = new Site(); site.setId(UUID.randomUUID()); site.setSerial(1); site.setName("Ford");
         site.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z")); site.setWorldName("world"); site.setInterest(InterestLevel.LOW);
-        site.establish(director.getUniqueId(), 0, 0, 8, 5, 8);
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(site, director.getUniqueId(), 0, 0, 8, 5, 8);
         find = new BuriedFind(); find.setId(UUID.randomUUID()); find.getCells().add(new BlockCell(4, 2, 4)); site.getFinds().add(find);
-        sites.save(site);
+        net.tfminecraft.archaeo.CharacterTestSupport.save(sites, site);
     }
     @After public void tearDown() { MockBukkit.unmock(); }
 
@@ -55,7 +55,7 @@ public class SiteClosureTest {
     public void cutInAnUnloadedWorldStillTellsItsRosterButNoBystanderAtTheSameCoordinates() {
         PlayerMock worker = server.addPlayer("Worker"), bystander = at("Bystander", 8, 8);
         worker.teleport(new Location(world, 900, 5, 900));
-        site.setWorldName("archive_world"); site.getExcavators().add(worker.getUniqueId());
+        site.setWorldName("archive_world"); site.getExcavators().add(net.tfminecraft.archaeo.CharacterTestSupport.actor(site, worker.getUniqueId()));
         find.setState(FindState.RECOVERED);
         assertTrue(SiteClosure.settle(sites, site));
         assertTrue(director.nextMessage().contains("is exhausted")); assertNull(director.nextMessage());
@@ -66,8 +66,8 @@ public class SiteClosureTest {
     @Test
     public void handEditedDossierWithoutWorldOrDirectorStillSettlesAndTellsItsExcavators() throws Exception {
         PlayerMock worker = server.addPlayer("Worker");
-        site.getExcavators().add(worker.getUniqueId()); find.setState(FindState.RECOVERED);
-        sites.save(site);
+        site.getExcavators().add(net.tfminecraft.archaeo.CharacterTestSupport.actor(site, worker.getUniqueId())); find.setState(FindState.RECOVERED);
+        net.tfminecraft.archaeo.CharacterTestSupport.save(sites, site);
         File file = new File(new File(plugin.getDataFolder(), "sites"), site.getId() + ".yml");
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
         yaml.set("world", null); yaml.set("director", null); yaml.save(file);

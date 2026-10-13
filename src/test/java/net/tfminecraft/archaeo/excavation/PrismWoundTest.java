@@ -22,7 +22,7 @@ import static org.mockito.Mockito.*;
 public class PrismWoundTest {
     @Before
     public void startServer() {
-        MockBukkit.mock();
+        net.tfminecraft.archaeo.CharacterTestSupport.mock();
     }
 
     @After

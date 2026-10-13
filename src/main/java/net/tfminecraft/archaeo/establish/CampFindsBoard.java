@@ -89,7 +89,7 @@ public final class CampFindsBoard implements InventoryHolder {
                 Material.BARRIER,
                 ChatColor.WHITE + "Back",
                 ChatColor.GRAY + "Return to the excavation board."));
-        player.openInventory(inventory);
+        net.tfminecraft.archaeo.ownership.CharacterActors.open(player, inventory);
     }
 
     /**

@@ -28,7 +28,7 @@ public class SiteGeneratorTest {
     private ArtifactTemplate artifact;
 
     @Before public void setUp() {
-        server = MockBukkit.mock();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock();
         world = server.addSimpleWorld("world");
         catalog = mock(CatalogRegistry.class);
         repository = new SiteRepository(MockBukkit.createMockPlugin());
@@ -164,11 +164,11 @@ public class SiteGeneratorTest {
         UUID director = UUID.randomUUID();
         var origin = world.getBlockAt(3, 8, 3);
         origin.setType(Material.STONE);
-        assertThrows(IllegalArgumentException.class, () -> generator.spawnStaffFind(null, director, artifact, 2));
-        assertThrows(IllegalArgumentException.class, () -> generator.spawnStaffFind(origin, null, artifact, 2));
-        assertThrows(IllegalArgumentException.class, () -> generator.spawnStaffFind(origin, director, null, 2));
-        assertThrows(IllegalArgumentException.class, () -> generator.spawnStaffFind(world.getBlockAt(3, 100, 3), director, artifact, 2));
-        BuriedFind find = generator.spawnStaffFind(origin, director, artifact, 100);
+        assertThrows(IllegalArgumentException.class, () -> generator.spawnStaffFindForCharacter(null, new net.tfminecraft.tlibs.character.CharacterRef(director,director), artifact, 2));
+        assertThrows(IllegalArgumentException.class, () -> generator.spawnStaffFindForCharacter(origin, null, artifact, 2));
+        assertThrows(IllegalArgumentException.class, () -> generator.spawnStaffFindForCharacter(origin, new net.tfminecraft.tlibs.character.CharacterRef(director,director), null, 2));
+        assertThrows(IllegalArgumentException.class, () -> generator.spawnStaffFindForCharacter(world.getBlockAt(3, 100, 3), new net.tfminecraft.tlibs.character.CharacterRef(director,director), artifact, 2));
+        BuriedFind find = generator.spawnStaffFindForCharacter(origin, new net.tfminecraft.tlibs.character.CharacterRef(director,director), artifact, 100);
         Site site = repository.findByChunk("world", 0, 0).orElseThrow();
         assertEquals("Staff sandbox", site.getName());
         assertEquals(SiteStatus.ESTABLISHED, site.getStatus());
@@ -176,14 +176,14 @@ public class SiteGeneratorTest {
         assertTrue(find.getCells().contains(new BlockCell(3, 8, 3)));
         assertTrue(find.getCells().size() <= 4);
         assertEquals(Material.STONE, origin.getType());
-        assertThrows(IllegalStateException.class, () -> generator.spawnStaffFind(origin, director, artifact, 2));
+        assertThrows(IllegalStateException.class, () -> generator.spawnStaffFindForCharacter(origin, new net.tfminecraft.tlibs.character.CharacterRef(director,director), artifact, 2));
         var next = world.getBlockAt(12, 8, 12);
         next.setType(Material.STONE);
-        assertTrue(site.getFinds().contains(generator.spawnStaffFind(next, director, artifact, 2)));
+        assertTrue(site.getFinds().contains(generator.spawnStaffFindForCharacter(next, new net.tfminecraft.tlibs.character.CharacterRef(director,director), artifact, 2)));
         site.getStrata().clear();
         var high = world.getBlockAt(8, 50, 8);
         high.setType(Material.STONE);
-        assertEquals(1, generator.spawnStaffFind(high, director, artifact, 2).getCells().size());
+        assertEquals(1, generator.spawnStaffFindForCharacter(high, new net.tfminecraft.tlibs.character.CharacterRef(director,director), artifact, 2).getCells().size());
         assertTrue(site.getStrata().get("I").isPresent());
     }
 
@@ -285,14 +285,14 @@ public class SiteGeneratorTest {
         site.getStrata().put("I", band("I", true, 20, 24));
         site.getStrata().put("II", band("II", true, 10, 14));
         site.getStrata().put("IV", band("IV", false, 0, 0));
-        repository.save(site);
+        net.tfminecraft.archaeo.CharacterTestSupport.save(repository, site);
         UUID director = UUID.randomUUID();
         world.getBlockAt(3, 30, 3).setType(Material.STONE);
-        generator.spawnStaffFind(world.getBlockAt(3, 30, 3), director, artifact, 2);
+        generator.spawnStaffFindForCharacter(world.getBlockAt(3, 30, 3), new net.tfminecraft.tlibs.character.CharacterRef(director,director), artifact, 2);
         assertEquals(List.of(20, 34), range(site.getStrata().get("I")));
         assertEquals(List.of(10, 14), range(site.getStrata().get("II")));
         world.getBlockAt(5, 6, 5).setType(Material.STONE);
-        BuriedFind low = generator.spawnStaffFind(world.getBlockAt(5, 6, 5), director, artifact, 2);
+        BuriedFind low = generator.spawnStaffFindForCharacter(world.getBlockAt(5, 6, 5), new net.tfminecraft.tlibs.character.CharacterRef(director,director), artifact, 2);
         assertEquals("II", low.getStratumId());
         assertEquals(List.of(2, 14), range(site.getStrata().get("II")));
         assertEquals(List.of(20, 34), range(site.getStrata().get("I")));
@@ -305,7 +305,7 @@ public class SiteGeneratorTest {
         when(catalog.strataInOrder()).thenReturn(List.of(new StratumDefinition("I", 1, "Top", 1, 3, false)));
         UUID director = UUID.randomUUID();
         world.getBlockAt(3, 8, 3).setType(Material.STONE);
-        BuriedFind revived = generator.spawnStaffFind(world.getBlockAt(3, 8, 3), director, artifact, 2);
+        BuriedFind revived = generator.spawnStaffFindForCharacter(world.getBlockAt(3, 8, 3), new net.tfminecraft.tlibs.character.CharacterRef(director,director), artifact, 2);
         Site first = repository.findByChunk("world", 0, 0).orElseThrow();
         assertEquals("I", revived.getStratumId());
         assertTrue(first.getStrata().get("I").isPresent());
@@ -314,7 +314,7 @@ public class SiteGeneratorTest {
         when(catalog.strataInOrder()).thenReturn(List.of(new StratumDefinition("A", 1, "Top", 1, 3, false)));
         when(catalog.stratum("I")).thenReturn(null);
         world.getBlockAt(20, 8, 3).setType(Material.STONE);
-        BuriedFind added = generator.spawnStaffFind(world.getBlockAt(20, 8, 3), director, artifact, 2);
+        BuriedFind added = generator.spawnStaffFindForCharacter(world.getBlockAt(20, 8, 3), new net.tfminecraft.tlibs.character.CharacterRef(director,director), artifact, 2);
         Site second = repository.findByChunk("world", 1, 0).orElseThrow();
         assertEquals("I", added.getStratumId());
         assertFalse(second.getStrata().get("A").isPresent());
@@ -327,9 +327,9 @@ public class SiteGeneratorTest {
     public void staffFindBesideAnotherGrowsAwayFromItInsteadOfSharingCells() {
         UUID director = UUID.randomUUID();
         for (int x = 3; x <= 6; x++) world.getBlockAt(x, 8, 3).setType(Material.STONE);
-        BuriedFind first = generator.spawnStaffFind(world.getBlockAt(3, 8, 3), director, artifact, 2);
+        BuriedFind first = generator.spawnStaffFindForCharacter(world.getBlockAt(3, 8, 3), new net.tfminecraft.tlibs.character.CharacterRef(director,director), artifact, 2);
         assertEquals(Set.of(new BlockCell(3, 8, 3), new BlockCell(4, 8, 3)), new HashSet<>(first.getCells()));
-        BuriedFind second = generator.spawnStaffFind(world.getBlockAt(5, 8, 3), director, artifact, 2);
+        BuriedFind second = generator.spawnStaffFindForCharacter(world.getBlockAt(5, 8, 3), new net.tfminecraft.tlibs.character.CharacterRef(director,director), artifact, 2);
         assertEquals(Set.of(new BlockCell(5, 8, 3), new BlockCell(6, 8, 3)), new HashSet<>(second.getCells()));
     }
 

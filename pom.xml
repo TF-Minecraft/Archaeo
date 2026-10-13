@@ -12,11 +12,16 @@
     <url>https://github.com/TF-Minecraft/Archaeo</url>
 
     <properties>
+        <tlibs.version>2.6.0</tlibs.version>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>me.plugins</groupId><artifactId>tlibs</artifactId><version>${tlibs.version}</version><scope>provided</scope>
+            <exclusions><exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion></exclusions>
+        </dependency>
         <dependency>
             <groupId>org.mockbukkit.mockbukkit</groupId>
             <artifactId>mockbukkit-v1.21</artifactId>

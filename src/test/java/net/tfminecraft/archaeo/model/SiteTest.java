@@ -31,7 +31,7 @@ public class SiteTest {
         site.setSurfaceY(64);
         site.setCreatedBy(director);
         site.setCreatedAt(created);
-        site.setDirector(director);
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, director);
         site.setVisibility("public");
         site.setRecoveredCount(5);
         site.setCampSignX(-25);
@@ -126,19 +126,19 @@ public class SiteTest {
         assertNull(site.workerRecord(outsider));
         assertEquals(SiteRole.ARCHAEOLOGIST, site.roleOf(outsider));
         assertTrue(site.getWorkers().isEmpty());
-        site.setDirector(director);
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, director);
         assertTrue(site.isDirector(director));
         assertFalse(site.isDirector(outsider));
         assertTrue(site.onStaff(director));
         assertEquals(SiteRole.DIRECTOR, site.roleOf(director));
         assertEquals(SiteRole.DIRECTOR, site.staffLog(director).getRole());
-        assertFalse(site.grantExcavator(null));
-        assertTrue(site.grantExcavator(excavator));
-        assertFalse(site.grantExcavator(excavator));
+        assertFalse(net.tfminecraft.archaeo.CharacterTestSupport.grantExcavator(site, null));
+        assertTrue(net.tfminecraft.archaeo.CharacterTestSupport.grantExcavator(site, excavator));
+        assertFalse(net.tfminecraft.archaeo.CharacterTestSupport.grantExcavator(site, excavator));
         assertTrue(site.onStaff(excavator));
         WorkerRecord record = site.workerRecord(excavator);
         assertNotNull(record.getJoinedAt());
-        assertSame(record, site.worker(excavator));
+        assertSame(record, net.tfminecraft.archaeo.CharacterTestSupport.worker(site, excavator));
         assertSame(record, site.staffLog(excavator));
         assertFalse(site.assignRole(null, SiteRole.EXCAVATOR));
         assertFalse(site.assignRole(excavator, null));
@@ -156,16 +156,16 @@ public class SiteTest {
         assertFalse(site.onStaff(excavator));
         assertEquals(3, record.getBlocksRemoved());
         assertEquals(SiteRole.ARCHAEOLOGIST, record.getRole());
-        assertTrue(site.grantExcavator(excavator));
+        assertTrue(net.tfminecraft.archaeo.CharacterTestSupport.grantExcavator(site, excavator));
         assertSame(record, site.workerRecord(excavator));
-        site.getExcavators().add(outsider); // Legacy roster entries need not have a worker page.
+        site.getExcavators().add(net.tfminecraft.archaeo.CharacterTestSupport.actor(site, outsider)); // Legacy roster entries need not have a worker page.
         assertTrue(site.revokeExcavator(outsider));
     }
 
     @Test public void lifecycleControlsFieldWorkButKeepsArchiveAvailable() {
         Site site = new Site();
-        site.setDirector(director);
-        site.grantExcavator(excavator);
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, director);
+        net.tfminecraft.archaeo.CharacterTestSupport.grantExcavator(site, excavator);
         for (SiteStatus status : SiteStatus.values()) {
             site.setStatus(status);
             boolean working = status == SiteStatus.ESTABLISHED;
@@ -195,13 +195,13 @@ public class SiteTest {
         site.setChunkZ(2);
         site.setEstablishmentChunkX(1);
         assertFalse(site.hasEstablishment());
-        site.establish(director, 3, 4, 48, 65, 64);
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(site, director, 3, 4, 48, 65, 64);
         assertTrue(site.hasEstablishment());
         assertEquals(SiteType.EXCAVATION, site.getType());
         assertEquals(SiteStatus.ESTABLISHED, site.getStatus());
         assertEquals(director, site.getDirector());
-        assertEquals(SiteRole.DIRECTOR, site.worker(director).getRole());
-        site.establish(director, 3, 4, 48, 65, 64);
+        assertEquals(SiteRole.DIRECTOR, net.tfminecraft.archaeo.CharacterTestSupport.worker(site, director).getRole());
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(site, director, 3, 4, 48, 65, 64);
         assertEquals(List.of(director), site.getExcavators());
         site.relocateCamp(-3, -4, -48, 70, -64);
         assertEquals(Integer.valueOf(-3), site.getEstablishmentChunkX());
@@ -222,15 +222,15 @@ public class SiteTest {
         assertTrue(site.prospectSamples(director).isEmpty());
         assertTrue(site.allProspectSamples().isEmpty());
         assertFalse(site.hasProspectSample(director, cell));
-        assertTrue(site.addProspectSample(director, cell));
-        assertFalse(site.addProspectSample(director, new BlockCell(1, 2, 3)));
+        assertTrue(net.tfminecraft.archaeo.CharacterTestSupport.addProspectSample(site, director, cell));
+        assertFalse(net.tfminecraft.archaeo.CharacterTestSupport.addProspectSample(site, director, new BlockCell(1, 2, 3)));
         assertTrue(site.hasProspectSample(director, cell));
-        assertTrue(site.addProspectSample(excavator, cell));
+        assertTrue(net.tfminecraft.archaeo.CharacterTestSupport.addProspectSample(site, excavator, cell));
         assertEquals(List.of(cell), site.prospectSamples(director));
         assertSame(site.prospectSamples(director), site.allProspectSamples().get(director));
         assertFalse(site.isProspectConfirmed(director));
-        site.confirmProspect(director);
-        site.confirmProspect(director);
+        net.tfminecraft.archaeo.CharacterTestSupport.confirmProspect(site, director);
+        net.tfminecraft.archaeo.CharacterTestSupport.confirmProspect(site, director);
         assertTrue(site.isProspectConfirmed(director));
         assertFalse(site.isProspectConfirmed(excavator));
         assertEquals(1, site.getProspectConfirmed().size());
@@ -364,8 +364,8 @@ public class SiteTest {
         site.clearFillDamage(cell);
         assertTrue(site.getFillDamage().isEmpty());
         site.addFillDamage(cell, 1);
-        site.addProspectSample(director, cell);
-        site.confirmProspect(director);
+        net.tfminecraft.archaeo.CharacterTestSupport.addProspectSample(site, director, cell);
+        net.tfminecraft.archaeo.CharacterTestSupport.confirmProspect(site, director);
         site.clearGeneratedLayout();
         assertTrue(site.getStrata().isEmpty());
         assertTrue(site.getFinds().isEmpty());

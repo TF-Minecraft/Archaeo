@@ -26,7 +26,7 @@ public class SketchCabinetTest {
     private BuriedFind find;
 
     @Before public void setUp() {
-        MockBukkit.mock(); player = MockBukkit.getMock().addPlayer();
+        net.tfminecraft.archaeo.CharacterTestSupport.mock(); player = MockBukkit.getMock().addPlayer();
         recovered = new RecoveredFindItem(MockBukkit.createMockPlugin());
         CatalogRegistry catalogs = mock(CatalogRegistry.class); when(catalogs.pick()).thenReturn(PickSettings.defaults());
         site = new Site(); site.setId(UUID.randomUUID()); site.setName("River camp");

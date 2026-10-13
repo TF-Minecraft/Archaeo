@@ -16,7 +16,7 @@ public class CabinetLabBoardTest {
     private ServerMock server;
     private JavaPlugin plugin;
     private PlayerMock player;
-    @Before public void setUp() { server = MockBukkit.mock(); plugin = MockBukkit.createMockPlugin(); player = server.addPlayer(); }
+    @Before public void setUp() { server = net.tfminecraft.archaeo.CharacterTestSupport.mock(); plugin = MockBukkit.createMockPlugin(); player = server.addPlayer(); }
     @After public void tearDown() { MockBukkit.unmock(); }
 
     @Test public void fieldContainsExactlyTheConfiguredDirtAndOnlyMaterialCompatibleStains() {

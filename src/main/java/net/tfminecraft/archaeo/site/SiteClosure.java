@@ -57,9 +57,9 @@ public final class SiteClosure {
                 }
             }
         }
-        tell(site.getDirector(), message, told);
+        tell(site, site.getDirector(), message, told);
         for (UUID excavator : site.getExcavators()) {
-            tell(excavator, message, told);
+            tell(site, excavator, message, told);
         }
     }
 
@@ -68,12 +68,13 @@ public final class SiteClosure {
      * @param message English line
      * @param told people who already received it in the field
      */
-    private static void tell(UUID playerId, String message, Set<UUID> told) {
-        if (playerId == null || !told.add(playerId)) {
+    private static void tell(Site site, UUID playerId, String message, Set<UUID> told) {
+        var ref=site.getActorRefs().get(playerId);
+        if (ref == null || !told.add(ref.ownerId())) {
             return;
         }
-        Player player = Bukkit.getPlayer(playerId);
-        if (player != null) {
+        Player player = Bukkit.getPlayer(ref.ownerId());
+        if (player != null && ref.equals(net.tfminecraft.archaeo.ownership.CharacterActors.session(player).map(s->s.ref()).orElse(null))) {
             player.sendMessage(message);
         }
     }

@@ -49,7 +49,7 @@ public class SiteStoredItemsTest {
     private EntityEquipment equipment;
 
     @Before public void setUp() {
-        server = MockBukkit.mock(); plugin = MockBukkit.createMockPlugin();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock(); plugin = MockBukkit.createMockPlugin();
         world = spy(new WorldMock()); server.addWorld(world); player = server.addPlayer();
         player.teleport(new Location(world, 2, 5, 2)); player.openInventory(Bukkit.createInventory(null, 9));
         recovered = new RecoveredFindItem(plugin); catalogs = mock(CatalogRegistry.class);
@@ -59,7 +59,7 @@ public class SiteStoredItemsTest {
                 Set.of(), Set.of(), FindProfile.OBJECT, List.of(), "");
         when(catalogs.artifact("pot")).thenReturn(template);
         site = new Site(); site.setId(UUID.randomUUID()); site.setName("Old camp"); site.setWorldName(world.getName());
-        site.establish(player.getUniqueId(), 0, 0, 2, 4, 2);
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(site, player.getUniqueId(), 0, 0, 2, 4, 2);
         BuriedFind find = new BuriedFind(); find.setId(UUID.randomUUID()); find.setArtifactId("pot");
         find.setState(FindState.RECOVERED); find.setStratumId("I"); find.setFindNumber(1); site.getFinds().add(find);
         artifact = recovered.create(template, site, find, player.getUniqueId(), "Good", false, catalogs);

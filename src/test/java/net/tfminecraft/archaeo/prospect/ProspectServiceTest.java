@@ -36,7 +36,7 @@ public class ProspectServiceTest {
     private ProspectService service;
 
     @Before public void setUp() {
-        server = MockBukkit.mock(); world = server.addSimpleWorld("world");
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock(); world = server.addSimpleWorld("world");
         player = server.addPlayer(); player.teleport(new Location(world, 4, 5, 4));
         player.getInventory().setItemInMainHand(new ItemStack(Material.IRON_HOE));
         sites = mock(SiteRepository.class); catalogs = mock(CatalogRegistry.class);
@@ -200,5 +200,10 @@ public class ProspectServiceTest {
     }
     private static void assertContains(List<String> messages, String expected) {
         assertTrue(messages.toString(), messages.stream().anyMatch(s -> s.contains(expected)));
+    }
+
+    @Test public void timedSampleCannotWriteNewCharacterAndOriginalProgressStaysSeparate(){
+        var a=new net.tfminecraft.tlibs.character.CharacterRef(player.getUniqueId(),UUID.randomUUID());var b=new net.tfminecraft.tlibs.character.CharacterRef(player.getUniqueId(),UUID.randomUUID());var first=new net.tfminecraft.tlibs.character.CharacterSession(a,1);var second=new net.tfminecraft.tlibs.character.CharacterSession(b,2);
+        net.tfminecraft.archaeo.CharacterTestSupport.sessions.put(player.getUniqueId(),first);sample(1,1);assertEquals(1,site.prospectSamples(a.characterId()).size());service.begin(player,ground(4,1));net.tfminecraft.archaeo.CharacterTestSupport.sessions.put(player.getUniqueId(),second);server.getScheduler().performTicks(4);assertEquals(1,site.prospectSamples(a.characterId()).size());assertTrue(site.prospectSamples(b.characterId()).isEmpty());sample(7,1);assertEquals(1,site.prospectSamples(a.characterId()).size());assertEquals(1,site.prospectSamples(b.characterId()).size());assertFalse(site.isProspectConfirmed(b.characterId()));
     }
 }

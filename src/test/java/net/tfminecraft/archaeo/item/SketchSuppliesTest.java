@@ -24,7 +24,7 @@ public class SketchSuppliesTest {
     private final ItemRef pencil = ItemRef.vanilla(Material.FEATHER);
 
     @Before public void setUp() {
-        server = MockBukkit.mock();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock();
         plugin = MockBukkit.createMockPlugin();
         supplies = new SketchSupplies(plugin, paper, pencil, 2);
     }

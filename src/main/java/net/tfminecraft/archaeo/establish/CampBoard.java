@@ -146,7 +146,7 @@ public final class CampBoard implements InventoryHolder {
                     ChatColor.GOLD + "Close excavation",
                     closeLore.toArray(String[]::new)));
         }
-        player.openInventory(inventory);
+        net.tfminecraft.archaeo.ownership.CharacterActors.open(player, inventory);
     }
 
     /**
@@ -192,8 +192,8 @@ public final class CampBoard implements InventoryHolder {
         if (director) {
             lore.add("");
             lore.add(ChatColor.DARK_GRAY + "You are the director.");
-        } else if (site.getExcavators().contains(player.getUniqueId())) {
-            SiteRole role = site.roleOf(player.getUniqueId());
+        } else if (site.getExcavators().contains(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) {
+            SiteRole role = site.roleOf(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player));
             lore.add("");
             lore.add(ChatColor.DARK_GRAY + "You are " + role.displayName() + " here.");
             lore.add(ChatColor.DARK_GRAY + role.duty());

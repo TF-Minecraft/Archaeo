@@ -30,10 +30,10 @@ public class FindReportBookTest {
     private FindReportBook reports;
 
     @Before public void setUp() {
-        MockBukkit.mock(); plugin = MockBukkit.createMockPlugin(); director = MockBukkit.getMock().addPlayer("Director");
+        net.tfminecraft.archaeo.CharacterTestSupport.mock(); plugin = MockBukkit.createMockPlugin(); director = MockBukkit.getMock().addPlayer("Director");
         reports = new FindReportBook(plugin); catalogs = mock(CatalogRegistry.class);
         site = new Site(); site.setId(UUID.randomUUID()); site.setName("River excavation"); site.setSerial(23);
-        site.setInterest(InterestLevel.LOW); site.establish(director.getUniqueId(), 0, 0, 10, 4, 0);
+        site.setInterest(InterestLevel.LOW); net.tfminecraft.archaeo.CharacterTestSupport.establish(site, director.getUniqueId(), 0, 0, 10, 4, 0);
         site.setStatus(SiteStatus.EXHAUSTED);
     }
     @After public void tearDown() { MockBukkit.unmock(); }

@@ -46,7 +46,7 @@ public class PrismListenerTest {
 
     @Before
     public void setup() {
-        server = MockBukkit.mock();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock();
         world = new SnapshotWorld();
         world.setName("prism");
         server.addWorld(world);
@@ -65,7 +65,7 @@ public class PrismListenerTest {
         site.setId(UUID.randomUUID());
         site.setStatus(SiteStatus.ESTABLISHED);
         site.setWorldName(world.getName());
-        site.setDirector(player.getUniqueId());
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, player.getUniqueId());
         StratumBand band = new StratumBand();
         band.setId("I");
         band.setPresent(true);

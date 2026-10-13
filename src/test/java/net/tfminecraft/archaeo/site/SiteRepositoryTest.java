@@ -40,12 +40,12 @@ public class SiteRepositoryTest {
         UUID owner = UUID.randomUUID(), workerId = UUID.randomUUID();
         site.setName("River camp");
         site.setCreatedBy(owner);
-        site.setDirector(owner);
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, owner);
         site.setVisibility("public");
         site.setSurfaceY(72);
         site.setRecoveredCount(2);
         site.getHintIds().add("pottery");
-        site.getExcavators().add(workerId);
+        site.getExcavators().add(net.tfminecraft.archaeo.CharacterTestSupport.actor(site, workerId));
         site.getFactions().add("historians");
         site.relocateCamp(3, -3, 48, 73, -48);
         site.setCampSignX(49); site.setCampSignY(74); site.setCampSignZ(-47);
@@ -53,18 +53,18 @@ public class SiteRepositoryTest {
         site.setCampWoolPrimary("BLUE"); site.setCampWoolSecondary("WHITE"); site.setCampFacing("NORTH");
         site.setJornadaWorldDay(42); site.setJornadaPickLeft(9);
         site.getFillDamage().put(new BlockCell(33, 60, -40), 4);
-        site.confirmProspect(owner);
-        site.addProspectSample(owner, new BlockCell(32, 70, -48));
+        net.tfminecraft.archaeo.CharacterTestSupport.confirmProspect(site, owner);
+        net.tfminecraft.archaeo.CharacterTestSupport.addProspectSample(site, owner, new BlockCell(32, 70, -48));
         site.allProspectSamples().put(workerId, List.of());
         StratumBand band = band("roman", 60, 70);
         band.setDisturbed(true);
         site.getStrata().put("roman", band);
-        WorkerRecord worker = site.worker(workerId);
+        WorkerRecord worker = net.tfminecraft.archaeo.CharacterTestSupport.worker(site, workerId);
         worker.setRole(SiteRole.values()[0]);
         worker.setBlocksRemoved(11); worker.setCellsBrushed(12); worker.setFindsRecovered(13);
         worker.setFindsDamaged(14); worker.setFindsLost(15);
         worker.setJoinedAt(NOW); worker.setLastActiveAt(NOW.plusSeconds(1));
-        site.worker(owner).setJoinedAt(null);
+        net.tfminecraft.archaeo.CharacterTestSupport.worker(site, owner).setJoinedAt(null);
         BuriedFind find = find();
         find.setItem("itemsadder:archaeo:coin"); find.setGivenName("River coin");
         for (int x = 0; x < 10; x++) find.getCells().add(new BlockCell(x, 65, 0));
@@ -84,7 +84,7 @@ public class SiteRepositoryTest {
         site.getFinds().add(find);
         BuriedFind blank = find(); blank.setStudyNotes(" "); site.getFinds().add(blank);
         site.getFinds().add(find());
-        repository.save(site);
+        net.tfminecraft.archaeo.CharacterTestSupport.save(repository, site);
         YamlConfiguration before = YamlConfiguration.loadConfiguration(file(site));
         assertEquals(SiteRepository.SCHEMA, before.getInt("schema"));
         SiteRepository restored = new SiteRepository(plugin); restored.loadAll();
@@ -125,7 +125,7 @@ public class SiteRepositoryTest {
         assertEquals(3, piece.getInterpretations().size());
         assertEquals(workerId, piece.getInterpretations().getFirst().author());
         assertEquals(NOW, piece.getInterpretations().getFirst().recordedAt());
-        restored.commit(copy);
+        net.tfminecraft.archaeo.CharacterTestSupport.commit(restored, copy);
         assertEquals(before.saveToString(), YamlConfiguration.loadConfiguration(file(site)).saveToString());
     }
 
@@ -137,7 +137,7 @@ public class SiteRepositoryTest {
         Site closed = site(4, "world", 3, 0, SiteStatus.CLOSED);
         hidden.setName(null); established.setName("Alpha"); exhausted.setName("Alpha"); closed.setName(" ");
         for (Site s : List.of(hidden, established, exhausted, closed)) {
-            s.setDirector(owner); s.getStrata().put("roman", band("roman", 50, 60)); repository.touch(s);
+            net.tfminecraft.archaeo.CharacterTestSupport.setDirector(s, owner); s.getStrata().put("roman", band("roman", 50, 60)); net.tfminecraft.archaeo.CharacterTestSupport.touch(repository, s);
         }
         established.relocateCamp(8, 9, 128, 70, 144);
         exhausted.relocateCamp(10, 11, 160, 70, 176);
@@ -189,8 +189,8 @@ public class SiteRepositoryTest {
         ArgumentCaptor<Runnable> tick = ArgumentCaptor.forClass(Runnable.class);
         verify(scheduler).runTaskTimer(eq(plugin), tick.capture(), eq(20L), eq(20L));
         Site site = site(1, "world", 0, 0, SiteStatus.HIDDEN);
-        repository.touch(site); assertFalse(file(site).exists()); tick.getValue().run(); assertTrue(file(site).exists());
-        site.setName("Changed"); repository.touch(site); repository.stop(); repository.stop();
+        net.tfminecraft.archaeo.CharacterTestSupport.touch(repository, site); assertFalse(file(site).exists()); tick.getValue().run(); assertTrue(file(site).exists());
+        site.setName("Changed"); net.tfminecraft.archaeo.CharacterTestSupport.touch(repository, site); repository.stop(); repository.stop();
         verify(task).cancel(); assertEquals("Changed", YamlConfiguration.loadConfiguration(file(site)).getString("name"));
         repository.start(); verify(scheduler, times(2)).runTaskTimer(eq(plugin), any(Runnable.class), eq(20L), eq(20L));
         repository.stop();
@@ -199,25 +199,25 @@ public class SiteRepositoryTest {
     @Test public void deletionAndErasureClearDirtyEntriesAndPreserveSerialIndex() {
         repository.loadAll();
         assertEquals(1, repository.nextSerial()); assertEquals(2, repository.nextSerial());
-        Site site = site(2, "world", 0, 0, SiteStatus.HIDDEN); repository.commit(site);
-        repository.touch(site); repository.delete(site);
+        Site site = site(2, "world", 0, 0, SiteStatus.HIDDEN); net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, site);
+        net.tfminecraft.archaeo.CharacterTestSupport.touch(repository, site); repository.delete(site);
         assertTrue(repository.all().isEmpty()); assertFalse(file(site).exists());
         File trashed = new File(new File(file(site).getParentFile(), ".trash"), file(site).getName());
         assertTrue(trashed.exists()); repository.flushDirty(); assertFalse(file(site).exists());
         repository.loadAll(); assertEquals(3, repository.nextSerial());
-        repository.commit(site); repository.erase(site);
+        net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, site); repository.erase(site);
         assertFalse(file(site).exists()); assertFalse(trashed.exists());
         repository.delete(site); repository.erase(site);
         repository.delete(null); repository.delete(new Site()); repository.erase(null); repository.erase(new Site());
-        repository.touch(null); repository.touch(new Site()); repository.flushDirty();
-        assertThrows(IllegalArgumentException.class, () -> repository.commit(null));
-        assertThrows(IllegalArgumentException.class, () -> repository.commit(new Site()));
+        net.tfminecraft.archaeo.CharacterTestSupport.touch(repository, null); net.tfminecraft.archaeo.CharacterTestSupport.touch(repository, new Site()); repository.flushDirty();
+        assertThrows(IllegalArgumentException.class, () -> net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, null));
+        assertThrows(IllegalArgumentException.class, () -> net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, new Site()));
     }
 
     @Test public void failedCommitRemainsDirtyAndSucceedsWhenStorageRecovers() throws Exception {
         Path sites = temporary.getRoot().toPath().resolve("sites"); Files.writeString(sites, "blocked");
         Site site = site(1, "world", 0, 0, SiteStatus.HIDDEN);
-        assertThrows(IllegalStateException.class, () -> repository.commit(site));
+        assertThrows(IllegalStateException.class, () -> net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, site));
         repository.flushDirty(); assertSame(site, repository.findById(site.getId()).orElseThrow());
         repository.loadAll(); assertSame(site, repository.findById(site.getId()).orElseThrow());
         Files.delete(sites); repository.flushDirty(); assertTrue(file(site).exists());
@@ -239,17 +239,11 @@ public class SiteRepositoryTest {
         yaml.set("fill-damage", List.of("bad", "1:2", "1,2,3:4"));
         yaml.set("prospect.samples." + worker, List.of("bad", "4,5,6"));
         yaml.save(new File(temporary.getRoot(), "sites/legacy.yml"));
-        repository.loadAll(); assertEquals(1, repository.all().size());
-        Site restored = repository.findById(id).orElseThrow();
-        assertEquals(SiteStatus.HIDDEN, restored.getStatus()); assertEquals(SiteType.MANAGED_RUIN, restored.getType());
-        assertNull(restored.getCreatedAt()); assertNull(restored.getCreatedBy()); assertNull(restored.getDirector());
-        assertEquals("private", restored.getVisibility()); assertEquals("GREEN", restored.getCampWoolSecondary());
-        assertEquals(List.of(new BlockCell(1, 2, 3)), restored.getCampBlocks());
-        assertEquals(Map.of(new BlockCell(1, 2, 3), 4), restored.getFillDamage());
-        assertEquals(List.of(new BlockCell(4, 5, 6)), restored.prospectSamples(worker));
-        assertNull(restored.getWorkers().get(worker).getJoinedAt());
-        assertNull(restored.getWorkers().get(worker).getLastActiveAt());
-        assertEquals(1, restored.getWorkers().size()); assertTrue(restored.getStrata().isEmpty());
+        String before=Files.readString(new File(temporary.getRoot(), "sites/legacy.yml").toPath());
+        repository.loadAll(); assertTrue(repository.all().isEmpty());assertTrue(repository.ownership().held("legacy.yml"));
+        assertEquals(before,Files.readString(new File(temporary.getRoot(), "sites/legacy.yml").toPath()));
+        assertTrue(repository.ownership().names().contains("legacy.yml"));
+
     }
 
     @Test public void readsLegacyAndCorruptFindFieldsWithoutLosingTheDossier() throws Exception {
@@ -274,28 +268,17 @@ public class SiteRepositoryTest {
             hurt.put(damage, List.of("1,2,3")); rows.add(hurt);
         }
         yaml.set("finds", rows); yaml.save(new File(temporary.getRoot(), "sites/legacy.yml"));
-        repository.loadAll(); Site restored = repository.findById(id).orElseThrow();
-        assertEquals(7, restored.getFinds().size()); BuriedFind found = restored.getFinds().get(0);
-        assertNull(found.getItem()); assertNull(found.getGivenName()); assertNull(found.getRecoveredAt());
-        assertNull(found.getRecoveredBy()); assertEquals(0, found.getFindNumber());
-        assertEquals(100, found.getConservation()); assertTrue(found.isStudied());
-        assertFalse(found.isLabCleaned()); assertTrue(found.hasFieldSketch());
-        assertEquals(Map.of(new BlockCell(1, 2, 3), 7), found.getBrushRemaining());
-        assertEquals(2, found.getInterpretations().size()); assertNull(found.getInterpretations().getFirst().author());
-        assertNull(found.getInterpretations().getFirst().recordedAt());
-        assertNull(restored.getFinds().get(1).getItem());
-        assertEquals(0, restored.getFinds().get(2).getConservation());
-        assertEquals(100, restored.getFinds().get(3).getConservation());
-        assertEquals(75, restored.getFinds().get(4).getConservation());
-        assertEquals(50, restored.getFinds().get(5).getConservation());
-        assertEquals(75, restored.getFinds().get(6).getConservation());
+        String before=Files.readString(new File(temporary.getRoot(), "sites/legacy.yml").toPath());
+        repository.loadAll();assertTrue(repository.findById(id).isEmpty());assertTrue(repository.ownership().held("legacy.yml"));
+        assertEquals(before,Files.readString(new File(temporary.getRoot(), "sites/legacy.yml").toPath()));
+
     }
 
 
     @Test public void campsWithoutSignsAndLegacyWoolRemainReadable() throws Exception {
         Site site = site(1, "world", 0, 0, SiteStatus.ESTABLISHED);
         site.relocateCamp(1, 1, 16, 60, 16);
-        repository.commit(site);
+        net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, site);
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file(site));
         yaml.set("establishment.wool-secondary", null);
         yaml.save(file(site));
@@ -328,7 +311,7 @@ public class SiteRepositoryTest {
             files.when(() -> Files.move(source, target, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
                     java.nio.file.StandardCopyOption.REPLACE_EXISTING))
                     .thenThrow(new java.nio.file.AtomicMoveNotSupportedException(source.toString(), target.toString(), "test filesystem"));
-            repository.commit(site);
+            net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, site);
         }
         assertEquals(site.getId().toString(), YamlConfiguration.loadConfiguration(file(site)).getString("id"));
         assertFalse(Files.exists(source));
@@ -338,45 +321,39 @@ public class SiteRepositoryTest {
         Path blocked = temporary.getRoot().toPath().resolve("sites-index.yml.tmp");
         Files.createDirectory(blocked); Path child = blocked.resolve("child"); Files.writeString(child, "blocked");
         repository.nextSerial(); Site site = site(1, "world", 0, 0, SiteStatus.HIDDEN);
-        repository.commit(site); assertTrue(file(site).exists());
+        net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, site); assertTrue(file(site).exists());
         assertFalse(new File(temporary.getRoot(), "sites-index.yml").exists());
-        Files.delete(child); Files.delete(blocked); repository.commit(site);
+        Files.delete(child); Files.delete(blocked); net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, site);
         assertEquals(2, YamlConfiguration.loadConfiguration(new File(temporary.getRoot(), "sites-index.yml")).getInt("next-serial"));
     }
 
-    @Test public void trashMoveFailureFallsBackToDeletionAndEraseReportsNonemptyDirectories() throws Exception {
-        Site site = site(1, "world", 0, 0, SiteStatus.HIDDEN); repository.commit(site);
+    @Test public void trashMoveFailureRetainsDossierAndEraseRefusesNonemptyDirectories() throws Exception {
+        Site site = site(1, "world", 0, 0, SiteStatus.HIDDEN); net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, site);
         Path trash = file(site).toPath().getParent().resolve(".trash"); Files.writeString(trash, "not a directory");
-        repository.delete(site); assertFalse(file(site).exists()); assertTrue(repository.all().isEmpty());
+        assertThrows(IllegalStateException.class,()->repository.delete(site)); assertTrue(file(site).exists()); assertFalse(repository.all().isEmpty());
         Files.delete(trash); Files.createDirectories(trash);
-        Files.createDirectory(file(site).toPath()); Files.writeString(file(site).toPath().resolve("child"), "blocked");
+        Files.delete(file(site).toPath()); Files.createDirectory(file(site).toPath()); Files.writeString(file(site).toPath().resolve("child"), "blocked");
         Path copy = trash.resolve(file(site).getName()); Files.createDirectory(copy); Files.writeString(copy.resolve("child"), "blocked");
-        repository.erase(site); assertTrue(file(site).exists()); assertTrue(Files.exists(copy));
-        verify(plugin.getLogger()).warning("Could not delete " + file(site).getName());
-        verify(plugin.getLogger()).warning("Could not delete trash copy " + file(site).getName());
+        assertThrows(IllegalStateException.class,()->repository.erase(site)); assertTrue(file(site).exists()); assertTrue(Files.exists(copy));
     }
 
     // Must run as a non-root user (as GitHub Actions does): root ignores the folder's write bit.
     @Test public void readOnlySitesFolderKeepsOldFilesRetriesWritesAndStillDropsDeletedDossiersFromTheSession() throws Exception {
         Site kept = site(1, "world", 0, 0, SiteStatus.HIDDEN), trashed = site(2, "world", 1, 0, SiteStatus.HIDDEN), dropped = site(3, "world", 2, 0, SiteStatus.HIDDEN);
-        kept.setName("Before"); for (Site site : List.of(kept, trashed, dropped)) repository.commit(site);
+        kept.setName("Before"); for (Site site : List.of(kept, trashed, dropped)) net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, site);
         File folder = file(kept).getParentFile();
         try {
             assertTrue(folder.setWritable(false));
             kept.setName("After");
-            assertThrows(IllegalStateException.class, () -> repository.commit(kept));
+            assertThrows(IllegalStateException.class, () -> net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, kept));
             assertEquals("Before", YamlConfiguration.loadConfiguration(file(kept)).getString("name"));
             repository.flushDirty();
             verify(plugin.getLogger()).log(eq(java.util.logging.Level.WARNING), eq("Could not flush site " + kept.getId()), any(IllegalStateException.class));
-            repository.delete(dropped);
-            verify(plugin.getLogger()).warning("Could not create " + new File(folder, ".trash").getPath());
-            verify(plugin.getLogger()).warning("Could not delete " + file(dropped).getName());
-            assertTrue(repository.findById(dropped.getId()).isEmpty()); assertTrue(file(dropped).exists());
+            assertThrows(IllegalStateException.class,()->repository.delete(dropped));
+            assertTrue(repository.findById(dropped.getId()).isPresent());assertTrue(file(dropped).exists());
             assertTrue(folder.setWritable(true)); assertTrue(new File(folder, ".trash").mkdir()); assertTrue(folder.setWritable(false));
-            repository.delete(trashed);
-            verify(plugin.getLogger()).log(eq(java.util.logging.Level.WARNING), eq("Could not trash " + file(trashed).getName()), any(java.io.IOException.class));
-            verify(plugin.getLogger()).warning("Could not delete " + file(trashed).getName());
-            assertTrue(repository.findById(trashed.getId()).isEmpty()); assertTrue(file(trashed).exists());
+            assertThrows(IllegalStateException.class,()->repository.delete(trashed));
+            assertTrue(repository.findById(trashed.getId()).isPresent()); assertTrue(file(trashed).exists());
         } finally {
             folder.setWritable(true);
         }
@@ -384,26 +361,24 @@ public class SiteRepositoryTest {
         assertEquals("After", YamlConfiguration.loadConfiguration(file(kept)).getString("name"));
     }
 
-    @Test public void unreachableTrashStillDeletesTheDossierSoItCannotReturnOnRestart() throws Exception {
-        Site site = site(1, "world", 0, 0, SiteStatus.HIDDEN); repository.commit(site);
+    @Test public void unreachableTrashRetainsDossierAcrossRestart() throws Exception {
+        Site site = site(1, "world", 0, 0, SiteStatus.HIDDEN); net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, site);
         // e.g. .trash linked to a backup disk that is not mounted
         Path trash = file(site).toPath().getParent().resolve(".trash");
         Files.createSymbolicLink(trash, temporary.getRoot().toPath().resolve("unmounted/trash"));
-        repository.delete(site);
-        verify(plugin.getLogger()).warning("Could not create " + trash);
-        assertFalse(file(site).exists());
-        repository.loadAll(); assertTrue(repository.findById(site.getId()).isEmpty());
+        assertThrows(IllegalStateException.class,()->repository.delete(site));assertTrue(file(site).exists());
+        repository.loadAll();assertTrue(repository.findById(site.getId()).isPresent());
     }
 
     @Test public void failedReplaceRemovesItsTempFileAndLeavesTheSiteDirtyForTheNextFlush() throws Exception {
-        Site site = site(1, "world", 0, 0, SiteStatus.HIDDEN); repository.commit(site);
+        Site site = site(1, "world", 0, 0, SiteStatus.HIDDEN); net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, site);
         Files.delete(file(site).toPath()); Files.createDirectory(file(site).toPath()); Files.writeString(file(site).toPath().resolve("child"), "squatter");
         site.setName("Renamed");
-        assertThrows(IllegalStateException.class, () -> repository.commit(site));
+        assertThrows(IllegalStateException.class, () -> net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, site));
         assertFalse(new File(file(site).getPath() + ".tmp").exists());
         Files.delete(file(site).toPath().resolve("child")); Files.delete(file(site).toPath());
-        repository.flushDirty();
-        assertEquals("Renamed", YamlConfiguration.loadConfiguration(file(site)).getString("name"));
+        // Restoring the exact checked source permits an ordinary I/O retry; disappearance conflicts.
+        repository.flushDirty();assertTrue(site.isOwnershipHeld());assertFalse(file(site).exists());
     }
 
     private File file(Site site) { return new File(temporary.getRoot(), "sites/" + site.getId() + ".yml"); }
@@ -423,5 +398,20 @@ public class SiteRepositoryTest {
     private static Map<String, Object> row() {
         Map<String, Object> row = new LinkedHashMap<>(); row.put("id", UUID.randomUUID().toString());
         row.put("artifact-id", "coin"); row.put("stratum", "roman"); return row;
+    }
+
+    @Test public void ordinaryModelSavesPreserveUnknownRootWorkerFindInterpretationNullAndBinaryAfterRestart()throws Exception{
+        Site original=site(1,"world",0,0,SiteStatus.ESTABLISHED);UUID owner=UUID.randomUUID();net.tfminecraft.archaeo.CharacterTestSupport.setDirector(original,owner);net.tfminecraft.archaeo.CharacterTestSupport.worker(original,owner).setBlocksRemoved(3);BuriedFind find=find();find.addInterpretation(new FindInterpretation("purpose","coin",owner,NOW));original.getFinds().add(find);net.tfminecraft.archaeo.CharacterTestSupport.save(repository,original);
+        var raw=net.tfminecraft.archaeo.ownership.SiteDocuments.parse(Files.readString(file(original).toPath()));Map<String,Object> future=new LinkedHashMap<>();future.put("null",null);future.put("binary",new byte[]{0,1,-1});raw.put("future",future);var workers=net.tfminecraft.archaeo.ownership.SiteDocuments.map(raw.get("workers"));net.tfminecraft.archaeo.ownership.SiteDocuments.map(workers.get(owner.toString())).put("future",future);var finds=(List<?>)raw.get("finds");var row=net.tfminecraft.archaeo.ownership.SiteDocuments.map(finds.getFirst());row.put("future",future);var interpretation=net.tfminecraft.archaeo.ownership.SiteDocuments.map(((List<?>)row.get("interpretations")).getFirst());interpretation.put("future",future);net.tfminecraft.archaeo.ownership.SiteDocuments.write(file(original).toPath(),net.tfminecraft.archaeo.ownership.SiteDocuments.text(raw));
+        for(int round=0;round<2;round++){
+            repository.loadAll();Site live=repository.findById(original.getId()).orElseThrow();live.setName("Changed "+round);live.worker(owner).setBlocksRemoved(4+round);repository.save(live);var saved=net.tfminecraft.archaeo.ownership.SiteDocuments.parse(Files.readString(file(original).toPath()));assertTrue(net.tfminecraft.archaeo.ownership.SiteDocuments.same(future,saved.get("future")));assertTrue(net.tfminecraft.archaeo.ownership.SiteDocuments.same(future,net.tfminecraft.archaeo.ownership.SiteDocuments.map(net.tfminecraft.archaeo.ownership.SiteDocuments.map(saved.get("workers")).get(owner.toString())).get("future")));var savedFind=net.tfminecraft.archaeo.ownership.SiteDocuments.map(((List<?>)saved.get("finds")).getFirst());assertTrue(net.tfminecraft.archaeo.ownership.SiteDocuments.same(future,savedFind.get("future")));assertTrue(net.tfminecraft.archaeo.ownership.SiteDocuments.same(future,net.tfminecraft.archaeo.ownership.SiteDocuments.map(((List<?>)savedFind.get("interpretations")).getFirst()).get("future")));
+        }
+    }
+
+    @Test public void deletionAndErasureHoldExternallyChangedOrMissingDossiersWithoutRemovingTheInventory()throws Exception{
+        for(boolean erase:List.of(false,true)){
+            Site site=site(1,"world",0,0,SiteStatus.HIDDEN);repository.save(site);String original=Files.readString(file(site).toPath());String changed=original+"external: retained\n";Files.writeString(file(site).toPath(),changed);assertThrows(IllegalStateException.class,()->{if(erase)repository.erase(site);else repository.delete(site);});assertEquals(changed,Files.readString(file(site).toPath()));assertTrue(repository.ownership().names().contains(site.getId()+".yml"));assertTrue(site.isOwnershipHeld());assertTrue(repository.findById(site.getId()).isPresent());
+        }
+        Site missing=site(3,"world",2,0,SiteStatus.HIDDEN);repository.save(missing);Files.delete(file(missing).toPath());assertThrows(IllegalStateException.class,()->repository.delete(missing));assertTrue(repository.ownership().held(missing.getId()+".yml"));assertTrue(repository.ownership().names().contains(missing.getId()+".yml"));assertTrue(repository.findById(missing.getId()).isPresent());
     }
 }

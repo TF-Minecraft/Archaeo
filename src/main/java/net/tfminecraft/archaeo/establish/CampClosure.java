@@ -96,10 +96,12 @@ public final class CampClosure {
         if (directorId == null) {
             return;
         }
-        if (closer instanceof Player player && directorId.equals(player.getUniqueId())) {
+        if (closer instanceof Player player && directorId.equals(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) {
             return;
         }
-        Player director = plugin.getServer().getPlayer(directorId);
+        var ref = site.getActorRefs().get(directorId);
+        Player director = ref == null ? null : plugin.getServer().getPlayer(ref.ownerId());
+        if (director != null && !directorId.equals(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, director))) director = null;
         if (director != null) {
             director.sendMessage("The camp at " + site.publicName()
                     + " was closed. The record is in a field book.");

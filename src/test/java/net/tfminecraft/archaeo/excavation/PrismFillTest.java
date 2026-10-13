@@ -18,7 +18,7 @@ public class PrismFillTest {
 
     @Before
     public void setup() {
-        world = MockBukkit.mock().addSimpleWorld("fill");
+        world = net.tfminecraft.archaeo.CharacterTestSupport.mock().addSimpleWorld("fill");
     }
 
     @After

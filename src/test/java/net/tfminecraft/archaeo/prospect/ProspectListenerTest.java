@@ -24,7 +24,7 @@ public class ProspectListenerTest {
     private ProspectService service;
     private ProspectListener listener;
     @Before public void setUp() {
-        MockBukkit.mock(); player = MockBukkit.getMock().addPlayer();
+        net.tfminecraft.archaeo.CharacterTestSupport.mock(); player = MockBukkit.getMock().addPlayer();
         service = mock(ProspectService.class);
         listener = new ProspectListener(new ProspectItem(ItemRef.vanilla(Material.IRON_HOE)), service);
     }

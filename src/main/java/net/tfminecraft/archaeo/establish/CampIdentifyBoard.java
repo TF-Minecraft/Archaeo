@@ -165,7 +165,7 @@ public final class CampIdentifyBoard implements InventoryHolder {
                 ChatColor.GRAY + (atCabinet
                         ? "Leave the cabinet. Signed answers stay."
                         : "Leave the station. Signed answers stay.")));
-        player.openInventory(inventory);
+        net.tfminecraft.archaeo.ownership.CharacterActors.open(player, inventory);
         return true;
     }
 

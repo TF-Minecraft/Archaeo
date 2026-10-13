@@ -10,6 +10,9 @@ final class SketchSession {
     private static final int REPEAT_INTERVAL_TICKS = 2;
     private static final int ERASE_STROKE_GRACE_TICKS = 5;
 
+    private net.tfminecraft.tlibs.character.CharacterSession actor;
+    void setActor(net.tfminecraft.tlibs.character.CharacterSession actor) { this.actor = actor; }
+    net.tfminecraft.tlibs.character.CharacterSession actor() { return actor; }
     private final MapView view;
     private final SketchSheet sheet;
     private int cursorX = SketchSheet.SIZE / 2;

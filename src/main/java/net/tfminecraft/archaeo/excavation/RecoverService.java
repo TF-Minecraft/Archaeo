@@ -45,6 +45,7 @@ public class RecoverService {
     private static final long WARN_MS = 3000L;
 
     private final JavaPlugin plugin;
+    private final net.tfminecraft.archaeo.ownership.CharacterWork identity;
     private final SiteRepository sites;
     private final CatalogRegistry catalogs;
     private final BrushItem brush;
@@ -72,6 +73,7 @@ public class RecoverService {
             RecoverySettings settings
     ) {
         this.plugin = plugin;
+        this.identity = new net.tfminecraft.archaeo.ownership.CharacterWork(plugin, this::cancel);
         this.sites = sites;
         this.catalogs = catalogs;
         this.brush = brush;
@@ -121,10 +123,13 @@ public class RecoverService {
         if (!brush.isBrush(player.getInventory().getItemInMainHand())) {
             return;
         }
+        if (channels.containsKey(player.getUniqueId()) && !identity.current(player)) cancel(player);
+        if (net.tfminecraft.archaeo.ownership.CharacterActors.session(player).isEmpty()) return;
         if (channels.containsKey(player.getUniqueId())) {
             return;
         }
         Channel channel = new Channel(createBar(player), Math.max(1, settings.channelTicks()));
+        channel.actor = identity.capture(player);
         channel.task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> pulse(player, channel), 1L, 1L);
         channels.put(player.getUniqueId(), channel);
     }
@@ -195,6 +200,10 @@ public class RecoverService {
      * @param channel look watcher
      */
     private void pulse(Player player, Channel channel) {
+        if (!net.tfminecraft.archaeo.ownership.CharacterActors.current(channel.actor, player)) {
+            if (channels.get(player.getUniqueId()) == channel) cancel(player); else channel.task.cancel();
+            return;
+        }
         if (!player.isOnline()) {
             cancel(player);
             return;
@@ -213,7 +222,7 @@ public class RecoverService {
                     target.getY(),
                     target.getZ()).orElse(null);
             if (site != null) {
-                if (!site.mayRecover(player.getUniqueId())) {
+                if (!site.mayRecover(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) {
                     cancel(player);
                     deniedRecovery(player, site);
                     return;
@@ -284,7 +293,7 @@ public class RecoverService {
         // The pulse has just checked that this is uncleaned fill of a discovered find and that
         // the player may recover here, so the staff log exists.
         find.markCleaned(cell);
-        site.staffLog(player.getUniqueId()).noteCellBrushed();
+        site.staffLog(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player)).noteCellBrushed();
         ToolWear.spend(
                 player,
                 player.getInventory().getItemInMainHand(),
@@ -342,9 +351,9 @@ public class RecoverService {
         int conservation = find.getConservation();
         String grade = catalogs.pick().conservation().gradeLabel(conservation);
         boolean fieldDamaged = find.isFieldDamaged();
-        site.catalogSettledFinds(player.getUniqueId());
+        site.catalogSettledFinds(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player));
         site.setRecoveredCount(site.getRecoveredCount() + 1);
-        site.staffLog(player.getUniqueId()).noteFindRecovered();
+        site.staffLog(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player)).noteFindRecovered();
         ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
         if (template == null) {
             player.sendMessage("Recovered a find, but its template is missing from the catalog.");
@@ -485,10 +494,10 @@ public class RecoverService {
      * @return whether the brush must stop
      */
     private boolean deniedRecovery(Player player, Site site) {
-        if (site.mayRecover(player.getUniqueId())) {
+        if (site.mayRecover(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) {
             return false;
         }
-        warn(player, site.mayWork(player.getUniqueId())
+        warn(player, site.mayWork(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))
                 ? "Your role does not lift pieces on this excavation."
                 : "You are not authorised to work on this excavation.");
         return true;
@@ -646,6 +655,7 @@ public class RecoverService {
      * One player's brush look-watcher. Remaining ticks are stored on the find cube, not only here.
      */
     private static final class Channel {
+        private net.tfminecraft.tlibs.character.CharacterSession actor;
         private boolean focused;
         private UUID siteId;
         private UUID findId;

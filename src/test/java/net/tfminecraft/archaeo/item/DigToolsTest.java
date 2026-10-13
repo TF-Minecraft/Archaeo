@@ -28,7 +28,7 @@ public class DigToolsTest {
 
     @Before
     public void setup() {
-        MockBukkit.mock();
+        net.tfminecraft.archaeo.CharacterTestSupport.mock();
         tools = new DigTools();
     }
 

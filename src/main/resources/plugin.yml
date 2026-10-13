@@ -19,3 +19,5 @@ permissions:
   archaeo.admin:
     description: Default staff node; override the name in config.yml permissions.staff
     default: op
+
+depend: [TLibs]

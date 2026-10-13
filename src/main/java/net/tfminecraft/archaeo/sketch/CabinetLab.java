@@ -36,6 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 final class CabinetLab {
     private final JavaPlugin plugin;
+    private final net.tfminecraft.archaeo.ownership.CharacterWork identity;
     private final SiteRepository sites;
     private final CatalogRegistry catalogs;
     private final RecoveredFindItem recovered;
@@ -60,6 +61,7 @@ final class CabinetLab {
             SketchSettings settings
     ) {
         this.plugin = plugin;
+        this.identity=new net.tfminecraft.archaeo.ownership.CharacterWork(plugin,this::cancel);
         this.sites = sites;
         this.catalogs = catalogs;
         this.recovered = recovered;
@@ -86,6 +88,8 @@ final class CabinetLab {
      * @return whether the lab window opened (or is already open)
      */
     boolean tryStart(Player player, Block block, Site site, BuriedFind find) {
+        if(site.isOwnershipHeld()||net.tfminecraft.archaeo.ownership.CharacterActors.session(player).isEmpty())return false;
+        if(open.containsKey(player.getUniqueId())&&!identity.current(player))cancel(player);
         if (find.getState() != FindState.RECOVERED || find.isLabCleaned() || find.isCatalogued()) {
             return false;
         }
@@ -103,6 +107,7 @@ final class CabinetLab {
                 kindKey,
                 toolKey,
                 stainKey);
+        identity.capture(player);
         open.put(player.getUniqueId(), board);
         if (!board.open(player)) {
             // Another plugin cancelled the open; no close will follow to unregister the board.
@@ -150,7 +155,7 @@ final class CabinetLab {
      * @return cursor after the click
      */
     ItemStack handleClick(Player player, CabinetLabBoard board, int slot, ItemStack cursor) {
-        if (board.finished()) {
+        if (!identity.current(player)||open.get(player.getUniqueId())!=board||board.finished()) {
             return cursor;
         }
         if (board.isToolSlot(slot)) {
@@ -186,9 +191,11 @@ final class CabinetLab {
      * @param board window that closed
      */
     void handleClose(Player player, CabinetLabBoard board) {
+        var actor=identity.token(player);
         open.remove(player.getUniqueId(), board);
+        identity.forget(player);
         stripLabItems(player);
-        plugin.getServer().getScheduler().runTask(plugin, () -> stripLabItems(player));
+        plugin.getServer().getScheduler().runTask(plugin, () -> {if(net.tfminecraft.archaeo.ownership.CharacterActors.current(actor,player)&&!open.containsKey(player.getUniqueId()))stripLabItems(player);});
     }
 
     /**
@@ -225,10 +232,11 @@ final class CabinetLab {
      * @param board completed window
      */
     private void finish(Player player, CabinetLabBoard board) {
+        if(!identity.current(player)||open.get(player.getUniqueId())!=board)return;
         board.markFinished();
         Site site = sites.findById(board.siteId()).orElse(null);
         BuriedFind find = site == null ? null : site.findById(board.findId()).orElse(null);
-        if (find != null) {
+        if (find != null&&!site.isOwnershipHeld()) {
             find.setLabCleaned(true);
             sites.save(site);
             ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
@@ -237,8 +245,9 @@ final class CabinetLab {
         }
         player.sendMessage(ChatColor.GOLD + board.material().firstStepDone() + ChatColor.WHITE + " (1/3)");
         player.sendMessage(ChatColor.GRAY + "Draw the piece and register the drawing at the cabinet. (2/3)");
+        var actor=identity.token(player);
         plugin.getServer().getScheduler().runTask(plugin, () -> {
-            if (player.isOnline()) {
+            if (player.isOnline()&&net.tfminecraft.archaeo.ownership.CharacterActors.current(actor,player)&&open.get(player.getUniqueId())==board) {
                 player.closeInventory();
             }
         });

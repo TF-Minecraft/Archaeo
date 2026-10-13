@@ -112,7 +112,7 @@ public final class CampWorkerBoard implements InventoryHolder {
                     ChatColor.GRAY + "They lose access to the cut.",
                     ChatColor.DARK_GRAY + "Their record stays in the dossier."));
         }
-        player.openInventory(inventory);
+        net.tfminecraft.archaeo.ownership.CharacterActors.open(player, inventory);
     }
 
     /**
@@ -151,7 +151,7 @@ public final class CampWorkerBoard implements InventoryHolder {
     private ItemStack headItem(String name, SiteRole role, WorkerRecord record) {
         ItemStack stack = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) stack.getItemMeta();
-        OfflinePlayer owner = Bukkit.getOfflinePlayer(member);
+        OfflinePlayer owner = Bukkit.getOfflinePlayer(net.tfminecraft.tlibs.character.Characters.info(member).map(info->info.ref().ownerId()).orElse(member));
         meta.setOwningPlayer(owner);
         meta.setDisplayName(ChatColor.WHITE + name);
         List<String> lore = new ArrayList<>();

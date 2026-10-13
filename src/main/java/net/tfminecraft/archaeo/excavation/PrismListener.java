@@ -265,7 +265,7 @@ public class PrismListener implements Listener {
             PrismWound.Removal removal = PrismWound.onCellRemoved(
                     site, block.getX(), block.getY(), block.getZ());
             if (removal.findSmashed() && player != null) {
-                ledger.charge(site.staffLog(player.getUniqueId()), struck);
+                ledger.charge(site.staffLog(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player)), struck);
             }
             if (removal.dossierChanged()) {
                 dirty.add(site);
@@ -276,7 +276,7 @@ public class PrismListener implements Listener {
             }
         }
         for (Site site : dirty) {
-            site.catalogSettledFinds(player == null ? null : player.getUniqueId());
+            site.catalogSettledFinds(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player));
             sites.save(site);
             SiteClosure.settle(sites, site);
         }

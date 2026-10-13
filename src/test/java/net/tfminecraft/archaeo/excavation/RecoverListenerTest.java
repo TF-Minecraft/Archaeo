@@ -31,7 +31,7 @@ public class RecoverListenerTest {
 
     @Before
     public void setup() {
-        server = MockBukkit.mock();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock();
         recover = mock(RecoverService.class);
         BrushItem brush = mock(BrushItem.class);
         listener = new RecoverListener(brush, recover);

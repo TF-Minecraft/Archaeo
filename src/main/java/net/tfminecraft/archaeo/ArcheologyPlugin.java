@@ -75,6 +75,10 @@ public class ArcheologyPlugin extends JavaPlugin {
         sites = new SiteRepository(this);
         sites.loadAll();
         sites.start();
+        if (net.tfminecraft.archaeo.ownership.CharacterActors.supports(getClass().getClassLoader(), true)) net.tfminecraft.archaeo.ownership.SiteEstates.start(this, sites);
+        getServer().getScheduler().runTaskTimer(this, () -> {
+            if (!sites.ownership().holds().isEmpty()) { sites.flushDirty(); sites.loadAll(); }
+        }, 2L, 20L * 60 * 60);
         generator = new SiteGenerator(catalogs, sites);
         autoRuinLedger = new AutoRuinEvaluationLedger(this);
         autoRuins = new RuinAutoSpawner(
@@ -177,6 +181,7 @@ public class ArcheologyPlugin extends JavaPlugin {
         PluginCommand pluginCommand = getCommand("archaeo");
         pluginCommand.setExecutor(command);
         pluginCommand.setTabCompleter(command);
+        net.tfminecraft.archaeo.ownership.CharacterWork.start(this);
         getLogger().info("Archaeo enabled. Loaded sites: " + sites.all().size());
     }
 

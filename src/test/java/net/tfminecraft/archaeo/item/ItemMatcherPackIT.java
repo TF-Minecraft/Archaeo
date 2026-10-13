@@ -30,7 +30,7 @@ public class ItemMatcherPackIT {
     private Object previousSingleton;
 
     @Before public void setup() throws Exception {
-        MockBukkit.mock();
+        net.tfminecraft.archaeo.CharacterTestSupport.mock();
         plugin = mock(ArcheologyPlugin.class); Server server = mock(Server.class);
         plugins = mock(PluginManager.class); enabled = mock(Plugin.class); logger = mock(Logger.class);
         when(plugin.getServer()).thenReturn(server); when(server.getPluginManager()).thenReturn(plugins);

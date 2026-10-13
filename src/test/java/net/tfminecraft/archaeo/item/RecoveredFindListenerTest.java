@@ -44,7 +44,7 @@ public class RecoveredFindListenerTest {
     private BuriedFind find;
 
     @Before public void setUp() {
-        server = MockBukkit.mock();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock();
         plugin = MockBukkit.createMockPlugin(); player = server.addPlayer();
         recovered = new RecoveredFindItem(plugin);
         sites = mock(SiteRepository.class); catalogs = mock(CatalogRegistry.class);

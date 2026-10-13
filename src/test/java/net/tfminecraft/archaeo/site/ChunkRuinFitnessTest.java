@@ -22,7 +22,7 @@ public class ChunkRuinFitnessTest {
     private Chunk chunk;
 
     @Before public void setup() {
-        MockBukkit.mock();
+        net.tfminecraft.archaeo.CharacterTestSupport.mock();
         world = mock(World.class); chunk = mock(Chunk.class);
         when(chunk.getWorld()).thenReturn(world);
         when(world.getMinHeight()).thenReturn(-64);

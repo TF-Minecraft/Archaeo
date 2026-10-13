@@ -38,7 +38,7 @@ public class HandPickListenerTest {
 
     @Before
     public void setup() {
-        server = MockBukkit.mock();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock();
         pick = mock(HandPickService.class);
         sites = mock(SiteRepository.class);
         listener = new HandPickListener(pick, sites);

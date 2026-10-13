@@ -53,7 +53,7 @@ public class EstablishServiceTest {
     private ArmorStand proxy;
 
     @Before public void setup() {
-        var mockServer = MockBukkit.mock();
+        var mockServer = net.tfminecraft.archaeo.CharacterTestSupport.mock();
         world = spy(new WorldMock(Material.GRASS_BLOCK, -64, 320, 3));
         world.setName("world"); mockServer.addWorld(world);
         plugin = mock(JavaPlugin.class); server = mock(Server.class); player = mock(Player.class);
@@ -77,7 +77,7 @@ public class EstablishServiceTest {
         when(scheduler.runTask(eq(plugin), any(Runnable.class))).thenAnswer(call -> {
             scheduled.add(call.getArgument(1)); return mock(BukkitTask.class);
         });
-        site = hidden("world", 0, 0); site.confirmProspect(playerId); records.add(site);
+        site = hidden("world", 0, 0); net.tfminecraft.archaeo.CharacterTestSupport.confirmProspect(site, playerId); records.add(site);
         when(sites.all()).thenAnswer(call -> List.copyOf(records));
         when(sites.findById(any())).thenAnswer(call -> records.stream().filter(s -> s.getId().equals(call.getArgument(0))).findFirst());
         when(sites.findByChunk(anyString(), anyInt(), anyInt())).thenAnswer(call -> records.stream()
@@ -139,12 +139,12 @@ public class EstablishServiceTest {
     @Test public void eligibilityRequiresConfirmationNearbyWorldAndDirectorCapacity() {
         site.getProspectConfirmed().clear(); service.tryUseKit(player, null);
         verify(player).sendMessage("Look at a chunk next to a ruin you have confirmed.");
-        site.confirmProspect(player.getUniqueId()); site.setWorldName("other"); service.pulse();
+        net.tfminecraft.archaeo.CharacterTestSupport.confirmProspect(site, player.getUniqueId()); site.setWorldName("other"); service.pulse();
         verify(bar).setTitle(contains("No confirmed ruin nearby"));
         site.setWorldName("world"); site.setChunkX(10); service.tryUseKit(player, null);
-        site.setChunkX(0); when(sites.countDirectedCamps(player.getUniqueId())).thenReturn(1);
+        site.setChunkX(0); when(sites.countDirectedCamps(net.tfminecraft.archaeo.ownership.CharacterActors.session(player).orElseThrow().ref())).thenReturn(1);
         service.tryUseKit(player, null); verify(player).sendMessage(contains("already direct an excavation"));
-        service.setSettings(settings(true, 2)); when(sites.countDirectedCamps(player.getUniqueId())).thenReturn(2);
+        service.setSettings(settings(true, 2)); when(sites.countDirectedCamps(net.tfminecraft.archaeo.ownership.CharacterActors.session(player).orElseThrow().ref())).thenReturn(2);
         service.pulse(); service.tryUseKit(player, null); verify(player).sendMessage(contains("already direct 2 excavations"));
         assertEquals(SiteStatus.HIDDEN, site.getStatus());
         service.setSettings(settings(true, 0)); service.tryUseKit(player, null);
@@ -152,7 +152,7 @@ public class EstablishServiceTest {
     }
 
     @Test public void nearestConfirmedRuinWinsAndAnOffhandKitIsConsumed() {
-        Site farther = hidden("world", 0, 1); farther.confirmProspect(player.getUniqueId()); records.addFirst(farther);
+        Site farther = hidden("world", 0, 1); net.tfminecraft.archaeo.CharacterTestSupport.confirmProspect(farther, player.getUniqueId()); records.addFirst(farther);
         when(inventory.getItemInMainHand()).thenReturn(new ItemStack(Material.AIR));
         when(inventory.getItemInOffHand()).thenReturn(kits);
         service.pulse(); service.tryUseKit(player, null);
@@ -187,9 +187,9 @@ public class EstablishServiceTest {
         service.beginRename(player, site); assertTrue(service.handleRenameChat(player, "CaNcEl"));
         assertEquals("River   camp", site.getName());
         service.beginRename(player, site); service.abortRename(player); assertFalse(service.isRenaming(player));
-        service.beginRename(player, site); site.setDirector(UUID.randomUUID());
+        service.beginRename(player, site); net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, UUID.randomUUID());
         assertTrue(service.handleRenameChat(player, "Unauthorized")); assertEquals("River   camp", site.getName());
-        service.beginRename(player, site); site.setStatus(SiteStatus.CLOSED);
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, player.getUniqueId()); service.beginRename(player, site); site.setStatus(SiteStatus.CLOSED);
         assertTrue(service.handleRenameChat(player, "Closed")); verify(player).sendMessage("That excavation is no longer active.");
     }
 
@@ -213,7 +213,7 @@ public class EstablishServiceTest {
         assertTrue(originals.stream().anyMatch(c -> world.getBlockAt(c.x(), c.y(), c.z()).getType() == Material.RED_WOOL));
         service.applyCampWool(player, site, DyeColor.YELLOW, CampWoolRole.SECONDARY);
         assertEquals("YELLOW", site.getCampWoolSecondary());
-        site.setDirector(UUID.randomUUID()); clearInvocations(sites);
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, UUID.randomUUID()); clearInvocations(sites);
         service.applyCampWool(player, site, DyeColor.GREEN, CampWoolRole.PRIMARY);
         assertEquals("BLUE", site.getCampWoolPrimary()); verify(sites, never()).save(any());
     }
@@ -487,7 +487,7 @@ public class EstablishServiceTest {
         service.applyCampWool(player, site, DyeColor.BLUE, CampWoolRole.PRIMARY);
         service.applyCampWool(player, site, DyeColor.YELLOW, CampWoolRole.SECONDARY);
         assertTrue(site.closeCamp());
-        Site next = hidden("world", 0, 1); next.confirmProspect(player.getUniqueId()); records.add(next);
+        Site next = hidden("world", 0, 1); net.tfminecraft.archaeo.CharacterTestSupport.confirmProspect(next, player.getUniqueId()); records.add(next);
         doReturn(world.getBlockAt(20, 3, 20)).when(player).getTargetBlockExact(64);
         service.tryUseKit(player, null);
         assertEquals(SiteStatus.ESTABLISHED, next.getStatus());
@@ -584,12 +584,12 @@ public class EstablishServiceTest {
     @Test public void aMoveEndsOnTheNextTickWhenTheRecordIsErasedOrTheCampChangesHands() {
         service.tryUseKit(player, null); List<BlockCell> original = List.copyOf(site.getCampBlocks());
         service.beginRelocate(player, site); records.remove(site); service.pulse(); assertFalse(service.isRelocating(player));
-        records.add(site); service.beginRelocate(player, site); site.setDirector(UUID.randomUUID()); service.pulse();
+        records.add(site); service.beginRelocate(player, site); net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, UUID.randomUUID()); service.pulse();
         assertFalse(service.isRelocating(player)); assertEquals(original, site.getCampBlocks()); verify(sites, times(1)).save(site);
     }
 
     @Test public void aFartherRuinListedLaterDoesNotDisplaceTheNearestOne() {
-        Site farther = hidden("world", 0, 1); farther.confirmProspect(player.getUniqueId()); records.add(farther);
+        Site farther = hidden("world", 0, 1); net.tfminecraft.archaeo.CharacterTestSupport.confirmProspect(farther, player.getUniqueId()); records.add(farther);
         service.tryUseKit(player, null);
         assertEquals(SiteStatus.ESTABLISHED, site.getStatus()); assertEquals(SiteStatus.HIDDEN, farther.getStatus());
     }
@@ -610,7 +610,7 @@ public class EstablishServiceTest {
 
     @Test public void aGhostDrawnForOneRuinIsNeverPlantedForAnotherThatBecameNearer() {
         service.pulse(); verify(bar).setColor(org.bukkit.boss.BarColor.GREEN);
-        Site other = hidden("world", 0, 3); other.confirmProspect(player.getUniqueId()); records.add(other);
+        Site other = hidden("world", 0, 3); net.tfminecraft.archaeo.CharacterTestSupport.confirmProspect(other, player.getUniqueId()); records.add(other);
         when(player.getLocation()).thenAnswer(call -> new Location(world, 8, 4, 50)); // Walked away before the next preview tick.
         service.tryUseKit(player, null);
         assertEquals(SiteStatus.HIDDEN, site.getStatus()); assertEquals(SiteStatus.HIDDEN, other.getStatus());
@@ -641,7 +641,7 @@ public class EstablishServiceTest {
     }
 
     @Test public void aSideChunkHoldingAnotherExcavationsCampIsOccupied() {
-        Site neighbour = hidden("world", 2, 0); neighbour.establish(UUID.randomUUID(), 1, 0, 24, 4, 4); records.add(neighbour);
+        Site neighbour = hidden("world", 2, 0); net.tfminecraft.archaeo.CharacterTestSupport.establish(neighbour, UUID.randomUUID(), 1, 0, 24, 4, 4); records.add(neighbour);
         assertRejected(world.getBlockAt(20, 3, 4), CampPlacement.Issue.OCCUPIED);
         assertEquals(SiteStatus.HIDDEN, site.getStatus()); assertEquals(2, kits.getAmount());
     }
@@ -734,7 +734,7 @@ public class EstablishServiceTest {
         when(player.getTargetBlockExact(64)).thenReturn(target); service.tryUseKit(player, null);
         verify(player).sendMessage(issue.message());
     }
-    private void establishDirectly() { site.establish(player.getUniqueId(), 1, 0, 20, 4, 4); }
+    private void establishDirectly() { net.tfminecraft.archaeo.CharacterTestSupport.establish(site, player.getUniqueId(), 1, 0, 20, 4, 4); }
     private static EstablishSettings settings(boolean enabled, int max) {
         return new EstablishSettings(enabled, true, Material.RED_STAINED_GLASS, Material.LIGHT_BLUE_STAINED_GLASS, 18, max);
     }
@@ -742,5 +742,12 @@ public class EstablishServiceTest {
         Site site = new Site(); site.setId(UUID.randomUUID()); site.setWorldName(world); site.setChunkX(x); site.setChunkZ(z);
         site.setInterest(InterestLevel.LOW); site.setName("Old camp");
         return site;
+    }
+
+    @Test public void placementIntentOrDossierWriteFailureLeavesKitAndWorldUntouched(){
+        service.pulse();var failure=new IllegalStateException("checked storage failure");doThrow(failure).when(sites).beginPlacement(eq(site),any(),eq(false),eq("world"),anyList(),any());assertSame(failure,assertThrows(IllegalStateException.class,()->service.tryUseKit(player,null)));assertEquals(2,kits.getAmount());assertTrue(site.getCampBlocks().stream().allMatch(cell->world.getBlockAt(cell.x(),cell.y(),cell.z()).getType()==Material.AIR));verify(sites,never()).save(any());
+    }
+    @Test public void savedPlacementIntentPrecedesDossierWriteAndKnownWriteFailureDoesNotConsumeKit(){
+        service.pulse();var failure=new IllegalStateException("dossier disk full");doThrow(failure).when(sites).save(site);assertSame(failure,assertThrows(IllegalStateException.class,()->service.tryUseKit(player,null)));assertEquals(2,kits.getAmount());assertTrue(site.getCampBlocks().stream().allMatch(cell->world.getBlockAt(cell.x(),cell.y(),cell.z()).getType()==Material.AIR));var order=inOrder(sites);order.verify(sites).beginPlacement(eq(site),any(),eq(false),eq("world"),anyList(),any());order.verify(sites).save(site);order.verify(sites).holdPlacement(site,failure);verify(sites,never()).completePlacement(any(),any());
     }
 }

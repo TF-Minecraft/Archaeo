@@ -49,11 +49,11 @@ public class CampListenerTest {
     private CampListener listener;
 
     @Before public void setup() {
-        server = MockBukkit.mock(); plugin = MockBukkit.createMockPlugin();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock(); plugin = MockBukkit.createMockPlugin();
         director = server.addPlayer("Director"); worker = server.addPlayer("Worker");
         site = new Site(); site.setId(UUID.randomUUID()); site.setName("River camp");
         site.setWorldName(director.getWorld().getName()); site.setCreatedAt(Instant.EPOCH); site.setInterest(InterestLevel.LOW);
-        site.establish(director.getUniqueId(), 1, 0, 20, 5, 4);
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(site, director.getUniqueId(), 1, 0, 20, 5, 4);
         camp = director.getWorld().getBlockAt(20, 5, 4); camp.setType(Material.CAMPFIRE);
         outside = director.getWorld().getBlockAt(21, 5, 4); outside.setType(Material.STONE);
         sites = mock(SiteRepository.class); catalogs = mock(CatalogRegistry.class);
@@ -74,7 +74,7 @@ public class CampListenerTest {
         PlayerInteractEvent off = interact(director, camp, EquipmentSlot.OFF_HAND, null);
         listener.onInteract(off); assertEquals(Event.Result.DENY, off.useInteractedBlock());
         assertNull(director.getOpenInventory().getTopInventory());
-        when(establish.isRelocating(director)).thenReturn(true);
+        when(establish.isRelocating(director)).thenReturn(true); when(establish.moveSession(director)).thenReturn(net.tfminecraft.archaeo.ownership.CharacterActors.session(director).orElseThrow());
         PlayerInteractEvent event = interact(director, camp, EquipmentSlot.HAND, null);
         listener.onInteract(event);
         assertEquals(Event.Result.DENY, event.useItemInHand()); assertTrue(event.isCancelled());
@@ -117,8 +117,8 @@ public class CampListenerTest {
 
     @Test public void formerDirectorCannotUseAnAlreadyOpenBoardToEditTheCamp() {
         for (int slot : new int[]{CampBoard.SLOT_RENAME, CampBoard.SLOT_MOVE, CampBoard.SLOT_WOOL_PRIMARY, CampBoard.SLOT_WOOL_SECONDARY}) {
-            site.setDirector(director.getUniqueId()); board(director, true, true);
-            site.setDirector(worker.getUniqueId()); clearInvocations(establish);
+            net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, director.getUniqueId()); board(director, true, true);
+            net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, worker.getUniqueId()); clearInvocations(establish);
             listener.onBoardClick(click(director, slot));
             verify(establish, never()).beginRename(any(), any()); verify(establish, never()).beginRelocate(any(), any());
             assertTrue(director.getOpenInventory().getTopInventory() == null
@@ -154,7 +154,7 @@ public class CampListenerTest {
     @Test public void invitesValidateKnownPlayersAndPersistOnlyAfterMainThreadConfirmation() {
         invite(); AsyncPlayerChatEvent unknown = chat(director, "Nobody"); listener.onChat(unknown);
         assertTrue(unknown.isCancelled()); server.getScheduler().performOneTick();
-        assertEquals(List.of(director.getUniqueId()), site.getExcavators()); assertTrue(messages(director).contains("No one by that name is known here."));
+        assertEquals(List.of(director.getUniqueId()), site.getExcavators()); assertTrue(messages(director).contains("No unique character by that name is known here. Use a character name or UUID."));
         AsyncPlayerChatEvent accepted = chat(director, "  wOrKeR  "); listener.onChat(accepted);
         assertTrue(accepted.isCancelled()); assertEquals(List.of(director.getUniqueId()), site.getExcavators());
         server.getScheduler().performOneTick(); assertTrue(site.getExcavators().contains(worker.getUniqueId()));
@@ -170,13 +170,13 @@ public class CampListenerTest {
                 Material.LIGHT_BLUE_STAINED_GLASS, 1, 1));
         listener.onChat(chat(director, "Worker")); server.getScheduler().performOneTick();
         assertEquals(List.of(director.getUniqueId()), site.getExcavators()); verify(sites, never()).save(any());
-        when(catalogs.establish()).thenReturn(EstablishSettings.defaults()); invite(); site.setDirector(worker.getUniqueId());
+        when(catalogs.establish()).thenReturn(EstablishSettings.defaults()); invite(); net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, worker.getUniqueId());
         listener.onChat(chat(director, "Worker")); server.getScheduler().performOneTick();
         assertTrue(messages(director).contains("That excavation is no longer yours to staff.")); verify(sites, never()).save(any());
     }
 
     @Test public void staffRolesAndDismissalUpdatePermissionsAndNotifyTheWorker() {
-        site.grantExcavator(worker.getUniqueId());
+        net.tfminecraft.archaeo.CharacterTestSupport.grantExcavator(site, worker.getUniqueId());
         new CampWorkerBoard(site.getId(), worker.getUniqueId(), true).open(director, site);
         int roleSlot = java.util.stream.IntStream.range(0, 27).filter(i -> CampWorkerBoard.roleAt(i) == SiteRole.EXCAVATOR).findFirst().orElseThrow();
         listener.onWorkerClick(click(director, roleSlot)); assertEquals(SiteRole.EXCAVATOR, site.roleOf(worker.getUniqueId()));
@@ -199,16 +199,16 @@ public class CampListenerTest {
         listener.onChat(chat(director, "confirm")); verify(closure, never()).close(any(), any());
         server.getScheduler().performOneTick(); verify(closure).close(director, site);
         clearInvocations(closure); board(director, true, true); listener.onBoardClick(click(director, CampBoard.SLOT_CLOSE));
-        site.setDirector(worker.getUniqueId()); listener.onChat(chat(director, "confirm")); server.getScheduler().performOneTick();
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, worker.getUniqueId()); listener.onChat(chat(director, "confirm")); server.getScheduler().performOneTick();
         verify(closure, never()).close(any(), any()); assertTrue(messages(director).contains("That excavation can no longer be closed."));
     }
 
     @Test public void renameAndMoveChatAreScheduledAndUnrelatedChatRemainsPublic() {
-        when(establish.isRenaming(director)).thenReturn(true);
+        when(establish.isRenaming(director)).thenReturn(true); when(establish.renameSession(director)).thenReturn(net.tfminecraft.archaeo.ownership.CharacterActors.session(director).orElseThrow());
         AsyncPlayerChatEvent rename = chat(director, " River name "); listener.onChat(rename); assertTrue(rename.isCancelled());
         verify(establish, never()).handleRenameChat(any(), any()); server.getScheduler().performOneTick();
-        verify(establish).handleRenameChat(director, "River name");
-        when(establish.isRelocating(director)).thenReturn(true);
+        verify(establish).handleRenameChat(eq(director), eq("River name"), any());
+        when(establish.isRelocating(director)).thenReturn(true); when(establish.moveSession(director)).thenReturn(net.tfminecraft.archaeo.ownership.CharacterActors.session(director).orElseThrow());
         listener.onChat(chat(director, " cancel ")); server.getScheduler().performOneTick(); verify(establish).tryCancelMove(director);
         when(establish.isRenaming(director)).thenReturn(false); when(establish.isRelocating(director)).thenReturn(false);
         AsyncPlayerChatEvent ordinary = chat(director, "chat"); listener.onChat(ordinary); assertFalse(ordinary.isCancelled());
@@ -244,9 +244,9 @@ public class CampListenerTest {
         when(board.siteId()).thenReturn(site.getId()); when(board.findId()).thenReturn(find.getId());
         when(board.type()).thenReturn(type); when(board.atCabinet()).thenReturn(true);
         when(board.offerAt(CampIdentifyBoard.SLOT_OFFER_0)).thenReturn("vessel");
-        worker.openInventory(Bukkit.createInventory(board, 9)); listener.onIdentifyClick(click(worker, CampIdentifyBoard.SLOT_OFFER_0));
+        net.tfminecraft.archaeo.ownership.CharacterActors.open(worker, Bukkit.createInventory(board, 9)); listener.onIdentifyClick(click(worker, CampIdentifyBoard.SLOT_OFFER_0));
         assertFalse(find.isCatalogued()); assertTrue(messages(worker).contains("You are not authorised to write this record."));
-        site.grantExcavator(worker.getUniqueId()); site.assignRole(worker.getUniqueId(), SiteRole.ARCHAEOLOGIST);
+        net.tfminecraft.archaeo.CharacterTestSupport.grantExcavator(site, worker.getUniqueId()); site.assignRole(worker.getUniqueId(), SiteRole.ARCHAEOLOGIST);
         listener.onIdentifyClick(click(worker, CampIdentifyBoard.SLOT_OFFER_0));
         assertFalse(find.isCatalogued()); assertTrue(messages(worker).contains("Keep the artifact in your hand."));
         when(recovered.isInMainHand(worker, find.getId())).thenReturn(true);
@@ -296,7 +296,7 @@ public class CampListenerTest {
 
     @Test public void successiveStationQuestionsPersistDistinctAnswersAndRefreshTheHeldPiece() {
         BuriedFind find = find(FindState.RECOVERED); site.getFinds().add(find);
-        site.grantExcavator(worker.getUniqueId()); site.assignRole(worker.getUniqueId(), SiteRole.ARCHAEOLOGIST);
+        net.tfminecraft.archaeo.CharacterTestSupport.grantExcavator(site, worker.getUniqueId()); site.assignRole(worker.getUniqueId(), SiteRole.ARCHAEOLOGIST);
         InterpretationTemplate purpose = new InterpretationTemplate("vessel", "purpose", "Vessel", Set.of(), Set.of(), Set.of());
         InterpretationTemplate epoch = new InterpretationTemplate("roman", "epoch", "Roman", Set.of(), Set.of(), Set.of());
         InterpretationType first = new InterpretationType("purpose", "Purpose", "What was it for?", List.of(purpose));
@@ -336,7 +336,7 @@ public class CampListenerTest {
             CampIdentifyBoard board = mock(CampIdentifyBoard.class);
             when(board.siteId()).thenReturn(site.getId()); when(board.findId()).thenReturn(find.getId());
             when(board.atCabinet()).thenReturn(cabinet);
-            worker.openInventory(Bukkit.createInventory(board, 9));
+            net.tfminecraft.archaeo.ownership.CharacterActors.open(worker, Bukkit.createInventory(board, 9));
             listener.onIdentifyClick(click(worker, CampIdentifyBoard.SLOT_BACK));
             if (cabinet) assertNull(worker.getOpenInventory().getTopInventory());
             else assertTrue(worker.getOpenInventory().getTopInventory().getHolder() instanceof CampFindBoard);
@@ -387,7 +387,7 @@ public class CampListenerTest {
         when(attack.getDamager()).thenReturn(director); when(attack.getEntity()).thenReturn(proxy);
         listener.onAimProxyAttack(attack); verify(attack).setCancelled(true);
         listener.onHeld(new PlayerItemHeldEvent(director, 0, 1)); verify(establish, never()).tryCancelMove(any());
-        when(establish.isRelocating(director)).thenReturn(true);
+        when(establish.isRelocating(director)).thenReturn(true); when(establish.moveSession(director)).thenReturn(net.tfminecraft.archaeo.ownership.CharacterActors.session(director).orElseThrow());
         listener.onHeld(new PlayerItemHeldEvent(director, 1, 2)); verify(establish).tryCancelMove(director);
         PlayerInteractEvent finish = interact(director, outside, EquipmentSlot.HAND, null);
         listener.onInteract(finish); assertTrue(finish.isCancelled()); verify(establish).tryFinishMove(director);
@@ -416,7 +416,7 @@ public class CampListenerTest {
         assertFalse(normal.isCancelled()); assertTrue(director.getOpenInventory().getTopInventory().getHolder() instanceof CampStaffBoard);
         when(catalogs.establish()).thenReturn(EstablishSettings.defaults());
         for (String member : List.of("Director", "Worker")) {
-            if (member.equals("Worker")) site.grantExcavator(worker.getUniqueId());
+            if (member.equals("Worker")) net.tfminecraft.archaeo.CharacterTestSupport.grantExcavator(site, worker.getUniqueId());
             invite(); listener.onChat(chat(director, member)); server.getScheduler().performOneTick();
             assertTrue(messages(director).stream().anyMatch(line -> line.contains("already on the staff")));
         }
@@ -424,7 +424,7 @@ public class CampListenerTest {
     }
 
     @Test public void workerFilesRecheckDirectorAndCampBeforeChangingRolesOrDismissing() {
-        site.grantExcavator(worker.getUniqueId());
+        net.tfminecraft.archaeo.CharacterTestSupport.grantExcavator(site, worker.getUniqueId());
         new CampStaffBoard(site.getId(), true, 18).open(director, site);
         CampStaffBoard roster = (CampStaffBoard) director.getOpenInventory().getTopInventory().getHolder();
         int workerSlot = java.util.stream.IntStream.range(0, 18).filter(slot -> worker.getUniqueId().equals(roster.playerAt(slot))).findFirst().orElseThrow();
@@ -432,9 +432,9 @@ public class CampListenerTest {
         listener.onWorkerClick(click(director, CampWorkerBoard.SLOT_BACK));
         listener.onStaffClick(click(director, CampStaffBoard.SLOT_BACK)); assertTrue(director.getOpenInventory().getTopInventory().getHolder() instanceof CampBoard);
         new CampWorkerBoard(site.getId(), worker.getUniqueId(), true).open(director, site);
-        site.setDirector(UUID.randomUUID()); listener.onWorkerClick(click(director, CampWorkerBoard.SLOT_REMOVE));
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, UUID.randomUUID()); listener.onWorkerClick(click(director, CampWorkerBoard.SLOT_REMOVE));
         assertTrue(site.getExcavators().contains(worker.getUniqueId()));
-        site.setDirector(director.getUniqueId()); site.setStatus(SiteStatus.CLOSED);
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, director.getUniqueId()); site.setStatus(SiteStatus.CLOSED);
         listener.onWorkerClick(click(director, CampWorkerBoard.SLOT_REMOVE)); assertTrue(site.getExcavators().contains(worker.getUniqueId()));
         when(sites.findById(site.getId())).thenReturn(Optional.empty());
         listener.onWorkerClick(click(director, CampWorkerBoard.SLOT_REMOVE)); assertNull(director.getOpenInventory().getTopInventory());
@@ -442,7 +442,7 @@ public class CampListenerTest {
     }
 
     @Test public void offlineWorkersCanBeReassignedAndDismissedWithoutAnOnlineNotificationTarget() {
-        site.grantExcavator(worker.getUniqueId()); worker.disconnect();
+        net.tfminecraft.archaeo.CharacterTestSupport.grantExcavator(site, worker.getUniqueId()); worker.disconnect();
         new CampWorkerBoard(site.getId(), worker.getUniqueId(), true).open(director, site);
         int roleSlot = java.util.stream.IntStream.range(0, 27).filter(i -> CampWorkerBoard.roleAt(i) == SiteRole.EXCAVATOR).findFirst().orElseThrow();
         listener.onWorkerClick(click(director, roleSlot)); assertEquals(SiteRole.EXCAVATOR, site.roleOf(worker.getUniqueId()));
@@ -467,7 +467,7 @@ public class CampListenerTest {
 
     @Test public void woolPickerRechecksTheDirectorWhenAnOpenCampChangesOwner() {
         board(director, true, true); listener.onBoardClick(click(director, CampBoard.SLOT_WOOL_PRIMARY));
-        site.setDirector(worker.getUniqueId()); listener.onWoolPickerClick(click(director, DyeColor.BLUE.ordinal()));
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, worker.getUniqueId()); listener.onWoolPickerClick(click(director, DyeColor.BLUE.ordinal()));
         verify(establish, never()).applyCampWool(any(), any(), any(), any());
         assertNull(director.getOpenInventory().getTopInventory());
     }
@@ -482,7 +482,7 @@ public class CampListenerTest {
     }
 
     @Test public void breakingDuringSneakingRelocationCannotDamageTheAimedTerrain() {
-        when(establish.isRelocating(director)).thenReturn(true); when(establish.sneakHeld(director)).thenReturn(true);
+        when(establish.isRelocating(director)).thenReturn(true); when(establish.moveSession(director)).thenReturn(net.tfminecraft.archaeo.ownership.CharacterActors.session(director).orElseThrow()); when(establish.sneakHeld(director)).thenReturn(true);
         BlockBreakEvent protectedBreak = new BlockBreakEvent(outside, director); listener.onBreak(protectedBreak);
         assertTrue(protectedBreak.isCancelled()); assertEquals(Material.STONE, outside.getType());
         when(establish.isRelocating(director)).thenReturn(false);
@@ -513,7 +513,7 @@ public class CampListenerTest {
     }
 
     @Test public void relocationIsOnlyConfirmedByRightClicksAndAnyLeftClickAbortsIt() {
-        when(establish.isRelocating(director)).thenReturn(true);
+        when(establish.isRelocating(director)).thenReturn(true); when(establish.moveSession(director)).thenReturn(net.tfminecraft.archaeo.ownership.CharacterActors.session(director).orElseThrow());
         // The five-argument Bukkit constructor, used by plugins that fire synthetic trampling, defaults to the main hand.
         PlayerInteractEvent trample = new PlayerInteractEvent(director, Action.PHYSICAL, null, outside, BlockFace.SELF);
         listener.onInteract(trample); assertFalse(trample.isCancelled());
@@ -531,7 +531,7 @@ public class CampListenerTest {
     }
 
     @Test public void chattingDuringAMoveStaysPublicUnlessItIsTheCancelWord() {
-        when(establish.isRelocating(director)).thenReturn(true);
+        when(establish.isRelocating(director)).thenReturn(true); when(establish.moveSession(director)).thenReturn(net.tfminecraft.archaeo.ownership.CharacterActors.session(director).orElseThrow());
         AsyncPlayerChatEvent talk = chat(director, "where should it go?"); listener.onChat(talk);
         assertFalse(talk.isCancelled()); server.getScheduler().performOneTick(); verify(establish, never()).tryCancelMove(any());
         AsyncPlayerChatEvent cancel = chat(director, "Cancel"); listener.onChat(cancel);
@@ -566,7 +566,7 @@ public class CampListenerTest {
     }
 
     @Test public void everyCampWindowSwallowsStrayClicksAndClosesOnceItsRecordIsGoneOrUnreadable() {
-        BuriedFind find = find(FindState.RECOVERED); find.setFindNumber(1); site.getFinds().add(find); site.grantExcavator(worker.getUniqueId());
+        BuriedFind find = find(FindState.RECOVERED); find.setFindNumber(1); site.getFinds().add(find); net.tfminecraft.archaeo.CharacterTestSupport.grantExcavator(site, worker.getUniqueId());
         when(catalogs.materialOf(any())).thenReturn(new FindMaterial("ceramic", "Ceramic", 1, Material.WHITE_STAINED_GLASS_PANE, List.of()));
         CampIdentifyBoard station = mock(CampIdentifyBoard.class); when(station.siteId()).thenReturn(site.getId());
         List<Runnable> windows = List.of(() -> board(director, true, true),
@@ -575,7 +575,7 @@ public class CampListenerTest {
                 () -> new CampFindsBoard(site.getId(), true, catalogs, recovered).open(director, site),
                 () -> new CampFindBoard(site.getId(), find.getId(), catalogs).open(director, site),
                 // MockBukkit cannot hold a custom holder in a brewing window; a chest keeps the routing contract.
-                () -> director.openInventory(Bukkit.createInventory(station, 9)),
+                () -> net.tfminecraft.archaeo.ownership.CharacterActors.open(director, Bukkit.createInventory(station, 9)),
                 () -> new CampWoolPicker(site.getId(), CampWoolRole.PRIMARY).open(director, site));
         for (Runnable window : windows) {
             for (int slot : new int[]{27, -999}) {
@@ -590,7 +590,7 @@ public class CampListenerTest {
             site.setStatus(SiteStatus.HIDDEN); // A dossier reloaded without its status reads as an unclaimed ruin.
             clickAll(click(director, 0)); assertNull(director.getOpenInventory().getTopInventory());
         }
-        director.openInventory(Bukkit.createInventory(null, 27)); InventoryClickEvent chest = click(director, 0);
+        net.tfminecraft.archaeo.ownership.CharacterActors.open(director, Bukkit.createInventory(null, 27)); InventoryClickEvent chest = click(director, 0);
         clickAll(chest); assertFalse(chest.isCancelled());
         verify(sites, never()).save(any()); verifyNoInteractions(establish, outline);
     }
@@ -604,10 +604,10 @@ public class CampListenerTest {
                 () -> new CampWorkerBoard(site.getId(), director.getUniqueId(), true).open(director, site),
                 () -> new CampFindsBoard(site.getId(), true, catalogs, recovered).open(director, site),
                 () -> new CampFindBoard(site.getId(), find.getId(), catalogs).open(director, site),
-                () -> director.openInventory(Bukkit.createInventory(mock(CampIdentifyBoard.class), 9)),
-                () -> director.openInventory(Bukkit.createInventory(new net.tfminecraft.archaeo.sketch.SketchCabinet(), 9)));
+                () -> net.tfminecraft.archaeo.ownership.CharacterActors.open(director, Bukkit.createInventory(mock(CampIdentifyBoard.class), 9)),
+                () -> net.tfminecraft.archaeo.ownership.CharacterActors.open(director, Bukkit.createInventory(new net.tfminecraft.archaeo.sketch.SketchCabinet(), 9)));
         for (Runnable window : windows) { window.run(); assertTrue(drag().isCancelled()); }
-        director.openInventory(Bukkit.createInventory(null, 27)); assertFalse(drag().isCancelled());
+        net.tfminecraft.archaeo.ownership.CharacterActors.open(director, Bukkit.createInventory(null, 27)); assertFalse(drag().isCancelled());
     }
 
     @Test public void campButtonsDoNothingWhereThereIsNoActionToTake() {
@@ -621,14 +621,14 @@ public class CampListenerTest {
         assertTrue(director.getOpenInventory().getTopInventory().getHolder() instanceof CampBoard);
         new CampStaffBoard(site.getId(), true, 18).open(director, site); listener.onStaffClick(click(director, 20));
         assertTrue(director.getOpenInventory().getTopInventory().getHolder() instanceof CampStaffBoard);
-        site.grantExcavator(worker.getUniqueId()); new CampWorkerBoard(site.getId(), worker.getUniqueId(), true).open(director, site);
+        net.tfminecraft.archaeo.CharacterTestSupport.grantExcavator(site, worker.getUniqueId()); new CampWorkerBoard(site.getId(), worker.getUniqueId(), true).open(director, site);
         listener.onWorkerClick(click(director, 0)); assertEquals(SiteRole.defaultRole(), site.roleOf(worker.getUniqueId()));
         new CampFindsBoard(site.getId(), true, catalogs, recovered).open(director, site); listener.onFindsClick(click(director, 0));
         assertTrue(director.getOpenInventory().getTopInventory().getHolder() instanceof CampFindsBoard);
         new CampWoolPicker(site.getId(), CampWoolRole.PRIMARY).open(director, site); listener.onWoolPickerClick(click(director, 20));
         assertTrue(director.getOpenInventory().getTopInventory().getHolder() instanceof CampWoolPicker);
         CampIdentifyBoard station = mock(CampIdentifyBoard.class); when(station.siteId()).thenReturn(site.getId());
-        director.openInventory(Bukkit.createInventory(station, 9)); listener.onIdentifyClick(click(director, CampIdentifyBoard.SLOT_PIECE));
+        net.tfminecraft.archaeo.ownership.CharacterActors.open(director, Bukkit.createInventory(station, 9)); listener.onIdentifyClick(click(director, CampIdentifyBoard.SLOT_PIECE));
         verify(sites, never()).save(any()); verify(establish, never()).beginRename(any(), any());
         verify(establish, never()).beginRelocate(any(), any()); verify(establish, never()).applyCampWool(any(), any(), any(), any());
     }
@@ -640,7 +640,7 @@ public class CampListenerTest {
         when(station.siteId()).thenReturn(site.getId()); when(station.findId()).thenReturn(find.getId());
         when(station.type()).thenReturn(type); when(station.offerAt(CampIdentifyBoard.SLOT_OFFER_0)).thenReturn("vessel");
         when(recovered.isInMainHand(director, find.getId())).thenReturn(true);
-        director.openInventory(Bukkit.createInventory(station, 9));
+        net.tfminecraft.archaeo.ownership.CharacterActors.open(director, Bukkit.createInventory(station, 9));
         // Staff edit the dossier and run /archaeo reload while the station stays open.
         find.setState(FindState.LOST); listener.onIdentifyClick(click(director, CampIdentifyBoard.SLOT_OFFER_0));
         site.getFinds().clear(); listener.onIdentifyClick(click(director, CampIdentifyBoard.SLOT_OFFER_0));
@@ -650,7 +650,7 @@ public class CampListenerTest {
 
     @Test public void staffInvitesRejectBlankNamesAndClosedCampsAndFileADoubleSubmissionOnce() {
         invite(); listener.onChat(chat(director, "   ")); server.getScheduler().performOneTick();
-        assertTrue(messages(director).contains("No one by that name is known here."));
+        assertTrue(messages(director).contains("No unique character by that name is known here. Use a character name or UUID."));
         listener.onChat(chat(director, "Worker")); listener.onChat(chat(director, "Worker")); // Two lines before the next tick.
         server.getScheduler().performOneTick();
         assertEquals(1, messages(director).stream().filter(line -> line.startsWith("Added")).count());
@@ -671,7 +671,7 @@ public class CampListenerTest {
 
     @Test public void fullRostersReportTheirPluralCapacityWithoutHiring() {
         when(catalogs.establish()).thenReturn(new EstablishSettings(true, true, Material.RED_STAINED_GLASS, Material.LIGHT_BLUE_STAINED_GLASS, 2, 1));
-        invite(); site.grantExcavator(UUID.randomUUID()); // Another director session filled the last place meanwhile.
+        invite(); net.tfminecraft.archaeo.CharacterTestSupport.grantExcavator(site, UUID.randomUUID()); // Another director session filled the last place meanwhile.
         listener.onChat(chat(director, "Worker")); server.getScheduler().performOneTick();
         assertTrue(messages(director).contains("This excavation already has 2 people on the staff."));
         assertFalse(site.getExcavators().contains(worker.getUniqueId())); verify(sites, never()).save(any());
@@ -698,7 +698,7 @@ public class CampListenerTest {
     }
 
     @Test public void onlyTheDirectorSeesTheReportButtonOnAnExhaustedRegister() {
-        site.setStatus(SiteStatus.EXHAUSTED); site.grantExcavator(worker.getUniqueId());
+        site.setStatus(SiteStatus.EXHAUSTED); net.tfminecraft.archaeo.CharacterTestSupport.grantExcavator(site, worker.getUniqueId());
         board(worker, false, false); listener.onBoardClick(click(worker, CampBoard.SLOT_DOCUMENTATION));
         assertNull(worker.getOpenInventory().getTopInventory().getItem(CampFindsBoard.SLOT_REPORT));
         board(director, true, true); listener.onBoardClick(click(director, CampBoard.SLOT_DOCUMENTATION));

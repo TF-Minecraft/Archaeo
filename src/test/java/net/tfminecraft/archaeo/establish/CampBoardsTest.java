@@ -32,14 +32,14 @@ public class CampBoardsTest {
     private RecoveredFindItem recovered;
 
     @Before public void setUp() {
-        MockBukkit.mock(); director = MockBukkit.getMock().addPlayer("Director"); worker = MockBukkit.getMock().addPlayer("Worker");
+        net.tfminecraft.archaeo.CharacterTestSupport.mock(); director = MockBukkit.getMock().addPlayer("Director"); worker = MockBukkit.getMock().addPlayer("Worker");
         catalogs = mock(CatalogRegistry.class);
         when(catalogs.pick()).thenReturn(PickSettings.defaults());
         recovered = new RecoveredFindItem(MockBukkit.createMockPlugin());
         site = new Site(); site.setId(UUID.randomUUID()); site.setName("River camp");
         site.setWorldName(director.getWorld().getName()); site.setInterest(InterestLevel.LOW);
-        site.establish(director.getUniqueId(), 1, 0, 20, 4, 4);
-        site.getExcavators().add(worker.getUniqueId());
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(site, director.getUniqueId(), 1, 0, 20, 4, 4);
+        site.getExcavators().add(net.tfminecraft.archaeo.CharacterTestSupport.actor(site, worker.getUniqueId()));
     }
     @After public void tearDown() { MockBukkit.unmock(); }
 
@@ -88,7 +88,7 @@ public class CampBoardsTest {
 
     @Test
     public void staffRosterDeduplicatesDirectorAndReflectsCapacityAndViewerRights() {
-        site.getExcavators().add(director.getUniqueId());
+        site.getExcavators().add(net.tfminecraft.archaeo.CharacterTestSupport.actor(site, director.getUniqueId()));
         CampStaffBoard board = new CampStaffBoard(site.getId(), true, 2); board.open(director, site);
         assertEquals(director.getUniqueId(), board.playerAt(0)); assertEquals(worker.getUniqueId(), board.playerAt(1));
         assertNull(board.playerAt(-1)); assertNull(board.playerAt(2)); assertNull(board.playerAt(18));
@@ -103,7 +103,7 @@ public class CampBoardsTest {
 
     @Test
     public void workerPageExposesTalliesAndPreventsDirectorDismissal() {
-        var record = site.worker(worker.getUniqueId());
+        var record = net.tfminecraft.archaeo.CharacterTestSupport.worker(site, worker.getUniqueId());
         record.addBlocksRemoved(4); record.noteCellBrushed(); record.noteFindRecovered(); record.noteFindDamaged();
         record.setJoinedAt(Instant.now().minusSeconds(3 * 86400)); record.setLastActiveAt(Instant.now().minusSeconds(3 * 3600));
         CampWorkerBoard board = new CampWorkerBoard(site.getId(), worker.getUniqueId(), true); board.open(director, site);
@@ -234,7 +234,7 @@ public class CampBoardsTest {
 
     @Test
     public void oversizedRostersAndRegistersFillOnlyTheListRowsAndKeepTheActionRowClickable() {
-        for (int n = 0; n < 20; n++) site.getExcavators().add(UUID.randomUUID()); // A roster filed before the cap was lowered.
+        for (int n = 0; n < 20; n++) site.getExcavators().add(net.tfminecraft.archaeo.CharacterTestSupport.actor(site, UUID.randomUUID())); // A roster filed before the cap was lowered.
         CampStaffBoard staff = new CampStaffBoard(site.getId(), true, 18); staff.open(director, site);
         assertNotNull(staff.playerAt(17)); assertNull(staff.playerAt(CampStaffBoard.SLOT_ADD));
         assertEquals("Staff is full", name(staff.getInventory(), CampStaffBoard.SLOT_ADD));
@@ -265,7 +265,7 @@ public class CampBoardsTest {
 
     @Test
     public void workerFilesReadHonestlyForLegacyStaffWithoutATallyAndForEachKindOfHands() {
-        UUID legacy = UUID.randomUUID(); site.getExcavators().add(legacy); // Loaded from a dossier older than staff files.
+        UUID legacy = UUID.randomUUID(); site.getExcavators().add(net.tfminecraft.archaeo.CharacterTestSupport.actor(site, legacy)); // Loaded from a dossier older than staff files.
         CampWorkerBoard file = new CampWorkerBoard(site.getId(), legacy, false); file.open(director, site);
         String head = lore(file.getInventory(), CampWorkerBoard.SLOT_HEAD);
         assertTrue(head.contains("On the staff since: —")); assertTrue(head.contains("Last worked: never"));
@@ -274,12 +274,12 @@ public class CampBoardsTest {
         assertNull(site.workerRecord(legacy)); // Reading the file must not create a page in the dossier.
         List<String> verdicts = List.of("Has not hurt a single piece.", "Breaks more than they bring out.", "Has taken pieces past saving.");
         for (int i = 0; i < verdicts.size(); i++) {
-            UUID hand = UUID.randomUUID(); site.getExcavators().add(hand); var tally = site.worker(hand);
+            UUID hand = UUID.randomUUID(); site.getExcavators().add(net.tfminecraft.archaeo.CharacterTestSupport.actor(site, hand)); var tally = net.tfminecraft.archaeo.CharacterTestSupport.worker(site, hand);
             if (i == 0) tally.noteFindRecovered(); else if (i == 1) tally.noteFindDamaged(); else tally.noteFindLost();
             file = new CampWorkerBoard(site.getId(), hand, true); file.open(director, site);
             assertTrue(lore(file.getInventory(), CampWorkerBoard.SLOT_FINDS).contains(verdicts.get(i)));
         }
-        var record = site.worker(worker.getUniqueId()); record.setJoinedAt(null); record.noteCellBrushed();
+        var record = net.tfminecraft.archaeo.CharacterTestSupport.worker(site, worker.getUniqueId()); record.setJoinedAt(null); record.noteCellBrushed();
         file = new CampWorkerBoard(site.getId(), worker.getUniqueId(), true);
         record.setLastActiveAt(Instant.now().minusSeconds(300)); file.open(director, site);
         assertFalse(lore(file.getInventory(), CampWorkerBoard.SLOT_WORK).contains("Has not worked")); // Brushing counts as work.

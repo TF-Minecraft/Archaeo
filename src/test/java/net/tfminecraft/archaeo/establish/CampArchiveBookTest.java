@@ -22,7 +22,7 @@ public class CampArchiveBookTest {
     private Site site;
 
     @Before public void setUp() {
-        MockBukkit.mock();
+        net.tfminecraft.archaeo.CharacterTestSupport.mock();
         plugin = MockBukkit.createMockPlugin();
         books = new CampArchiveBook(plugin);
         site = new Site(); site.setId(UUID.randomUUID()); site.setName("River camp");

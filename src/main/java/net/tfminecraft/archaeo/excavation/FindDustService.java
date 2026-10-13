@@ -115,6 +115,7 @@ public class FindDustService implements Listener {
         }
         boolean anyLoaded = false;
         for (Site site : sites.all()) {
+            if(site.isOwnershipHeld())continue;
             if (site.getStatus() != SiteStatus.ESTABLISHED) {
                 continue;
             }
@@ -223,6 +224,7 @@ public class FindDustService implements Listener {
      */
     private boolean hasLoadedRuinChunk() {
         for (Site site : sites.all()) {
+            if(site.isOwnershipHeld())continue;
             if (site.getStatus() != SiteStatus.ESTABLISHED) {
                 continue;
             }

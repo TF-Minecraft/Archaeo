@@ -42,7 +42,7 @@ public class SketchServiceTest {
     private MockedStatic<Bukkit> mapApi;
 
     @Before public void setUp() {
-        server = MockBukkit.mock(); plugin = MockBukkit.createMockPlugin(); player = server.addPlayer();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock(); plugin = MockBukkit.createMockPlugin(); player = server.addPlayer();
         supplies = new SketchSupplies(plugin, ItemRef.vanilla(Material.PAPER), ItemRef.vanilla(Material.FEATHER), 5);
         recovered = mock(RecoveredFindItem.class); sites = mock(SiteRepository.class); catalogs = mock(CatalogRegistry.class);
         when(catalogs.pick()).thenReturn(PickSettings.defaults());
@@ -1044,7 +1044,7 @@ public class SketchServiceTest {
         when(catalogs.artifact("pot")).thenReturn(template); when(catalogs.rarityLoreLine(template)).thenReturn("Rare");
         when(catalogs.materialDisplayName("ceramic")).thenReturn("Ceramic");
         when(catalogs.materialOf("ceramic")).thenReturn(new FindMaterial("ceramic", "Ceramic", 1, Material.WHITE_STAINED_GLASS_PANE, List.of("soil")));
-        Site site = new Site(); site.setId(UUID.randomUUID()); site.setName("Quarry"); site.establish(player.getUniqueId(), 1, 1, 16, 65, 16);
+        Site site = new Site(); site.setId(UUID.randomUUID()); site.setName("Quarry"); net.tfminecraft.archaeo.CharacterTestSupport.establish(site, player.getUniqueId(), 1, 1, 16, 65, 16);
         BuriedFind find = new BuriedFind(); find.setId(UUID.randomUUID()); find.setArtifactId("pot"); find.setStratumId("I"); find.setState(FindState.RECOVERED); find.setFindNumber(1);
         find.setLabCleaned(cleanAndSketched); find.setFieldSketch(cleanAndSketched); site.getFinds().add(find);
         when(sites.findById(site.getId())).thenReturn(Optional.of(site));
@@ -1097,4 +1097,11 @@ public class SketchServiceTest {
         return lines;
     }
     private List<String> messages() { List<String> lines = new ArrayList<>(); String message; while ((message = player.nextMessage()) != null) lines.add(ChatColor.stripColor(message)); return lines; }
+
+    @Test public void outgoingNoncurrentSketchSavesOriginalMapAndLateEndCannotStopNewEditor(){
+        var a=new net.tfminecraft.tlibs.character.CharacterRef(player.getUniqueId(),UUID.randomUUID());var b=new net.tfminecraft.tlibs.character.CharacterRef(player.getUniqueId(),UUID.randomUUID());var first=new net.tfminecraft.tlibs.character.CharacterSession(a,1);var second=new net.tfminecraft.tlibs.character.CharacterSession(b,2);net.tfminecraft.archaeo.CharacterTestSupport.sessions.put(player.getUniqueId(),first);net.tfminecraft.archaeo.ownership.CharacterWork.start(plugin);ItemStack original=startDrawing();service.session(player).paint();net.tfminecraft.archaeo.CharacterTestSupport.sessions.put(player.getUniqueId(),second);server.getPluginManager().callEvent(new net.tfminecraft.tlibs.character.CharacterSessionEndEvent(player,first,net.tfminecraft.tlibs.character.CharacterSessionEndEvent.Reason.SWITCH));assertTrue(SketchSheet.fromBytes(cells(player.getInventory().getItemInMainHand())).hasInk());assertFalse(service.editing(player));ItemStack next=startDrawing();assertTrue(service.editing(player));server.getPluginManager().callEvent(new net.tfminecraft.tlibs.character.CharacterSessionEndEvent(player,first,net.tfminecraft.tlibs.character.CharacterSessionEndEvent.Reason.QUIT));assertTrue(service.editing(player));assertFalse(SketchSheet.fromBytes(cells(next)).hasInk());
+    }
+    @Test public void deferredSigningCannotSignForAnotherCharacter(){
+        ItemStack original=startDrawing();service.session(player).paint();service.askToSign(player);service.handleSignChatLater(player,"sign");var b=new net.tfminecraft.tlibs.character.CharacterRef(player.getUniqueId(),UUID.randomUUID());net.tfminecraft.archaeo.CharacterTestSupport.sessions.put(player.getUniqueId(),new net.tfminecraft.tlibs.character.CharacterSession(b,2));server.getScheduler().performOneTick();assertFalse(service.isSigned(original));assertFalse(service.editing(player));
+    }
 }

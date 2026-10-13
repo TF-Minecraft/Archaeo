@@ -19,7 +19,7 @@ import static org.mockito.AdditionalMatchers.aryEq;
 public class CampSignsTest {
     private Block block;
     @Before public void setup() {
-        block = MockBukkit.mock().addSimpleWorld("world").getBlockAt(0, 5, 0);
+        block = net.tfminecraft.archaeo.CharacterTestSupport.mock().addSimpleWorld("world").getBlockAt(0, 5, 0);
         block.setType(Material.OAK_SIGN);
     }
     @After public void teardown() { MockBukkit.unmock(); }

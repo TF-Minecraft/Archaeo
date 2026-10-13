@@ -18,7 +18,7 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 public class ExcavationSettingsTest {
-    @Before public void setUp() { MockBukkit.mock(); }
+    @Before public void setUp() { net.tfminecraft.archaeo.CharacterTestSupport.mock(); }
     @After public void tearDown() { MockBukkit.unmock(); }
 
     @Test

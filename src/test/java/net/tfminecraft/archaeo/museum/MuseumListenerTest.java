@@ -39,7 +39,7 @@ public class MuseumListenerTest {
     private ItemStack piece;
 
     @Before public void setUp() {
-        server = MockBukkit.mock(); plugin = MockBukkit.createMockPlugin(); viewer = server.addPlayer();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock(); plugin = MockBukkit.createMockPlugin(); viewer = server.addPlayer();
         sites = mock(SiteRepository.class); catalogs = mock(CatalogRegistry.class);
         when(catalogs.museum()).thenReturn(MuseumSettings.defaults()); when(catalogs.pick()).thenReturn(PickSettings.defaults());
         ArtifactTemplate template = new ArtifactTemplate("pot", "Exhibited pot", 1, 1, "ceramic", null, false, 1, Set.of(), Set.of(), FindProfile.OBJECT, List.of(ItemRef.vanilla(Material.BRICK)), "");

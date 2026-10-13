@@ -29,7 +29,7 @@ public class RecoveredFindItemTest {
     private BuriedFind find;
 
     @Before public void setUp() {
-        server = MockBukkit.mock();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock();
         plugin = MockBukkit.createMockPlugin();
         items = new RecoveredFindItem(plugin);
         catalogs = mock(CatalogRegistry.class);

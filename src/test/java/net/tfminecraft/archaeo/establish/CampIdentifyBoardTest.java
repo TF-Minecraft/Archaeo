@@ -29,7 +29,7 @@ public class CampIdentifyBoardTest {
     private InterpretationType question;
 
     @Before public void setUp() {
-        MockBukkit.mock(); player = MockBukkit.getMock().addPlayer();
+        net.tfminecraft.archaeo.CharacterTestSupport.mock(); player = MockBukkit.getMock().addPlayer();
         recovered = new RecoveredFindItem(MockBukkit.createMockPlugin());
         catalogs = mock(CatalogRegistry.class); when(catalogs.pick()).thenReturn(PickSettings.defaults());
         ArtifactTemplate pot = new ArtifactTemplate("pot", "Clay vessel", 1, 1, "ceramic", "", false, 1,
