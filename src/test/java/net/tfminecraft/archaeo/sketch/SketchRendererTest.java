@@ -18,7 +18,7 @@ public class SketchRendererTest {
     private Player viewer;
     private SketchSheet sheet;
     @Before public void setUp() {
-        MockBukkit.mock(); service = mock(SketchService.class); renderer = new SketchRenderer(service);
+        net.tfminecraft.archaeo.CharacterTestSupport.mock(); service = mock(SketchService.class); renderer = new SketchRenderer(service);
         view = mock(MapView.class); when(view.getId()).thenReturn(7); viewer = mock(Player.class);
         sheet = new SketchSheet(); when(service.sheetOf(view)).thenReturn(sheet);
     }

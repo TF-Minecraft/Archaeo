@@ -31,7 +31,7 @@ public class VanillaBreakClockTest {
 
     @Before
     public void setup() {
-        MockBukkit.mock();
+        net.tfminecraft.archaeo.CharacterTestSupport.mock();
         player = mock(Player.class);
         inventory = mock(PlayerInventory.class);
         block = mock(Block.class);

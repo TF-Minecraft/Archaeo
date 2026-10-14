@@ -57,6 +57,7 @@ public class HandPickService {
     private static final int ACTIVE_HOLD_TICKS = 8;
 
     private final JavaPlugin plugin;
+    private final net.tfminecraft.archaeo.ownership.CharacterWork identity;
     private final SiteRepository sites;
     private final CatalogRegistry catalogs;
     private final DigTools tools;
@@ -84,6 +85,7 @@ public class HandPickService {
             PickSettings settings
     ) {
         this.plugin = plugin;
+        this.identity = new net.tfminecraft.archaeo.ownership.CharacterWork(plugin, this::finish);
         this.sites = sites;
         this.catalogs = catalogs;
         this.tools = tools;
@@ -137,7 +139,7 @@ public class HandPickService {
         if (site == null) {
             return;
         }
-        if (!site.mayWork(player.getUniqueId())) {
+        if (!site.mayWork(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) {
             warn(player, "You are not authorised to work on this excavation.");
             return;
         }
@@ -151,6 +153,7 @@ public class HandPickService {
             return;
         }
         Cycle existing = cycles.get(player.getUniqueId());
+        if (existing != null && !net.tfminecraft.archaeo.ownership.CharacterActors.current(existing.actor, player)) { finish(player); existing = null; }
         if (existing != null && (!existing.sameCell(block) || !existing.tool.id().equals(tool.id()))) {
             finish(player);
             existing = null;
@@ -168,6 +171,7 @@ public class HandPickService {
                             HoldCuePlan.roll(),
                             tool,
                             tool.resolveDigClass(held)));
+            cycles.get(player.getUniqueId()).actor = identity.capture(player);
             return;
         }
         existing.lastActiveTick = gameTick;
@@ -339,6 +343,7 @@ public class HandPickService {
                 cycles.remove(entry.getKey());
                 continue;
             }
+            if (!net.tfminecraft.archaeo.ownership.CharacterActors.current(cycle.actor, player)) { finish(player); continue; }
             ExcavationTool held = tools.match(player.getInventory().getItemInMainHand()).orElse(null);
             if (held == null || !held.id().equals(cycle.tool.id())) {
                 finish(player);
@@ -354,7 +359,7 @@ public class HandPickService {
                     block.getX(),
                     block.getY(),
                     block.getZ()).orElse(null);
-            if (heldSite != null && !heldSite.mayWork(player.getUniqueId())) {
+            if (heldSite != null && !heldSite.mayWork(net.tfminecraft.archaeo.ownership.CharacterActors.id(heldSite, player))) {
                 cycles.remove(entry.getKey());
                 warn(player, "You are not authorised to work on this excavation.");
                 continue;
@@ -532,7 +537,7 @@ public class HandPickService {
         if (site == null) {
             return;
         }
-        if (!site.mayWork(player.getUniqueId())) {
+        if (!site.mayWork(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) {
             warn(player, "You are not authorised to work on this excavation.");
             return;
         }
@@ -544,7 +549,7 @@ public class HandPickService {
         }
         List<Block> lifted = LiftPlan.cells(site, block, cycle.tool, late);
         ItemStack tool = player.getInventory().getItemInMainHand();
-        WorkerRecord log = site.staffLog(player.getUniqueId());
+        WorkerRecord log = site.staffLog(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player));
         FindWoundLedger ledger = new FindWoundLedger();
         boolean smashedFind = false;
         for (Block cell : lifted) {
@@ -579,7 +584,7 @@ public class HandPickService {
         if (late && lifted.size() > 1) {
             playLateSmash(block);
         }
-        site.catalogSettledFinds(player.getUniqueId());
+        site.catalogSettledFinds(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player));
         sites.save(site);
         SiteClosure.settle(sites, site);
     }
@@ -742,7 +747,7 @@ public class HandPickService {
         if (site == null) {
             return;
         }
-        if (!site.mayWork(player.getUniqueId())) {
+        if (!site.mayWork(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) {
             player.spigot().sendMessage(
                     ChatMessageType.ACTION_BAR,
                     new TextComponent("Not authorised to work here"));
@@ -814,6 +819,7 @@ public class HandPickService {
      * One player's current left-click hold on a cell.
      */
     private static final class Cycle {
+        private net.tfminecraft.tlibs.character.CharacterSession actor;
         private final int x;
         private final int y;
         private final int z;

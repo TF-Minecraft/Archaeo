@@ -81,7 +81,7 @@ public final class CampStaffBoard implements InventoryHolder {
                 Material.BARRIER,
                 ChatColor.WHITE + "Back",
                 ChatColor.GRAY + "Return to the excavation board."));
-        player.openInventory(inventory);
+        net.tfminecraft.archaeo.ownership.CharacterActors.open(player, inventory);
     }
 
     /**
@@ -130,7 +130,7 @@ public final class CampStaffBoard implements InventoryHolder {
     private ItemStack head(Player viewer, Site site, UUID member) {
         ItemStack stack = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) stack.getItemMeta();
-        OfflinePlayer owner = Bukkit.getOfflinePlayer(member);
+        OfflinePlayer owner = Bukkit.getOfflinePlayer(site.getActorRefs().containsKey(member)?site.getActorRefs().get(member).ownerId():member);
         meta.setOwningPlayer(owner);
         SiteRole role = site.roleOf(member);
         meta.setDisplayName(ChatColor.WHITE + CampNames.of(viewer, member));

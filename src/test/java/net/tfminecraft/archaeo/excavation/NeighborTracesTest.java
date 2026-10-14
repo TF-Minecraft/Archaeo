@@ -30,7 +30,7 @@ public class NeighborTracesTest {
 
     @Before
     public void setup() {
-        World world = MockBukkit.mock().addSimpleWorld("traces");
+        World world = net.tfminecraft.archaeo.CharacterTestSupport.mock().addSimpleWorld("traces");
         catalogs = mock(CatalogRegistry.class);
         site = new Site();
         origin = world.getBlockAt(8, 40, 8);

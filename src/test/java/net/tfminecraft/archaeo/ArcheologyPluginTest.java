@@ -12,7 +12,7 @@ import static org.junit.Assert.*;
 public class ArcheologyPluginTest {
     private ServerMock server;
 
-    @Before public void setUp() { server = MockBukkit.mock(); }
+    @Before public void setUp() { server = net.tfminecraft.archaeo.CharacterTestSupport.mock(); }
     @After public void tearDown() { MockBukkit.unmock(); }
 
     @Test

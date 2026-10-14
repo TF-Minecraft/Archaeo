@@ -36,7 +36,7 @@ public class CabinetLabTest {
     private ItemStack piece;
 
     @Before public void setUp() {
-        server = MockBukkit.mock(); plugin = MockBukkit.createMockPlugin(); player = server.addPlayer();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock(); plugin = MockBukkit.createMockPlugin(); player = server.addPlayer();
         sites = mock(SiteRepository.class); catalogs = mock(CatalogRegistry.class); recovered = new RecoveredFindItem(plugin);
         when(catalogs.pick()).thenReturn(PickSettings.defaults());
         template = new ArtifactTemplate("pot", "Old pot", 1, 1, "ceramic", null, false, 1, Set.of(), Set.of(), FindProfile.OBJECT, List.of(ItemRef.vanilla(Material.BRICK)), "");

@@ -61,7 +61,7 @@ public class RecoverServiceTest {
 
     @Before
     public void setup() {
-        server = MockBukkit.mock(new RecordingServer());
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock(new RecordingServer());
         WorldMock testWorld = new SnapshotLocationWorld();
         testWorld.setName("recovery");
         server.addWorld(testWorld);
@@ -89,7 +89,7 @@ public class RecoverServiceTest {
         site.setName("Dig");
         site.setWorldName(world.getName());
         site.setStatus(SiteStatus.ESTABLISHED);
-        site.setDirector(player.getUniqueId());
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, player.getUniqueId());
         StratumBand band = new StratumBand();
         band.setPresent(true);
         band.setMinY(39);
@@ -158,7 +158,7 @@ public class RecoverServiceTest {
 
     @Test
     public void trespasserAndExcavatorReceiveDistinctPermissionRefusals() {
-        site.setDirector(UUID.randomUUID());
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, UUID.randomUUID());
         service.begin(player, target);
         service.begin(player, target);
         verify(player, times(1)).sendMessage("You are not authorised to work on this excavation.");
@@ -166,7 +166,7 @@ public class RecoverServiceTest {
         Player worker = mock(Player.class);
         when(worker.getUniqueId()).thenReturn(UUID.randomUUID());
         when(worker.getInventory()).thenReturn(inventory);
-        site.getExcavators().add(worker.getUniqueId());
+        site.getExcavators().add(net.tfminecraft.archaeo.CharacterTestSupport.actor(site, worker.getUniqueId()));
         site.assignRole(worker.getUniqueId(), SiteRole.EXCAVATOR);
         service.begin(worker, target);
         verify(worker).sendMessage("Your role does not lift pieces on this excavation.");
@@ -275,7 +275,7 @@ public class RecoverServiceTest {
     public void permissionRevocationStopsAnActiveChannel() {
         service.begin(player, target);
         ticks(2);
-        site.setDirector(UUID.randomUUID());
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, UUID.randomUUID());
         ticks(3);
         assertEquals(Integer.valueOf(6), find.brushRemaining(cell(8)));
         assertTrue(find.getCleanedCells().isEmpty());
@@ -602,7 +602,7 @@ public class RecoverServiceTest {
         PlayerMock second = archaeologist("Second", target);
         Block twinCube = twin.world.getBlockAt(8, 40, 8);
         doReturn(twinCube).when(second).getTargetBlockExact(6);
-        twin.site.getExcavators().add(second.getUniqueId());
+        twin.site.getExcavators().add(net.tfminecraft.archaeo.CharacterTestSupport.actor(twin.site, second.getUniqueId()));
         service.begin(player, target);
         service.begin(second, twinCube);
         ticks(3);
@@ -725,7 +725,7 @@ public class RecoverServiceTest {
         twin.setName("Twin");
         twin.setWorldName(other.getName());
         twin.setStatus(SiteStatus.ESTABLISHED);
-        twin.setDirector(playerId);
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(twin, playerId);
         twin.getStrata().putAll(site.getStrata());
         BuriedFind twinFind = new BuriedFind();
         twinFind.setId(UUID.randomUUID());
@@ -761,7 +761,7 @@ public class RecoverServiceTest {
         doReturn(aimed).when(worker).getTargetBlockExact(6);
         doAnswer(invocation -> worker.getInventory().getItemInMainHand()).when(worker).getItemInUse();
         doReturn(0).when(worker).getItemInUseTicks();
-        site.getExcavators().add(worker.getUniqueId());
+        site.getExcavators().add(net.tfminecraft.archaeo.CharacterTestSupport.actor(site, worker.getUniqueId()));
         return worker;
     }
 

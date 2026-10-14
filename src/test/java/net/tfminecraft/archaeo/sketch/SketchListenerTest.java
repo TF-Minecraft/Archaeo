@@ -29,7 +29,7 @@ public class SketchListenerTest {
     private SketchService service;
     private SketchListener listener;
     @Before public void setUp() {
-        server = MockBukkit.mock(); player = server.addPlayer();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock(); player = server.addPlayer();
         service = mock(SketchService.class); listener = new SketchListener(service);
     }
     @After public void tearDown() { MockBukkit.unmock(); }
@@ -103,7 +103,7 @@ public class SketchListenerTest {
     }
 
     @Test public void cabinetLocksDisplaySlotsAndUsesValidatedShiftDepositsAndDragRules() {
-        SketchCabinet holder = mock(SketchCabinet.class); Inventory top = server.createInventory(holder, 9);
+        SketchCabinet holder = mock(SketchCabinet.class); Inventory top = server.createInventory(holder, 9);net.tfminecraft.archaeo.ownership.CharacterActors.open(player,top);
         InventoryClickEvent event = click(top, top); ItemStack cursor = new ItemStack(Material.FILLED_MAP);
         when(event.getCursor()).thenReturn(cursor); when(event.getSlot()).thenReturn(0);
         ItemStack returned = new ItemStack(Material.AIR); when(service.handleCabinetClick(eq(player), eq(top), eq(0), any())).thenReturn(returned);
@@ -117,7 +117,7 @@ public class SketchListenerTest {
     }
 
     @Test public void labBlocksBagTransfersAndRoutesTopClicksAndCleanup() {
-        CabinetLabBoard holder = mock(CabinetLabBoard.class); Inventory top = server.createInventory(holder, 27);
+        CabinetLabBoard holder = mock(CabinetLabBoard.class); Inventory top = server.createInventory(holder, 27);net.tfminecraft.archaeo.ownership.CharacterActors.open(player,top);
         InventoryClickEvent bag = click(top, player.getInventory()); listener.onLabClick(bag);
         verify(bag).setCancelled(true); verify(service, never()).handleLabClick(any(), any(), anyInt(), any());
         InventoryClickEvent field = click(top, top); when(field.getSlot()).thenReturn(5); when(field.getCursor()).thenReturn(new ItemStack(Material.AIR));
@@ -341,7 +341,7 @@ public class SketchListenerTest {
     }
 
     @Test public void cabinetWindowLeavesBagRearrangingAloneAndRefusedShiftDepositsKeepTheStack() {
-        SketchCabinet holder = mock(SketchCabinet.class); Inventory top = server.createInventory(holder, 9);
+        SketchCabinet holder = mock(SketchCabinet.class); Inventory top = server.createInventory(holder, 9);net.tfminecraft.archaeo.ownership.CharacterActors.open(player,top);
         InventoryClickEvent bag = click(top, player.getInventory()); listener.onCabinetClick(bag);
         verify(bag, never()).setCancelled(true); verify(bag, never()).setResult(any()); verify(service, never()).handleCabinetClick(any(), any(), anyInt(), any());
         InventoryClickEvent emptyShift = click(top, player.getInventory()); when(emptyShift.isShiftClick()).thenReturn(true);

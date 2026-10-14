@@ -27,6 +27,11 @@ public class Site {
     private UUID createdBy;
     private Instant createdAt;
     private UUID director;
+    private boolean ownershipHeld;
+    public void setOwnershipHeld(boolean held) { ownershipHeld = held; }
+    public boolean isOwnershipHeld() { return ownershipHeld; }
+    private final Map<UUID, net.tfminecraft.tlibs.character.CharacterRef> actorRefs = new LinkedHashMap<>();
+    public Map<UUID, net.tfminecraft.tlibs.character.CharacterRef> getActorRefs() { return actorRefs; }
     private String visibility = "private";
     private int recoveredCount;
     private final List<String> hintIds = new ArrayList<>();
@@ -289,7 +294,7 @@ public class Site {
      * @return whether this player planted the camp
      */
     public boolean isDirector(UUID playerId) {
-        return director != null && director.equals(playerId);
+        return !ownershipHeld && director != null && director.equals(playerId);
     }
 
     /**
@@ -297,7 +302,7 @@ public class Site {
      * @return whether they are the director or a hired excavator, including after the cut closes
      */
     public boolean onStaff(UUID playerId) {
-        if (playerId == null) {
+        if (ownershipHeld || playerId == null) {
             return false;
         }
         return isDirector(playerId) || excavators.contains(playerId);
@@ -312,7 +317,7 @@ public class Site {
      * @return whether field work is allowed on this established excavation
      */
     public boolean mayWork(UUID playerId) {
-        if (playerId == null || getStatus() != SiteStatus.ESTABLISHED) {
+        if (ownershipHeld || playerId == null || getStatus() != SiteStatus.ESTABLISHED) {
             return false;
         }
         if (isDirector(playerId)) {
@@ -338,7 +343,7 @@ public class Site {
      * @return whether this person may study a recovered piece and file readings
      */
     public boolean mayCatalog(UUID playerId) {
-        if (playerId == null || !mayConsult()) {
+        if (ownershipHeld || playerId == null || !mayConsult()) {
             return false;
         }
         if (isDirector(playerId)) {
@@ -539,7 +544,7 @@ public class Site {
             return SiteRole.DIRECTOR;
         }
         WorkerRecord record = workers.get(playerId);
-        return record == null ? SiteRole.defaultRole() : record.getRole();
+        return record == null || record.getRole() == SiteRole.DIRECTOR ? SiteRole.defaultRole() : record.getRole();
     }
 
     /**

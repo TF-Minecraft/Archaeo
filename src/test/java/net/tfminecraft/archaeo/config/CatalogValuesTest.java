@@ -14,7 +14,7 @@ import java.util.Set;
 import static org.junit.Assert.*;
 
 public class CatalogValuesTest {
-    @Before public void setUp() { MockBukkit.mock(); }
+    @Before public void setUp() { net.tfminecraft.archaeo.CharacterTestSupport.mock(); }
     @After public void tearDown() { MockBukkit.unmock(); }
     @Test
     public void parsesProfilesWithoutTurningUnknownListedProfilesIntoObjects() {

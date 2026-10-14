@@ -41,6 +41,8 @@ public final class CampNames {
         if (id == null) {
             return "—";
         }
+        var info = net.tfminecraft.tlibs.character.Characters.info(id);
+        if (info.isPresent()) return info.get().name();
         if (viewer != null && id.equals(viewer.getUniqueId())) {
             return viewer.getName();
         }

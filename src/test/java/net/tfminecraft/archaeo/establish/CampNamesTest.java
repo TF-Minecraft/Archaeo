@@ -17,7 +17,7 @@ import static org.mockito.Mockito.*;
 public class CampNamesTest {
     private ServerMock server;
 
-    @Before public void setUp() { server = MockBukkit.mock(); }
+    @Before public void setUp() { server = net.tfminecraft.archaeo.CharacterTestSupport.mock(); }
     @After public void tearDown() { MockBukkit.unmock(); }
 
     @Test public void dossiersWithoutADirectorListOnlyTheirExcavatorsOnce() {

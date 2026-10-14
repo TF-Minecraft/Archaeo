@@ -29,7 +29,7 @@ public class CampClosureTest {
     private Site site;
 
     @Before public void setUp() {
-        server = MockBukkit.mock();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock();
         world = server.addSimpleWorld("world");
         director = server.addPlayer("Director");
         var plugin = MockBukkit.createMockPlugin();
@@ -39,8 +39,8 @@ public class CampClosureTest {
         site = new Site();
         site.setId(UUID.randomUUID()); site.setSerial(1); site.setName("River camp");
         site.setCreatedAt(java.time.Instant.parse("2026-01-01T00:00:00Z")); site.setWorldName("world"); site.setInterest(InterestLevel.LOW);
-        site.establish(director.getUniqueId(), 1, 0, 20, 4, 4);
-        sites.save(site);
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(site, director.getUniqueId(), 1, 0, 20, 4, 4);
+        net.tfminecraft.archaeo.CharacterTestSupport.save(sites, site);
     }
     @After public void tearDown() { MockBukkit.unmock(); }
 
@@ -96,14 +96,14 @@ public class CampClosureTest {
         assertTrue(drop.getLocation().distance(new Location(world, 20.5, 5, 4.5)) < 2);
         Site missing = new Site();
         missing.setCreatedAt(java.time.Instant.parse("2026-01-01T00:00:00Z")); missing.setId(UUID.randomUUID()); missing.setWorldName("missing"); missing.setInterest(InterestLevel.LOW);
-        missing.establish(UUID.randomUUID(), 1, 0, 20, 4, 4);
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(missing, UUID.randomUUID(), 1, 0, 20, 4, 4);
         assertTrue(closure.close(server.getConsoleSender(), missing));
         assertEquals(SiteStatus.CLOSED, missing.getStatus());
     }
 
     @Test
     public void consoleClosingALegacyCampWithoutAnOriginStillClosesItAndSaysNoBookWasDropped() {
-        site.setCampX(null); site.setDirector(null); // A dossier saved before camp origins and directors were recorded.
+        site.setCampX(null); site.setCampY(null); site.setCampZ(null); net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, null); // A dossier saved before camp origins and directors were recorded.
         var console = spy(server.getConsoleSender());
         assertTrue(closure.close(console, site)); assertEquals(SiteStatus.CLOSED, site.getStatus());
         verify(console).sendMessage("No field book could be given from console.");
@@ -121,9 +121,9 @@ public class CampClosureTest {
         nearby.teleport(new Location(world, 20, 5, 4));
         distant.teleport(new Location(world, 100, 5, 100));
         worker.teleport(new Location(world, 100, 5, 100));
-        site.getExcavators().add(director.getUniqueId());
-        site.getExcavators().add(worker.getUniqueId());
-        site.getExcavators().add(UUID.randomUUID());
+
+        site.getExcavators().add(net.tfminecraft.archaeo.CharacterTestSupport.actor(site, worker.getUniqueId()));
+        site.getExcavators().add(net.tfminecraft.archaeo.CharacterTestSupport.actor(site, UUID.randomUUID()));
         assertFalse(SiteClosure.settle(sites, null));
         assertFalse(SiteClosure.settle(sites, site));
         find.setState(FindState.RECOVERED);

@@ -35,7 +35,7 @@ public class TrackerServiceTest {
     private final List<Location> particles = new ArrayList<>();
 
     @Before public void setUp() {
-        server = MockBukkit.mock(); world = spy(new WorldMock()); world.setName("world"); server.addWorld(world); player = server.addPlayer();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock(); world = spy(new WorldMock()); world.setName("world"); server.addWorld(world); player = server.addPlayer();
         doAnswer(call -> {
             particles.add(new Location(world, call.getArgument(1), call.getArgument(2), call.getArgument(3)));
             return null;

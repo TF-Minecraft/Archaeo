@@ -32,7 +32,7 @@ public class ArchaeoCommandTest {
     private ArchaeoCommand commands;
 
     @Before public void setUp() {
-        server = MockBukkit.mock();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock();
         var world = new org.mockbukkit.mockbukkit.world.WorldMock() {
             @Override public org.bukkit.Chunk[] getLoadedChunks() {
                 // MockBukkit has no tile-entity lookup; this command fixture contains no block inventories.
@@ -139,7 +139,7 @@ public class ArchaeoCommandTest {
         assertContains(run("workday reset Missing"), "Player not online");
         assertContains(run("workday reset all"), "No established excavations");
         Site site = dossier(1, "Old camp");
-        site.establish(staff.getUniqueId(), 1, 0, 20, 4, 4);
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(site, staff.getUniqueId(), 1, 0, 20, 4, 4);
         site.setJornadaPickLeft(0);
         assertContains(run("workday reset"), "Reset pick jornada");
         assertEquals(plugin.catalogs().pick().jornadaActions(), site.getJornadaPickLeft());
@@ -155,7 +155,7 @@ public class ArchaeoCommandTest {
     public void completionUsesPermissionsPlayersWorldsAndEligibleSiteStates() {
         Site hidden = dossier(1, "Old ruin");
         Site camp = dossier(2, "Open camp");
-        camp.establish(staff.getUniqueId(), 1, 0, 20, 4, 4);
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(camp, staff.getUniqueId(), 1, 0, 20, 4, 4);
         assertTrue(complete("g").contains("give"));
         assertTrue(complete("give", "tr").contains("tracker"));
         assertTrue(complete("give", "tracker", "arch").contains("Archaeologist"));
@@ -198,12 +198,20 @@ public class ArchaeoCommandTest {
         UUID id = site.getId(); int serial = site.getSerial();
         assertContains(run("ruin create low Duplicate"), "already");
         assertEquals(1, plugin.sites().all().size());
+        net.tfminecraft.archaeo.CharacterTestSupport.addProspectSample(site,staff.getUniqueId(),new BlockCell(1,40,1));plugin.sites().save(site);
         assertContains(run("ruin set-interest high #" + serial), "Rebuilt");
         assertEquals(net.tfminecraft.archaeo.model.InterestLevel.HIGH, site.getInterest());
         assertEquals(id, site.getId()); assertEquals("River ruin", site.getName());
-        site.establish(staff.getUniqueId(), 0, 0, 2, 4, 2);
+        assertTrue(plugin.sites().loadAll());assertFalse(plugin.sites().ownership().held(id+".yml"));assertTrue(plugin.sites().findById(id).orElseThrow().allProspectSamples().isEmpty());
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(site, staff.getUniqueId(), 0, 0, 2, 4, 2);
         assertFalse(run("ruin set-interest low #" + serial).isEmpty());
         assertEquals(net.tfminecraft.archaeo.model.InterestLevel.HIGH, site.getInterest());
+    }
+
+    @Test public void reloadReportsRefusalInsteadOfClaimingSitesWereReloaded()throws Exception{
+        Site site=dossier(1,"Unsaved");var file=plugin.getDataFolder().toPath().resolve("sites/"+site.getId()+".yml");java.nio.file.Files.writeString(file,java.nio.file.Files.readString(file)+"external: retained\n");site.setRecoveredCount(17);plugin.sites().touch(site);
+        var blocked=plugin.getDataFolder().toPath().resolve("ownership/conflicts");java.nio.file.Files.createDirectories(blocked.getParent());java.nio.file.Files.writeString(blocked,"not a directory");
+        var messages=run("reload");assertContains(messages,"site reload refused");assertFalse(messages.stream().anyMatch(line->line.contains("Reloaded Archaeo config, catalogs, and sites from disk")));assertSame(site,plugin.sites().findById(site.getId()).orElseThrow());assertEquals(17,site.getRecoveredCount());java.nio.file.Files.delete(blocked);plugin.sites().flushDirty();
     }
 
     @Test
@@ -223,7 +231,7 @@ public class ArchaeoCommandTest {
     public void campLookupTeleportsSingleResultsAndChecksDirectorFilter() {
         assertContains(run("ruin camps"), "does not direct any open camp");
         assertContains(run("ruin camps Nobody"), "Unknown player");
-        Site camp = dossier(1, "River camp"); camp.establish(staff.getUniqueId(), 1, 0, 20, 4, 4);
+        Site camp = dossier(1, "River camp"); net.tfminecraft.archaeo.CharacterTestSupport.establish(camp, staff.getUniqueId(), 1, 0, 20, 4, 4);
         assertContains(run("ruin camps"), "Teleported to");
         assertEquals(20.5, staff.getLocation().getX(), 0); assertEquals(5, staff.getLocation().getY(), 0);
         PlayerMock guest = player("Guest");
@@ -238,7 +246,7 @@ public class ArchaeoCommandTest {
 
     @Test
     public void closingUnfinishedCampRequiresConfirmationAndIssuesArchive() {
-        Site camp = dossier(1, "River camp"); camp.establish(staff.getUniqueId(), 0, 0, 2, 4, 2);
+        Site camp = dossier(1, "River camp"); net.tfminecraft.archaeo.CharacterTestSupport.establish(camp, staff.getUniqueId(), 0, 0, 2, 4, 2);
         var find = new net.tfminecraft.archaeo.model.BuriedFind(); find.setId(UUID.randomUUID());
         find.setArtifactId("vessel"); find.setStratumId("I"); camp.getFinds().add(find);
         assertContains(run("ruin close #1"), "Add confirm"); assertEquals(SiteStatus.ESTABLISHED, camp.getStatus());
@@ -261,9 +269,9 @@ public class ArchaeoCommandTest {
     }
 
     @Test public void multipleDirectedCampsOfferClickableChoicesWithoutTeleportingUntilSelected() {
-        Site first = dossier(1, "River camp"); first.establish(staff.getUniqueId(), 1, 0, 20, 4, 4);
-        Site second = dossier(2, "Hill camp"); second.establish(staff.getUniqueId(), 2, 0, 36, 9, 4);
-        Site closed = dossier(3, "Old camp"); closed.establish(staff.getUniqueId(), 3, 0, 52, 4, 4); closed.setStatus(SiteStatus.CLOSED);
+        Site first = dossier(1, "River camp"); net.tfminecraft.archaeo.CharacterTestSupport.establish(first, staff.getUniqueId(), 1, 0, 20, 4, 4);
+        Site second = dossier(2, "Hill camp"); net.tfminecraft.archaeo.CharacterTestSupport.establish(second, staff.getUniqueId(), 2, 0, 36, 9, 4);
+        Site closed = dossier(3, "Old camp"); net.tfminecraft.archaeo.CharacterTestSupport.establish(closed, staff.getUniqueId(), 3, 0, 52, 4, 4); closed.setStatus(SiteStatus.CLOSED);
         Player.Spigot spigot = mock(Player.Spigot.class); doReturn(spigot).when(staff).spigot();
         List<BaseComponent[]> choices = new ArrayList<>();
         doAnswer(call -> { choices.add((BaseComponent[]) call.getRawArguments()[0]); return null; })
@@ -284,11 +292,11 @@ public class ArchaeoCommandTest {
     }
 
     @Test public void detailedDossierReportsStrataSamplingAndDistinctSourcesOfFindDamage() {
-        Site site = dossier(1, "Survey camp"); site.establish(staff.getUniqueId(), 1, 0, 20, 4, 4);
+        Site site = dossier(1, "Survey camp"); net.tfminecraft.archaeo.CharacterTestSupport.establish(site, staff.getUniqueId(), 1, 0, 20, 4, 4);
         site.setCreatedBy(staff.getUniqueId()); site.setSurfaceY(40); site.getHintIds().addAll(List.of("pottery", "masonry"));
         StratumBand present = new StratumBand(); present.setId("I"); present.setPresent(true); present.setMinY(36); present.setMaxY(39); present.setDisturbed(true);
         StratumBand absent = new StratumBand(); absent.setId("II"); site.getStrata().put("I", present); site.getStrata().put("II", absent);
-        site.addProspectSample(staff.getUniqueId(), new BlockCell(1, 40, 1)); site.confirmProspect(staff.getUniqueId());
+        net.tfminecraft.archaeo.CharacterTestSupport.addProspectSample(site, staff.getUniqueId(), new BlockCell(1, 40, 1)); net.tfminecraft.archaeo.CharacterTestSupport.confirmProspect(site, staff.getUniqueId());
         BuriedFind find = new BuriedFind(); find.setId(UUID.randomUUID()); find.setArtifactId("pot"); find.setStratumId("I"); find.setState(FindState.PARTIAL);
         find.setBuriedConservation(90); find.setConservation(90);
         find.getCells().addAll(List.of(new BlockCell(1, 38, 1), new BlockCell(2, 38, 1), new BlockCell(3, 38, 1), new BlockCell(4, 38, 1)));
@@ -304,9 +312,9 @@ public class ArchaeoCommandTest {
 
     @Test public void censusSeparatesEveryLifecycleStateAndConsoleCanInspectDirectedCamps() {
         dossier(1, "Hidden");
-        Site active = dossier(2, "Active"); active.establish(staff.getUniqueId(), 1, 0, 20, 4, 4);
-        Site exhausted = dossier(3, "Exhausted"); exhausted.establish(staff.getUniqueId(), 2, 0, 36, 4, 4); exhausted.setStatus(SiteStatus.EXHAUSTED);
-        Site closed = dossier(4, "Closed"); closed.establish(staff.getUniqueId(), 3, 0, 52, 4, 4); closed.setStatus(SiteStatus.CLOSED);
+        Site active = dossier(2, "Active"); net.tfminecraft.archaeo.CharacterTestSupport.establish(active, staff.getUniqueId(), 1, 0, 20, 4, 4);
+        Site exhausted = dossier(3, "Exhausted"); net.tfminecraft.archaeo.CharacterTestSupport.establish(exhausted, staff.getUniqueId(), 2, 0, 36, 4, 4); exhausted.setStatus(SiteStatus.EXHAUSTED);
+        Site closed = dossier(4, "Closed"); net.tfminecraft.archaeo.CharacterTestSupport.establish(closed, staff.getUniqueId(), 3, 0, 52, 4, 4); closed.setStatus(SiteStatus.CLOSED);
         List<String> stats = run("ruin stats");
         for (String expected : List.of("Ruins: 4", "Hidden: 1", "Excavations: 3", "Active: 1", "Exhausted: 1", "Closed: 1")) assertContains(stats, expected);
         List<String> camps = console("ruin camps Archaeologist");
@@ -329,12 +337,12 @@ public class ArchaeoCommandTest {
     }
 
     @Test public void workdayResetNotifiesTheNamedWorkerAndPreservesUnavailableExcavations() {
-        Site active = dossier(1, "Active"); active.establish(staff.getUniqueId(), 1, 0, 20, 4, 4);
+        Site active = dossier(1, "Active"); net.tfminecraft.archaeo.CharacterTestSupport.establish(active, staff.getUniqueId(), 1, 0, 20, 4, 4);
         Site hidden = dossier(2, "Hidden"); hidden.setChunkX(2);
         Site closed = dossier(3, "Closed"); closed.setChunkX(3);
-        closed.establish(staff.getUniqueId(), 3, 0, 52, 4, 4); closed.setStatus(SiteStatus.CLOSED);
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(closed, staff.getUniqueId(), 3, 0, 52, 4, 4); closed.setStatus(SiteStatus.CLOSED);
         Site unloaded = dossier(4, "Unloaded"); unloaded.setWorldName("unloaded");
-        unloaded.establish(staff.getUniqueId(), 1, 0, 20, 4, 4);
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(unloaded, staff.getUniqueId(), 1, 0, 20, 4, 4);
         for (Site site : List.of(active, hidden, closed, unloaded)) {
             site.setJornadaPickLeft(0); plugin.sites().save(site);
         }
@@ -415,10 +423,10 @@ public class ArchaeoCommandTest {
     @Test public void workdayResetNamesOnlyNamedSitesAndIgnoresUnopenedGroundUnderfoot() {
         Site hidden = dossier(1, "Hidden"); hidden.setChunkX(0);
         assertContains(run("workday reset"), "not in an established excavation");
-        Site closed = dossier(2, "Closed camp"); closed.setChunkX(5); closed.establish(staff.getUniqueId(), 0, 1, 4, 4, 20); closed.setStatus(SiteStatus.CLOSED);
+        Site closed = dossier(2, "Closed camp"); closed.setChunkX(5); net.tfminecraft.archaeo.CharacterTestSupport.establish(closed, staff.getUniqueId(), 0, 1, 4, 4, 20); closed.setStatus(SiteStatus.CLOSED);
         staff.teleport(new org.bukkit.Location(staff.getWorld(), 4, 5, 20));
         assertContains(run("workday reset"), "not in an established excavation");
-        Site unnamed = dossier(3, null); unnamed.setChunkX(7); unnamed.establish(staff.getUniqueId(), 7, 0, 116, 4, 4); unnamed.setJornadaPickLeft(0);
+        Site unnamed = dossier(3, null); unnamed.setChunkX(7); net.tfminecraft.archaeo.CharacterTestSupport.establish(unnamed, staff.getUniqueId(), 7, 0, 116, 4, 4); unnamed.setJornadaPickLeft(0);
         staff.teleport(new org.bukkit.Location(staff.getWorld(), 116, 5, 4));
         assertEquals(List.of("Reset pick jornada on #3 to " + plugin.catalogs().pick().jornadaActions() + "."), run("workday reset"));
         unnamed.setName(" ");
@@ -456,10 +464,10 @@ public class ArchaeoCommandTest {
     @Test public void closeAndDeleteActOnTheSiteUnderfootAndRejectUnknownSerials() {
         assertContains(run("ruin close #9"), "No site with serial #9");
         assertContains(run("ruin delete #9 confirm"), "No site with serial #9");
-        Site camp = dossier(1, "Finished camp"); camp.establish(staff.getUniqueId(), 0, 0, 2, 4, 2);
+        Site camp = dossier(1, "Finished camp"); net.tfminecraft.archaeo.CharacterTestSupport.establish(camp, staff.getUniqueId(), 0, 0, 2, 4, 2);
         assertContains(run("ruin close"), "Closed Finished camp");
         assertEquals(SiteStatus.CLOSED, camp.getStatus()); assertTrue(staff.getInventory().contains(Material.WRITTEN_BOOK));
-        Site open = dossier(2, "Open camp"); open.setChunkX(3); open.establish(staff.getUniqueId(), 3, 0, 52, 4, 4);
+        Site open = dossier(2, "Open camp"); open.setChunkX(3); net.tfminecraft.archaeo.CharacterTestSupport.establish(open, staff.getUniqueId(), 3, 0, 52, 4, 4);
         var find = new BuriedFind(); find.setId(UUID.randomUUID()); find.setArtifactId("vessel"); find.setStratumId("I"); open.getFinds().add(find);
         staff.teleport(new org.bukkit.Location(staff.getWorld(), 52, 5, 4));
         assertContains(run("ruin close confirm"), "Closed Open camp");
@@ -473,13 +481,13 @@ public class ArchaeoCommandTest {
     @Test public void campListingHandlesUnknownDirectorsAndDossiersThatLostTheirCampTable() {
         assertContains(run("ruin camps Nobody #1"), "Unknown player: Nobody");
         // A dossier whose establishment block lost camp-x still loads as a locked camp.
-        Site lost = dossier(1, "Lost table"); lost.setStatus(SiteStatus.ESTABLISHED); lost.setDirector(staff.getUniqueId());
+        Site lost = dossier(1, "Lost table"); lost.setStatus(SiteStatus.ESTABLISHED); net.tfminecraft.archaeo.CharacterTestSupport.setDirector(lost, staff.getUniqueId());
         var before = staff.getLocation().clone();
         List<String> single = run("ruin camps");
         assertContains(single, "Lost table · established · world · camp unknown"); assertContains(single, "has no camp coordinates");
         assertContains(run("ruin camps #1"), "has no standing camp to teleport to");
         assertEquals(before, staff.getLocation());
-        Site second = dossier(2, "Second camp"); second.establish(staff.getUniqueId(), 2, 0, 36, 4, 4);
+        Site second = dossier(2, "Second camp"); net.tfminecraft.archaeo.CharacterTestSupport.establish(second, staff.getUniqueId(), 2, 0, 36, 4, 4);
         Player.Spigot spigot = mock(Player.Spigot.class); doReturn(spigot).when(staff).spigot();
         List<String> several = run("ruin camps");
         assertContains(several, "Archaeologist directs 2 camps:"); assertContains(several, "Click [tp] or run /archaeo ruin camps #serial");
@@ -500,7 +508,7 @@ public class ArchaeoCommandTest {
     }
 
     @Test public void completionCoversAliasesMultiWordNamesSerialDigitsAndExtraTokens() {
-        Site hidden = dossier(1, "Old ruin"); Site camp = dossier(2, "Open camp"); camp.establish(staff.getUniqueId(), 1, 0, 20, 4, 4);
+        Site hidden = dossier(1, "Old ruin"); Site camp = dossier(2, "Open camp"); net.tfminecraft.archaeo.CharacterTestSupport.establish(camp, staff.getUniqueId(), 1, 0, 20, 4, 4);
         assertTrue(complete("give", "pick", "IRON_").contains("IRON_PICKAXE"));
         assertEquals(List.of("Archaeologist"), complete("give", "pick", "IRON_PICKAXE", "arch"));
         for (String[] extra : List.of(new String[]{"give", "tracker", "Arch", "x"}, new String[]{"give", "tool", "IRON_PICKAXE", "Arch", "x"},

@@ -72,7 +72,7 @@ public class SiteGenerator {
         if (interest == null) {
             throw new IllegalArgumentException("Interest level is required");
         }
-        if (repository.findByChunk(chunk.getWorld().getName(), chunk.getX(), chunk.getZ()).isPresent()) {
+        if (repository.chunkOccupied(chunk.getWorld().getName(), chunk.getX(), chunk.getZ())) {
             throw new IllegalStateException("This chunk already has a site");
         }
 
@@ -177,6 +177,13 @@ public class SiteGenerator {
      * @throws IllegalStateException if that cell already belongs to a find
      */
     public BuriedFind spawnStaffFind(Block origin, UUID director, ArtifactTemplate template, int requestedSize) {
+        if(director==null)throw new IllegalArgumentException("Director is required");
+        var player=org.bukkit.Bukkit.getPlayer(director);
+        var ref=net.tfminecraft.archaeo.ownership.CharacterActors.session(player).orElseThrow(()->new IllegalArgumentException("A current director character is required")).ref();
+        return spawnStaffFindForCharacter(origin,ref,template,requestedSize);
+    }
+
+    public BuriedFind spawnStaffFindForCharacter(Block origin, net.tfminecraft.tlibs.character.CharacterRef director, ArtifactTemplate template, int requestedSize) {
         if (origin == null) {
             throw new IllegalArgumentException("Origin block is required");
         }
@@ -191,6 +198,7 @@ public class SiteGenerator {
         }
 
         Chunk chunk = origin.getChunk();
+        if(repository.findByChunk(origin.getWorld().getName(),chunk.getX(),chunk.getZ()).isEmpty()&&repository.chunkOccupied(origin.getWorld().getName(),chunk.getX(),chunk.getZ()))throw new IllegalStateException("Held dossier occupies this chunk");
         chunk.load();
         BlockCell start = new BlockCell(origin.getX(), origin.getY(), origin.getZ());
         Site site = repository.findByChunk(origin.getWorld().getName(), chunk.getX(), chunk.getZ())
@@ -226,8 +234,9 @@ public class SiteGenerator {
         find.setBuriedConservation(rollBuriedConservation(template, band.getId(), band, new Random()));
         site.getFinds().add(find);
 
+        net.tfminecraft.archaeo.ownership.CharacterActors.remember(site,director);
         site.establish(
-                director,
+                director.characterId(),
                 chunk.getX(),
                 chunk.getZ(),
                 origin.getX(),
@@ -245,7 +254,7 @@ public class SiteGenerator {
      * @param originY used as surface datum so the prism can cover the test block
      * @return persisted site
      */
-    private Site newStaffSite(Chunk chunk, UUID director, int originY) {
+    private Site newStaffSite(Chunk chunk, net.tfminecraft.tlibs.character.CharacterRef director, int originY) {
         InterestSettings settings = catalog.interest(InterestLevel.LOW);
         Site site = new Site();
         site.setId(UUID.randomUUID());
@@ -256,7 +265,7 @@ public class SiteGenerator {
         site.setWorldName(chunk.getWorld().getName());
         site.setChunkX(chunk.getX());
         site.setChunkZ(chunk.getZ());
-        site.setCreatedBy(director);
+        site.setCreatedBy(director.ownerId());
         site.setCreatedAt(Instant.now());
         site.setName("Staff sandbox");
         site.setSurfaceY(originY);

@@ -248,7 +248,10 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     catalogs.sketch().pencilUses());
             plugin.sketch().setSettings(catalogs.sketch());
             autoRuins.setSettings(catalogs.autoRuins());
-            sites.loadAll();
+            if(!sites.loadAll()){
+                sender.sendMessage("Config and catalogs reloaded; site reload refused while unsaved progress or the ownership inventory needs recovery.");
+                return true;
+            }
             sender.sendMessage("Reloaded Archaeo config, catalogs, and sites from disk.");
             sender.sendMessage(autoRuins.statusLine());
         } catch (RuntimeException exception) {
@@ -898,7 +901,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         String label = site.displayLabel();
-        sitePurge.erase(site);
+        try{sitePurge.erase(site);}catch(IllegalStateException refused){sender.sendMessage("Site deletion refused: "+refused.getMessage());return true;}
         sender.sendMessage("Deleted " + label + " as if it had never existed.");
         return true;
     }
@@ -999,14 +1002,15 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
      * @return {@code true} always (handled)
      */
     private boolean handleCamps(CommandSender sender, String[] args) {
-        OfflinePlayer director;
+        net.tfminecraft.tlibs.character.CharacterRef director;
         Optional<Integer> serial = Optional.empty();
         if (args.length == 2) {
             if (!(sender instanceof Player player)) {
                 sender.sendMessage("Console must name a player: /archaeo ruin camps <player> [#serial]");
                 return true;
             }
-            director = player;
+            director = net.tfminecraft.archaeo.ownership.CharacterActors.session(player).map(s -> s.ref()).orElse(null);
+            if (director == null) { sender.sendMessage("A current character is required."); return true; }
         } else if (args.length == 3) {
             Optional<Integer> onlySerial = parseSerial(args[2]);
             if (onlySerial.isPresent()) {
@@ -1016,13 +1020,13 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                 }
                 return teleportToCamp((Player) sender, onlySerial.get(), null);
             }
-            director = CampNames.known(args[2]);
+            director = net.tfminecraft.archaeo.ownership.CharacterActors.invited(args[2]).orElse(null);
             if (director == null) {
                 sender.sendMessage("Unknown player: " + args[2]);
                 return true;
             }
         } else {
-            director = CampNames.known(args[2]);
+            director = net.tfminecraft.archaeo.ownership.CharacterActors.invited(args[2]).orElse(null);
             if (director == null) {
                 sender.sendMessage("Unknown player: " + args[2]);
                 return true;
@@ -1033,7 +1037,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
         }
-        UUID directorId = director.getUniqueId();
+        UUID directorId = director.characterId();
         if (serial.isPresent()) {
             if (!(sender instanceof Player player)) {
                 sender.sendMessage("Only a player can teleport to a camp.");
@@ -1470,13 +1474,13 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                 return suggestions;
             }
             if (args.length == 4) {
-                OfflinePlayer director = CampNames.known(args[2]);
+                var director = net.tfminecraft.archaeo.ownership.CharacterActors.invited(args[2]).orElse(null);
                 if (director == null) {
                     return List.of();
                 }
                 String token = args[3].toLowerCase(Locale.ROOT);
                 List<String> serials = new ArrayList<>();
-                for (Site site : sites.findDirectedCamps(director.getUniqueId())) {
+                for (Site site : sites.findDirectedCamps(director.characterId())) {
                     String serial = "#" + site.getSerial();
                     if (serial.startsWith(token) || String.valueOf(site.getSerial()).startsWith(token)) {
                         serials.add(serial);

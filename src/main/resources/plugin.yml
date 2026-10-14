@@ -6,6 +6,7 @@ author: nowko
 description: An archaeology plugin. Hidden ruins you track by ear, a camp beside the cut, and finds you can break as easily as recover.
 
 softdepend:
+  - RPCharacters
   - ItemsAdder
   - MMOItems
 
@@ -19,3 +20,5 @@ permissions:
   archaeo.admin:
     description: Default staff node; override the name in config.yml permissions.staff
     default: op
+
+depend: [TLibs]

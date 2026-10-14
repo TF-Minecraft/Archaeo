@@ -96,6 +96,8 @@ public final class SitePurge {
      * @param site stored ruin or excavation in any status
      */
     public void erase(Site site) {
+        sites.precheckErase(site);
+        sites.erase(site);
         UUID id = site.getId();
         establish.abortSessionsFor(id);
         recover.abortForSite(id);
@@ -103,7 +105,6 @@ public final class SitePurge {
         stripTaggedItems(id);
         removeCamp(site);
         autoRuins.forgetChunk(site.getWorldName(), site.getChunkX(), site.getChunkZ());
-        sites.erase(site);
         findDust.syncTimer();
     }
 

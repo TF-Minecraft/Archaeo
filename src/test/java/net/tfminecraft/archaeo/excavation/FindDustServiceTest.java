@@ -38,7 +38,7 @@ public class FindDustServiceTest {
 
     @Before
     public void setup() {
-        server = MockBukkit.mock();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock();
         world = new SnapshotWorld();
         world.setName("dust");
         server.addWorld(world);

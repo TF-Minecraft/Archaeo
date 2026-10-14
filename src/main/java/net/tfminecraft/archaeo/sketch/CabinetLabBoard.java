@@ -150,7 +150,7 @@ public final class CabinetLabBoard implements InventoryHolder {
         inventory = Bukkit.createInventory(this, 27, material.firstStepGerund());
         fillField();
         fillTools();
-        return player.openInventory(inventory) != null;
+        return net.tfminecraft.archaeo.ownership.CharacterActors.open(player, inventory) != null;
     }
 
     /**

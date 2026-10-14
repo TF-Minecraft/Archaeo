@@ -56,7 +56,7 @@ public class HandPickServiceTest {
 
     @Before
     public void setup() {
-        server = MockBukkit.mock();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock();
         world = new SnapshotWorld();
         world.setName("pick");
         server.addWorld(world);
@@ -83,7 +83,7 @@ public class HandPickServiceTest {
         site.setId(UUID.randomUUID());
         site.setStatus(SiteStatus.ESTABLISHED);
         site.setWorldName(world.getName());
-        site.setDirector(player.getUniqueId());
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, player.getUniqueId());
         StratumBand band = new StratumBand();
         band.setId("I");
         band.setPresent(true);
@@ -137,12 +137,12 @@ public class HandPickServiceTest {
 
     @Test
     public void permissionsAndExhaustedWorkdayRejectStartWithoutRemovingTerrain() {
-        site.setDirector(UUID.randomUUID());
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, UUID.randomUUID());
         service.noteMining(player, target);
         service.noteMining(player, target);
         assertFalse(service.isCycling(player));
         verify(player, times(1)).sendMessage("You are not authorised to work on this excavation.");
-        site.setDirector(player.getUniqueId());
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, player.getUniqueId());
         service.ensureJornada(site, world);
         site.setJornadaPickLeft(1);
         service.noteMining(player, target);
@@ -263,7 +263,7 @@ public class HandPickServiceTest {
         assertEquals(Material.STONE, target.getType());
         player.getInventory().setItemInMainHand(new ItemStack(Material.IRON_PICKAXE));
         awaitReady();
-        site.setDirector(UUID.randomUUID());
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, UUID.randomUUID());
         ticks(1);
         assertFalse(service.isCycling(player));
         assertEquals(Material.STONE, target.getType());
@@ -465,7 +465,7 @@ public class HandPickServiceTest {
         service.setSettings(settings(true, 0, true));
         ticks(1);
         assertEquals("STRATUM I  ⛏ ∞  75%", actionBars.getLast());
-        site.setDirector(UUID.randomUUID());
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, UUID.randomUUID());
         ticks(1);
         assertEquals("Not authorised to work here", actionBars.getLast());
         assertEquals(Material.STONE, target.getType());
@@ -696,7 +696,7 @@ public class HandPickServiceTest {
     @Test
     public void revokedPermitBeforeReleaseLiftsNothingAndSaysWhy() {
         awaitReady();
-        site.setDirector(UUID.randomUUID());
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, UUID.randomUUID());
         service.finish(player);
         assertEquals(Material.STONE, target.getType());
         assertEquals(10, site.getJornadaPickLeft());
@@ -792,7 +792,7 @@ public class HandPickServiceTest {
     @Test
     public void refusalRepeatsOnlyAfterTheWarningCooldown() {
         java.util.concurrent.atomic.AtomicLong now = new java.util.concurrent.atomic.AtomicLong(1_000_000); service.clock = now::get;
-        site.setDirector(UUID.randomUUID());
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(site, UUID.randomUUID());
         service.noteMining(player, target);
         now.addAndGet(2999); service.noteMining(player, target);
         verify(player, times(1)).sendMessage("You are not authorised to work on this excavation.");
@@ -836,7 +836,7 @@ public class HandPickServiceTest {
                 anyDouble(), anyDouble(), anyDouble(), anyDouble(), any());
         doNothing().when(worker).spawnParticle(any(Particle.class), any(Location.class), anyInt(),
                 anyDouble(), anyDouble(), anyDouble(), anyDouble());
-        site.getExcavators().add(worker.getUniqueId());
+        site.getExcavators().add(net.tfminecraft.archaeo.CharacterTestSupport.actor(site, worker.getUniqueId()));
         return worker;
     }
 
@@ -912,5 +912,9 @@ public class HandPickServiceTest {
                 @Override public float getBreakSpeed(Player player) { return breakProgress; }
             });
         }
+    }
+
+    @Test public void outgoingNoncurrentMiningCleanupCannotCancelANewerCharacterCycle(){
+        var a=new net.tfminecraft.tlibs.character.CharacterRef(player.getUniqueId(),UUID.randomUUID());var b=new net.tfminecraft.tlibs.character.CharacterRef(player.getUniqueId(),UUID.randomUUID());var first=new net.tfminecraft.tlibs.character.CharacterSession(a,1);var second=new net.tfminecraft.tlibs.character.CharacterSession(b,2);site.getActorRefs().put(a.characterId(),a);site.getActorRefs().put(b.characterId(),b);site.setDirector(a.characterId());site.grantExcavator(b.characterId());net.tfminecraft.archaeo.CharacterTestSupport.sessions.put(player.getUniqueId(),first);net.tfminecraft.archaeo.ownership.CharacterWork.start(server.getPluginManager().getPlugin("MockPlugin"));service.noteMining(player,target);assertTrue(service.isCycling(player));net.tfminecraft.archaeo.CharacterTestSupport.sessions.put(player.getUniqueId(),second);server.getPluginManager().callEvent(new net.tfminecraft.tlibs.character.CharacterSessionEndEvent(player,first,net.tfminecraft.tlibs.character.CharacterSessionEndEvent.Reason.SWITCH));assertFalse(service.isCycling(player));service.noteMining(player,target);assertTrue(service.isCycling(player));server.getPluginManager().callEvent(new net.tfminecraft.tlibs.character.CharacterSessionEndEvent(player,first,net.tfminecraft.tlibs.character.CharacterSessionEndEvent.Reason.QUIT));assertTrue(service.isCycling(player));assertNull(site.workerRecord(b.characterId()).getLastActiveAt());
     }
 }

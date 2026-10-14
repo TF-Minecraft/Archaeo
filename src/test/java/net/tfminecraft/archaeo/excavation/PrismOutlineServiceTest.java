@@ -43,7 +43,7 @@ public class PrismOutlineServiceTest {
 
     @Before
     public void setup() {
-        server = MockBukkit.mock();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock();
         world = new DisplayWorld(server);
         world.setName("outline");
         server.addWorld(world);

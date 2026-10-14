@@ -43,7 +43,7 @@ public class PackPluginHookIT {
     private final Map<String, EventPriority> priorities = new HashMap<>();
 
     @Before public void setup() throws Exception {
-        ServerMock mockServer = MockBukkit.mock(); player = mockServer.addPlayer();
+        ServerMock mockServer = net.tfminecraft.archaeo.CharacterTestSupport.mock(); player = mockServer.addPlayer();
         plugin = mock(ArcheologyPlugin.class); Server server = mock(Server.class); plugins = mock(PluginManager.class);
         sketch = mock(SketchService.class); museum = mock(MuseumListener.class); logger = mock(Logger.class);
         when(plugin.getServer()).thenReturn(server); when(server.getPluginManager()).thenReturn(plugins);

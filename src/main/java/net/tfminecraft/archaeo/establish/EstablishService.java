@@ -47,6 +47,10 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class EstablishService {
     private final JavaPlugin plugin;
+    private final net.tfminecraft.archaeo.ownership.CharacterWork moveIdentity;
+    private final net.tfminecraft.archaeo.ownership.CharacterWork renameIdentity;
+    public net.tfminecraft.tlibs.character.CharacterSession renameSession(Player player) { return renameIdentity.token(player); }
+    public net.tfminecraft.tlibs.character.CharacterSession moveSession(Player player) { return moveIdentity.token(player); }
     private final SiteRepository sites;
     private final EstablishItem item;
     private EstablishSettings settings;
@@ -76,6 +80,8 @@ public class EstablishService {
             EstablishSettings settings
     ) {
         this.plugin = plugin;
+        this.moveIdentity = new net.tfminecraft.archaeo.ownership.CharacterWork(plugin, this::cancelRelocate);
+        this.renameIdentity = new net.tfminecraft.archaeo.ownership.CharacterWork(plugin, this::abortRename);
         this.sites = sites;
         this.item = item;
         this.settings = settings;
@@ -148,6 +154,8 @@ public class EstablishService {
             return;
         }
         for (Player player : plugin.getServer().getOnlinePlayers()) {
+            if (relocating.containsKey(player.getUniqueId()) && !moveIdentity.current(player)) cancelRelocate(player);
+            if(net.tfminecraft.archaeo.ownership.CharacterActors.session(player).isEmpty()){clearPreview(player);hideHud(player);continue;}
             Site moving = relocatingSite(player);
             if (moving != null) {
                 pulsePlacement(player, moving, true);
@@ -184,7 +192,7 @@ public class EstablishService {
      */
     private void pulsePlacement(Player player, Site site, boolean moving) {
         CampPlacement placement = assess(player, site, aimBlock(player, site));
-        lastPulse.put(player.getUniqueId(), new Pulse(site.getId(), placement));
+        lastPulse.put(player.getUniqueId(), new Pulse(site.getId(), placement, net.tfminecraft.archaeo.ownership.CharacterActors.session(player).orElseThrow()));
         applyGhosts(player, site, placement);
         if (placement.allowed()) {
             String action = moving
@@ -295,6 +303,8 @@ public class EstablishService {
      * @param site excavation
      */
     public void beginRelocate(Player player, Site site) {
+        if (!site.isDirector(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) return;
+        moveIdentity.capture(player);
         relocating.put(player.getUniqueId(), site.getId());
         woolChoicePrimary.remove(player.getUniqueId());
         woolChoiceSecondary.remove(player.getUniqueId());
@@ -308,6 +318,8 @@ public class EstablishService {
      * @param site excavation
      */
     public void beginRename(Player player, Site site) {
+        if (!site.isDirector(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) return;
+        renameIdentity.capture(player);
         renameForSite.put(player.getUniqueId(), site.getId());
         player.sendMessage("Type the new excavation name in chat, or type cancel.");
     }
@@ -328,7 +340,9 @@ public class EstablishService {
      * @param raw chat text
      * @return whether the message was consumed
      */
-    public boolean handleRenameChat(Player player, String raw) {
+    public boolean handleRenameChat(Player player, String raw) { return handleRenameChat(player, raw, renameIdentity.token(player)); }
+    public boolean handleRenameChat(Player player, String raw, net.tfminecraft.tlibs.character.CharacterSession captured) {
+        if (!renameIdentity.matches(player, captured) || !net.tfminecraft.archaeo.ownership.CharacterActors.current(captured, player)) return false;
         UUID siteId = renameForSite.remove(player.getUniqueId());
         if (siteId == null) {
             return false;
@@ -342,7 +356,7 @@ public class EstablishService {
             player.sendMessage("That excavation is no longer active.");
             return true;
         }
-        if (!site.isDirector(player.getUniqueId())) {
+        if (!site.isDirector(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) {
             return true;
         }
         String name = raw.replace('§', ' ').trim();
@@ -432,7 +446,7 @@ public class EstablishService {
      * @param role primary ({@code W}) or secondary ({@code R})
      */
     public void applyCampWool(Player player, Site site, DyeColor color, CampWoolRole role) {
-        if (!site.isDirector(player.getUniqueId())) {
+        if (!site.isDirector(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) {
             return;
         }
         DyeColor fallback = role == CampWoolRole.PRIMARY ? DyeColor.WHITE : DyeColor.RED;
@@ -594,6 +608,8 @@ public class EstablishService {
      * @param moving whether this is a director move
      */
     private void tryPlace(Player player, Site site, boolean moving) {
+        var actor=net.tfminecraft.archaeo.ownership.CharacterActors.session(player).orElse(null);
+        if(actor==null||site.isOwnershipHeld()||(moving&&!moveIdentity.current(player)))return;
         CampPlacement placement = lastAllowedPulse(player, site);
         if (placement == null) {
             placement = assess(player, site, aimBlock(player, site));
@@ -604,14 +620,10 @@ public class EstablishService {
         }
         clearPreview(player);
         World world = player.getWorld();
-        if (moving) {
-            for (BlockCell cell : List.copyOf(site.getCampBlocks())) {
-                world.getBlockAt(cell.x(), cell.y(), cell.z()).setType(Material.AIR, false);
-            }
-        }
-        for (CampPlacement.Ghost ghost : placement.ghosts()) {
-            world.getBlockAt(ghost.x(), ghost.y(), ghost.z()).setBlockData(ghost.data(), false);
-        }
+        Map<BlockCell,Map<String,Object>> changes=new java.util.LinkedHashMap<>();
+        if(moving)for(BlockCell cell:site.getCampBlocks())changes.put(cell,placementBlock(world,cell,Material.AIR.createBlockData()));
+        for(CampPlacement.Ghost ghost:placement.ghosts()){BlockCell cell=new BlockCell(ghost.x(),ghost.y(),ghost.z());changes.put(cell,placementBlock(world,cell,ghost.data()));}
+        String kit=null;if(!moving){org.bukkit.configuration.file.YamlConfiguration payload=new org.bukkit.configuration.file.YamlConfiguration();payload.set("kit",item.isEstablish(player.getInventory().getItemInMainHand())?player.getInventory().getItemInMainHand():player.getInventory().getItemInOffHand());kit=payload.saveToString();}
         site.getCampBlocks().clear();
         site.setCampSignX(null);
         site.setCampSignY(null);
@@ -637,26 +649,35 @@ public class EstablishService {
             removeMoveAimProxy(player);
         } else {
             site.establish(
-                    player.getUniqueId(),
+                    net.tfminecraft.archaeo.ownership.CharacterActors.remember(site, player),
                     campChunk.getX(),
                     campChunk.getZ(),
                     camp.getX(),
                     camp.getY(),
                     camp.getZ()
             );
-            consumeOne(player);
+
         }
         if (!moving) {
             noteMissingTerrain(player, world, site);
         }
-        sites.save(site);
+        java.nio.file.Path intent=sites.beginPlacement(site,actor,moving,world.getName(),new ArrayList<>(changes.values()),kit);
+        try{
+            sites.save(site);
+            if(!net.tfminecraft.archaeo.ownership.CharacterActors.current(actor,player))throw new IllegalStateException("Placement session ended before effects");
+            for(var entry:changes.entrySet()){BlockCell cell=entry.getKey();world.getBlockAt(cell.x(),cell.y(),cell.z()).setBlockData(Bukkit.createBlockData((String)entry.getValue().get("after")),false);}
+            if(!moving)consumeOne(player);
+            sites.completePlacement(site,intent);
+        }catch(RuntimeException failure){sites.holdPlacement(site,failure);throw failure;}
         if (findDust != null) {
             findDust.syncTimer();
         }
         // Every template has one sign piece, and an allowed placement plants all of them.
-        plugin.getServer().getScheduler().runTask(plugin, () -> CampSigns.write(
-                world.getBlockAt(site.getCampSignX(), site.getCampSignY(), site.getCampSignZ()),
-                site.publicName()));
+        int sx=site.getCampSignX(),sy=site.getCampSignY(),sz=site.getCampSignZ();String label=site.publicName();UUID director=site.getDirector();
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            if(!net.tfminecraft.archaeo.ownership.CharacterActors.current(actor,player)||site.isOwnershipHeld()||!director.equals(site.getDirector())||!java.util.Objects.equals(site.getCampSignX(),sx)||!java.util.Objects.equals(site.getCampSignY(),sy)||!java.util.Objects.equals(site.getCampSignZ(),sz)||!label.equals(site.publicName()))return;
+            CampSigns.write(world.getBlockAt(sx,sy,sz),label);
+        });
         player.playSound(player.getLocation(), Sound.BLOCK_WOODEN_BUTTON_CLICK_ON, SoundCategory.PLAYERS, 0.8f, 1.1f);
         if (moving) {
             player.sendMessage("Camp moved.");
@@ -670,11 +691,13 @@ public class EstablishService {
      * @param player kit holder
      * @return whether they already direct as many open camps as the config allows
      */
+    private static Map<String,Object> placementBlock(World world,BlockCell cell,BlockData desired){Map<String,Object> value=new java.util.LinkedHashMap<>();value.put("x",cell.x());value.put("y",cell.y());value.put("z",cell.z());value.put("before",world.getBlockAt(cell.x(),cell.y(),cell.z()).getBlockData().getAsString());value.put("after",desired.getAsString());return value;}
+
     private boolean atDirectorCap(Player player) {
         if (settings.unlimitedExcavations()) {
             return false;
         }
-        return sites.countDirectedCamps(player.getUniqueId()) >= settings.maxExcavations();
+        return sites.countDirectedCamps(net.tfminecraft.archaeo.ownership.CharacterActors.session(player).map(s -> s.ref()).orElse(null)) >= settings.maxExcavations();
     }
 
     /**
@@ -726,12 +749,13 @@ public class EstablishService {
      * @return excavation being relocated, or {@code null}
      */
     private Site relocatingSite(Player player) {
+        if(relocating.containsKey(player.getUniqueId())&&!moveIdentity.current(player)){cancelRelocate(player);return null;}
         UUID siteId = relocating.get(player.getUniqueId());
         if (siteId == null) {
             return null;
         }
         Site site = sites.findById(siteId).orElse(null);
-        if (site == null || !site.isCampLocked() || !site.isDirector(player.getUniqueId())) {
+        if (site == null || !site.isCampLocked() || !site.isDirector(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) {
             cancelRelocate(player);
             return null;
         }
@@ -780,7 +804,7 @@ public class EstablishService {
             if (site.getStatus() != SiteStatus.HIDDEN) {
                 continue;
             }
-            if (!site.isProspectConfirmed(player.getUniqueId())) {
+            if (!site.isProspectConfirmed(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) {
                 continue;
             }
             if (!here.getWorld().getName().equals(site.getWorldName())) {
@@ -890,6 +914,7 @@ public class EstablishService {
      */
     private CampPlacement lastAllowedPulse(Player player, Site site) {
         Pulse pulse = lastPulse.get(player.getUniqueId());
+        if (pulse != null && !net.tfminecraft.archaeo.ownership.CharacterActors.current(pulse.actor(), player)) { clearPreview(player); return null; }
         if (pulse == null || !pulse.siteId().equals(site.getId()) || !pulse.placement().allowed()) {
             return null;
         }
@@ -902,7 +927,7 @@ public class EstablishService {
      * @param siteId ruin or excavation the ghost belongs to
      * @param placement assessed ghost
      */
-    private record Pulse(UUID siteId, CampPlacement placement) {
+    private record Pulse(UUID siteId, CampPlacement placement, net.tfminecraft.tlibs.character.CharacterSession actor) {
     }
 
     /**

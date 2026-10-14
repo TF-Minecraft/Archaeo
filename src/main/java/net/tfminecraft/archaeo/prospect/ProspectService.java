@@ -36,6 +36,7 @@ import java.util.function.LongSupplier;
  */
 public class ProspectService {
     private final JavaPlugin plugin;
+    private final net.tfminecraft.archaeo.ownership.CharacterWork identity;
     private final CatalogRegistry catalogs;
     private final SiteRepository sites;
     private final ProspectItem item;
@@ -60,6 +61,7 @@ public class ProspectService {
             ProspectSettings settings
     ) {
         this.plugin = plugin;
+        this.identity = new net.tfminecraft.archaeo.ownership.CharacterWork(plugin, this::cancel);
         this.catalogs = catalogs;
         this.sites = sites;
         this.item = item;
@@ -118,9 +120,11 @@ public class ProspectService {
         if (onCooldown(player)) {
             return;
         }
+        if (channeling.containsKey(player.getUniqueId()) && !identity.current(player)) cancel(player);
         if (channeling.containsKey(player.getUniqueId())) {
             return;
         }
+        if (net.tfminecraft.archaeo.ownership.CharacterActors.session(player).isEmpty()) return;
         Location click = block.getLocation();
         Site site = sites.findByChunk(click.getWorld().getName(), click.getChunk().getX(), click.getChunk().getZ())
                 .orElse(null);
@@ -129,17 +133,18 @@ public class ProspectService {
             player.sendMessage("Soil sample analysed. No archaeological traces here.");
             return;
         }
-        if (site.isProspectConfirmed(player.getUniqueId())) {
+        net.tfminecraft.archaeo.ownership.CharacterActors.remember(site, player);
+        if (site.isProspectConfirmed(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) {
             armCooldown(player, 1500);
             sendConfirmed(player);
             return;
         }
         BlockCell cell = new BlockCell(block.getX(), block.getY(), block.getZ());
-        if (site.hasProspectSample(player.getUniqueId(), cell)) {
+        if (site.hasProspectSample(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player), cell)) {
             player.sendMessage("You already sampled this spot. Try another point.");
             return;
         }
-        if (tooClose(site, player.getUniqueId(), cell)) {
+        if (tooClose(site, net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player), cell)) {
             player.sendMessage("Sample farther apart (" + settings.minSampleDistance() + " blocks).");
             return;
         }
@@ -202,8 +207,12 @@ public class ProspectService {
         int total = Math.max(1, settings.useTicks());
         player.playSound(player.getLocation(), Sound.ITEM_HOE_TILL, SoundCategory.PLAYERS, 0.5f, 0.9f);
         showSampleProgress(player, 0, total);
+        var captured = identity.capture(player);
+        final BukkitTask[] capturedTask = {null};
         final int[] elapsed = {0};
         BukkitTask task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+            if (!net.tfminecraft.archaeo.ownership.CharacterActors.current(captured, player) || site.isOwnershipHeld()
+                    || sites.findById(site.getId()).orElse(null)!=site || site.getStatus()!=SiteStatus.HIDDEN) { identity.cancelCaptured(player, captured); capturedTask[0].cancel(); return; }
             if (!player.isOnline() || !item.isProspect(player.getInventory().getItemInMainHand())) {
                 cancel(player);
                 return;
@@ -234,6 +243,7 @@ public class ProspectService {
             cancel(player);
             finishSample(player, site, cell);
         }, 1L, 1L);
+        capturedTask[0] = task;
         channeling.put(player.getUniqueId(), task);
     }
 
@@ -245,14 +255,15 @@ public class ProspectService {
      * @param cell sample coordinates
      */
     private void finishSample(Player player, Site site, BlockCell cell) {
+        if(sites.findById(site.getId()).orElse(null)!=site||site.isOwnershipHeld()||site.getStatus()!=SiteStatus.HIDDEN)return;
         // begin() refused a repeated cell and one player runs one channel, so the point is new.
-        site.addProspectSample(player.getUniqueId(), cell);
+        site.addProspectSample(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player), cell);
         damageKit(player);
-        int count = site.prospectSamples(player.getUniqueId()).size();
+        int count = site.prospectSamples(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player)).size();
         int need = Math.max(1, settings.pointsRequired());
         ProspectResult result = resultFor(count, need);
         if (result == ProspectResult.CONFIRMED) {
-            site.confirmProspect(player.getUniqueId());
+            site.confirmProspect(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player));
         }
         sites.save(site);
         sendResult(player, site, result, count, need);
@@ -319,7 +330,7 @@ public class ProspectService {
         InterestSettings interest = catalogs.interest(site.getInterest());
         int extra = 0;
         if (interest.variation() > 0) {
-            int hash = Objects.hash(site.getId(), player.getUniqueId(), sampleIndex);
+            int hash = Objects.hash(site.getId(), net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player), sampleIndex);
             extra = Math.floorMod(hash, interest.variation() + 1);
         }
         int reading = interest.baseWealth() + extra;

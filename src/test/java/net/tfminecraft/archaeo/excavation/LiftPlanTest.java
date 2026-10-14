@@ -24,7 +24,7 @@ public class LiftPlanTest {
 
     @Before
     public void setup() {
-        world = MockBukkit.mock().addSimpleWorld("lift");
+        world = net.tfminecraft.archaeo.CharacterTestSupport.mock().addSimpleWorld("lift");
         site = new Site();
         StratumBand band = new StratumBand();
         band.setPresent(true);

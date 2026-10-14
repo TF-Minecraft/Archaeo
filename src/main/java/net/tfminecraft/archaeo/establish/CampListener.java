@@ -74,6 +74,8 @@ public class CampListener implements Listener {
     private final FindReportBook reportBook;
     private final CampArchiveBook archiveBook;
     private final CampClosure campClosure;
+    private final Map<UUID, net.tfminecraft.tlibs.character.CharacterSession> inviteSessions = new ConcurrentHashMap<>();
+    private final Map<UUID, net.tfminecraft.tlibs.character.CharacterSession> closeSessions = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> inviteForSite = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> closeForSite = new ConcurrentHashMap<>();
 
@@ -438,6 +440,7 @@ public class CampListener implements Listener {
             establish.abortRename(player);
             closeForSite.remove(player.getUniqueId());
             inviteForSite.put(player.getUniqueId(), site.getId());
+            inviteSessions.put(player.getUniqueId(), net.tfminecraft.archaeo.ownership.CharacterActors.session(player).orElseThrow());
             player.sendMessage("Type the player name in chat, or type cancel.");
         }
     }
@@ -592,7 +595,7 @@ public class CampListener implements Listener {
      * @param optionId phrase chosen among the three
      */
     private void fileStationReading(Player player, Site site, CampIdentifyBoard board, String optionId) {
-        if (!site.mayCatalog(player.getUniqueId())) {
+        if (!site.mayCatalog(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) {
             player.sendMessage("You are not authorised to write this record.");
             return;
         }
@@ -645,7 +648,7 @@ public class CampListener implements Listener {
      * @param site exhausted excavation
      */
     private void issueReport(Player player, Site site) {
-        if (!site.isDirector(player.getUniqueId())) {
+        if (!site.isDirector(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) {
             player.sendMessage("Only the director may issue the report.");
             return;
         }
@@ -672,8 +675,9 @@ public class CampListener implements Listener {
         }
         sites.save(site);
         player.sendMessage("Removed " + CampNames.of(player, member) + " from the excavation staff.");
-        Player online = player.getServer().getPlayer(member);
-        if (online != null) {
+        var ref=site.getActorRefs().get(member);
+        Player online = ref==null?null:player.getServer().getPlayer(ref.ownerId());
+        if (online != null&&ref.equals(net.tfminecraft.archaeo.ownership.CharacterActors.session(online).map(s->s.ref()).orElse(null))) {
             online.sendMessage("You may no longer work on " + site.publicName() + ".");
         }
         openStaff(player, site, true);
@@ -696,8 +700,9 @@ public class CampListener implements Listener {
         sites.save(site);
         player.sendMessage(CampNames.of(player, member) + " is now "
                 + role.displayName() + " on " + site.publicName() + ".");
-        Player online = player.getServer().getPlayer(member);
-        if (online != null) {
+        var ref=site.getActorRefs().get(member);
+        Player online = ref==null?null:player.getServer().getPlayer(ref.ownerId());
+        if (online != null&&ref.equals(net.tfminecraft.archaeo.ownership.CharacterActors.session(online).map(s->s.ref()).orElse(null))) {
             online.sendMessage("You are now " + role.displayName() + " on " + site.publicName()
                     + ". " + role.duty());
         }
@@ -760,24 +765,28 @@ public class CampListener implements Listener {
         String raw = event.getMessage().trim();
         if (establish.isRelocating(player) && raw.equalsIgnoreCase("cancel")) {
             event.setCancelled(true);
-            plugin.getServer().getScheduler().runTask(plugin, () -> establish.tryCancelMove(player));
+            var captured = establish.moveSession(player);
+            plugin.getServer().getScheduler().runTask(plugin, () -> { if (net.tfminecraft.archaeo.ownership.CharacterActors.current(captured, player) && java.util.Objects.equals(captured, establish.moveSession(player))) establish.tryCancelMove(player); });
             return;
         }
         if (inviteForSite.containsKey(player.getUniqueId())) {
             event.setCancelled(true);
-            plugin.getServer().getScheduler().runTask(plugin, () -> handleInviteChat(player, raw));
+            var captured = inviteSessions.get(player.getUniqueId());
+            plugin.getServer().getScheduler().runTask(plugin, () -> handleInviteChat(player, raw, captured));
             return;
         }
         if (closeForSite.containsKey(player.getUniqueId())) {
             event.setCancelled(true);
-            plugin.getServer().getScheduler().runTask(plugin, () -> handleCloseChat(player, raw));
+            var captured = closeSessions.get(player.getUniqueId());
+            plugin.getServer().getScheduler().runTask(plugin, () -> handleCloseChat(player, raw, captured));
             return;
         }
         if (!establish.isRenaming(player)) {
             return;
         }
         event.setCancelled(true);
-        plugin.getServer().getScheduler().runTask(plugin, () -> establish.handleRenameChat(player, raw));
+        var captured = establish.renameSession(player);
+        plugin.getServer().getScheduler().runTask(plugin, () -> establish.handleRenameChat(player, raw, captured));
     }
 
     /**
@@ -786,7 +795,14 @@ public class CampListener implements Listener {
      * @param player director
      * @param raw typed name
      */
-    private void handleInviteChat(Player player, String raw) {
+    @EventHandler public void characterEnded(net.tfminecraft.tlibs.character.CharacterSessionEndEvent event) {
+        Player player = event.getPlayer(); if (!event.getSession().ref().ownerId().equals(player.getUniqueId())) return;
+        if (event.getSession().equals(inviteSessions.get(player.getUniqueId()))) { inviteForSite.remove(player.getUniqueId()); inviteSessions.remove(player.getUniqueId()); }
+        if (event.getSession().equals(closeSessions.get(player.getUniqueId()))) { closeForSite.remove(player.getUniqueId()); closeSessions.remove(player.getUniqueId()); }
+        net.tfminecraft.archaeo.ownership.CharacterActors.endMenu(player, event.getSession());
+    }
+    private void handleInviteChat(Player player, String raw, net.tfminecraft.tlibs.character.CharacterSession captured) {
+        if (!java.util.Objects.equals(captured, inviteSessions.get(player.getUniqueId())) || !net.tfminecraft.archaeo.ownership.CharacterActors.current(captured, player)) return;
         UUID siteId = inviteForSite.remove(player.getUniqueId());
         if (siteId == null) {
             return;
@@ -796,18 +812,18 @@ public class CampListener implements Listener {
             return;
         }
         Site site = sites.findById(siteId).orElse(null);
-        if (site == null || !site.isCampLocked() || !site.isDirector(player.getUniqueId())) {
+        if (site == null || !site.isCampLocked() || !site.isDirector(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) {
             player.sendMessage("That excavation is no longer yours to staff.");
             return;
         }
-        OfflinePlayer target = CampNames.known(raw);
+        var target = net.tfminecraft.archaeo.ownership.CharacterActors.invited(raw).orElse(null);
         if (target == null) {
-            player.sendMessage("No one by that name is known here.");
+            player.sendMessage("No unique character by that name is known here. Use a character name or UUID.");
             inviteForSite.put(player.getUniqueId(), siteId);
             return;
         }
-        if (site.isDirector(target.getUniqueId()) || site.getExcavators().contains(target.getUniqueId())) {
-            player.sendMessage(CampNames.of(player, target.getUniqueId()) + " is already on the staff.");
+        if (site.isDirector(target.characterId()) || site.getExcavators().contains(target.characterId())) {
+            player.sendMessage(CampNames.of(player, target.characterId()) + " is already on the staff.");
             openStaff(player, site, true);
             return;
         }
@@ -818,11 +834,12 @@ public class CampListener implements Listener {
             openStaff(player, site, true);
             return;
         }
-        site.grantExcavator(target.getUniqueId());
+        net.tfminecraft.archaeo.ownership.CharacterActors.remember(site, target);
+        site.grantExcavator(target.characterId());
         sites.save(site);
-        String added = CampNames.of(player, target.getUniqueId());
+        String added = CampNames.of(player, target.characterId());
         player.sendMessage("Added " + added + " to the excavation staff.");
-        Player online = player.getServer().getPlayer(target.getUniqueId());
+        Player online = player.getServer().getPlayer(target.ownerId());
         if (online != null) {
             online.sendMessage("You may now excavate " + site.publicName() + ".");
         }
@@ -860,6 +877,7 @@ public class CampListener implements Listener {
         inviteForSite.remove(player.getUniqueId());
         establish.abortRename(player);
         closeForSite.put(player.getUniqueId(), site.getId());
+        closeSessions.put(player.getUniqueId(), net.tfminecraft.archaeo.ownership.CharacterActors.session(player).orElseThrow());
         int percent = site.completionPercent();
         if (site.isUnfinishedCut()) {
             player.sendMessage("This excavation is " + percent
@@ -875,7 +893,8 @@ public class CampListener implements Listener {
      * @param player director or server staff
      * @param raw typed line
      */
-    private void handleCloseChat(Player player, String raw) {
+    private void handleCloseChat(Player player, String raw, net.tfminecraft.tlibs.character.CharacterSession captured) {
+        if (!java.util.Objects.equals(captured, closeSessions.get(player.getUniqueId())) || !net.tfminecraft.archaeo.ownership.CharacterActors.current(captured, player)) return;
         UUID siteId = closeForSite.remove(player.getUniqueId());
         if (siteId == null) {
             return;
@@ -934,7 +953,9 @@ public class CampListener implements Listener {
             return null;
         }
         // Only players can hold an inventory view open on a Paper server.
-        return (Player) event.getWhoClicked();
+        Player player = (Player) event.getWhoClicked();
+        if (!net.tfminecraft.archaeo.ownership.CharacterActors.menuCurrent(player, event.getInventory())) { player.closeInventory(); return null; }
+        return player;
     }
 
     /**
@@ -959,7 +980,7 @@ public class CampListener implements Listener {
      * @return whether this person may still staff the live camp
      */
     private boolean staffing(Player player, Site site) {
-        return site.isCampLocked() && site.isDirector(player.getUniqueId());
+        return site.isCampLocked() && site.isDirector(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player));
     }
 
     /**
@@ -971,7 +992,7 @@ public class CampListener implements Listener {
         if (!site.isCampLocked()) {
             return false;
         }
-        return site.isDirector(player.getUniqueId())
+        return site.isDirector(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))
                 || player.hasPermission(catalogs.staffPermission());
     }
 
@@ -981,7 +1002,7 @@ public class CampListener implements Listener {
      * @return whether the signed text report can be printed from the finds list
      */
     private boolean mayIssueReport(Player player, Site site) {
-        return site.getStatus() == SiteStatus.EXHAUSTED && site.isDirector(player.getUniqueId());
+        return site.getStatus() == SiteStatus.EXHAUSTED && site.isDirector(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player));
     }
 
     /**

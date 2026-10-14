@@ -27,7 +27,7 @@ public class CatalogRegistryTest {
     private CatalogRegistry catalog;
 
     @Before public void setUp() throws Exception {
-        MockBukkit.mock();
+        net.tfminecraft.archaeo.CharacterTestSupport.mock();
         plugin = mock(JavaPlugin.class);
         folder = new File(temporary.getRoot(), "catalog");
         when(plugin.getDataFolder()).thenReturn(folder);

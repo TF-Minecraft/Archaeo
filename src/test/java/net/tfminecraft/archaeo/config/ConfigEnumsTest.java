@@ -16,7 +16,7 @@ import org.mockbukkit.mockbukkit.MockBukkit;
 public class ConfigEnumsTest {
     private JavaPlugin plugin;
     @Before public void setUp() {
-        MockBukkit.mock();
+        net.tfminecraft.archaeo.CharacterTestSupport.mock();
         plugin = mock(JavaPlugin.class);
         when(plugin.getLogger()).thenReturn(Logger.getLogger("ConfigEnumsTest"));
     }

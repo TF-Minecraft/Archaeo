@@ -28,7 +28,7 @@ public class MissingPackApiTest {
     private ClassLoader withoutPacks;
 
     @Before public void setup() {
-        MockBukkit.mock();
+        net.tfminecraft.archaeo.CharacterTestSupport.mock();
         plugin = mock(ArcheologyPlugin.class); Server server = mock(Server.class); plugins = mock(PluginManager.class);
         logger = mock(Logger.class); Plugin enabled = mock(Plugin.class); when(enabled.isEnabled()).thenReturn(true);
         when(plugin.getServer()).thenReturn(server); when(server.getPluginManager()).thenReturn(plugins); when(plugin.getLogger()).thenReturn(logger);

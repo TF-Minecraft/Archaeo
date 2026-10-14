@@ -77,7 +77,7 @@ public final class SketchCabinet implements InventoryHolder {
         inventory = Bukkit.createInventory(this, InventoryType.FURNACE, "Register");
         inventory.setItem(SLOT_FIND, recovered.standIn(template, site, find, catalogs));
         inventory.setItem(SLOT_REGISTER, registerControl());
-        player.openInventory(inventory);
+        net.tfminecraft.archaeo.ownership.CharacterActors.open(player, inventory);
     }
 
     /**

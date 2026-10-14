@@ -14,7 +14,7 @@ import static org.junit.Assert.*;
 
 public class ToolWearTest {
     private PlayerMock player;
-    @Before public void setUp() { MockBukkit.mock(); player = MockBukkit.getMock().addPlayer(); }
+    @Before public void setUp() { net.tfminecraft.archaeo.CharacterTestSupport.mock(); player = MockBukkit.getMock().addPlayer(); }
     @After public void tearDown() { MockBukkit.unmock(); }
 
     @Test

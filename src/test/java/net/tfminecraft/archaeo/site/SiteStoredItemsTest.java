@@ -49,7 +49,7 @@ public class SiteStoredItemsTest {
     private EntityEquipment equipment;
 
     @Before public void setUp() {
-        server = MockBukkit.mock(); plugin = MockBukkit.createMockPlugin();
+        server = net.tfminecraft.archaeo.CharacterTestSupport.mock(); plugin = MockBukkit.createMockPlugin();
         world = spy(new WorldMock()); server.addWorld(world); player = server.addPlayer();
         player.teleport(new Location(world, 2, 5, 2)); player.openInventory(Bukkit.createInventory(null, 9));
         recovered = new RecoveredFindItem(plugin); catalogs = mock(CatalogRegistry.class);
@@ -59,7 +59,7 @@ public class SiteStoredItemsTest {
                 Set.of(), Set.of(), FindProfile.OBJECT, List.of(), "");
         when(catalogs.artifact("pot")).thenReturn(template);
         site = new Site(); site.setId(UUID.randomUUID()); site.setName("Old camp"); site.setWorldName(world.getName());
-        site.establish(player.getUniqueId(), 0, 0, 2, 4, 2);
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(site, player.getUniqueId(), 0, 0, 2, 4, 2);
         BuriedFind find = new BuriedFind(); find.setId(UUID.randomUUID()); find.setArtifactId("pot");
         find.setState(FindState.RECOVERED); find.setStratumId("I"); find.setFindNumber(1); site.getFinds().add(find);
         artifact = recovered.create(template, site, find, player.getUniqueId(), "Good", false, catalogs);
@@ -83,6 +83,26 @@ public class SiteStoredItemsTest {
         doReturn(List.of(stand)).when(world).getEntitiesByClass(ArmorStand.class);
     }
     @After public void tearDown() { MockBukkit.unmock(); }
+
+    @Test public void heldChangedAndDeleteFailureRefusePurgeBeforeAnyInventoryCampOrSessionEffect()throws Exception{
+        for(String fault:List.of("held","changed","delete")){
+            site.setInterest(InterestLevel.LOW);site.setCreatedAt(java.time.Instant.EPOCH);
+            var root=java.nio.file.Files.createTempDirectory("archaeo-purge-refusal");var owner=spy(plugin);doReturn(root.toFile()).when(owner).getDataFolder();var actual=new SiteRepository(owner);actual.loadAll();net.tfminecraft.archaeo.CharacterTestSupport.save(actual,site);
+            player.getInventory().setItem(0,artifact.clone());player.getEnderChest().setItem(0,artifact.clone());site.getCampBlocks().add(new BlockCell(2,4,2));world.getBlockAt(2,4,2).setType(Material.WHITE_WOOL);
+            var path=root.resolve("sites/"+site.getId()+".yml");String before=java.nio.file.Files.readString(path);var purge=new SitePurge(owner,actual,autoRuins,establish,recover,dust,recovered,closure,sketch);
+            try{
+                if(fault.equals("held"))site.setOwnershipHeld(true);
+                else if(fault.equals("changed"))java.nio.file.Files.writeString(path,before+"external: retained\n");
+                if(fault.equals("delete")){
+                    try(var reads=mockStatic(net.tfminecraft.archaeo.ownership.SiteDocuments.class,CALLS_REAL_METHODS)){
+                        reads.when(()->net.tfminecraft.archaeo.ownership.SiteDocuments.read(path)).thenReturn(before);java.nio.file.Files.delete(path);java.nio.file.Files.createDirectory(path);java.nio.file.Files.writeString(path.resolve("child"),"blocked");assertThrows(IllegalStateException.class,()->purge.erase(site));
+                    }
+                    assertEquals("blocked",java.nio.file.Files.readString(path.resolve("child")));
+                }else{String disk=java.nio.file.Files.readString(path);assertThrows(IllegalStateException.class,()->purge.erase(site));assertEquals(disk,java.nio.file.Files.readString(path));}
+                assertSame(site,actual.findById(site.getId()).orElseThrow());assertTrue(actual.ownership().names().contains(site.getId()+".yml"));assertEquals(artifact,player.getInventory().getItem(0));assertEquals(artifact,player.getEnderChest().getItem(0));assertEquals(Material.WHITE_WOOL,world.getBlockAt(2,4,2).getType());verifyNoInteractions(establish,recover,autoRuins,dust);verify(dropped,never()).remove();verify(frame,never()).setItem(null);
+            }finally{site.setOwnershipHeld(false);try(var paths=java.nio.file.Files.walk(root)){for(var entry:paths.sorted(Comparator.reverseOrder()).toList())java.nio.file.Files.delete(entry);}}
+        }
+    }
 
     @Test public void renameRefreshesLoadedStorageAndDisplaysButPreservesOtherExcavations() {
         player.getInventory().setItem(0, artifact.clone()); player.getInventory().setItem(1, unrelated.clone());
@@ -118,8 +138,9 @@ public class SiteStoredItemsTest {
         assertEquals(Material.AIR, world.getBlockAt(2, 4, 2).getType()); assertEquals(Material.STONE, world.getBlockAt(3, 4, 2).getType());
         verify(dropped).remove(); verify(frame).setItem(null); verify(display).setItemStack(null); verify(equipment).setItem(EquipmentSlot.HEAD, null);
         var order = inOrder(establish, recover, autoRuins, sites, dust);
+        order.verify(sites).precheckErase(site);order.verify(sites).erase(site);
         order.verify(establish).abortSessionsFor(site.getId()); order.verify(recover).abortForSite(site.getId());
-        order.verify(autoRuins).forgetChunk(world.getName(), 0, 0); order.verify(sites).erase(site); order.verify(dust).syncTimer();
+        order.verify(autoRuins).forgetChunk(world.getName(), 0, 0); order.verify(dust).syncTimer();
     }
 
     @Test public void purgeClosesOnlyTheDeletedSitesOpenBoards() {

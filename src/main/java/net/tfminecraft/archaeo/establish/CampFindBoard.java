@@ -125,7 +125,7 @@ public final class CampFindBoard implements InventoryHolder {
                     ChatColor.WHITE + "Back",
                     ChatColor.GRAY + "Return to the finds register."));
         }
-        player.openInventory(inventory);
+        net.tfminecraft.archaeo.ownership.CharacterActors.open(player, inventory);
     }
 
     /**

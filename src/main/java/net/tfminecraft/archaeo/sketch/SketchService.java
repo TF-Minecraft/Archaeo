@@ -55,6 +55,7 @@ public class SketchService {
     private static final int AUTOSAVE_PERIOD_TICKS = 40;
 
     private final JavaPlugin plugin;
+    private final net.tfminecraft.archaeo.ownership.CharacterWork identity;
     private final SketchSupplies supplies;
     private final RecoveredFindItem recovered;
     private final SiteRepository sites;
@@ -97,6 +98,7 @@ public class SketchService {
             SketchSettings settings
     ) {
         this.plugin = plugin;
+        this.identity = new net.tfminecraft.archaeo.ownership.CharacterWork(plugin, player -> { if (sessions.containsKey(player.getUniqueId())) leave(player, false); });
         this.supplies = supplies;
         this.recovered = recovered;
         this.sites = sites;
@@ -530,7 +532,7 @@ public class SketchService {
             player.sendMessage(ChatColor.GOLD + "The record on this piece is complete.");
             return;
         }
-        if (!site.mayCatalog(player.getUniqueId())) {
+        if (!site.mayCatalog(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player))) {
             player.sendMessage(ChatColor.GOLD + "You are not authorised to write this record.");
             return;
         }
@@ -539,12 +541,13 @@ public class SketchService {
         }
         UUID siteId = site.getId();
         UUID findId = find.getId();
+        var actor=net.tfminecraft.archaeo.ownership.CharacterActors.session(player).orElse(null);
         plugin.getServer().getScheduler().runTask(plugin, () -> {
-            if (!player.isOnline()) {
+            if (!player.isOnline()||!net.tfminecraft.archaeo.ownership.CharacterActors.current(actor,player)) {
                 return;
             }
             Site live = sites.findById(siteId).orElse(null);
-            if (live == null) {
+            if (live == null||!live.mayCatalog(net.tfminecraft.archaeo.ownership.CharacterActors.id(live,player))) {
                 return;
             }
             new CampIdentifyBoard(siteId, findId, catalogs, recovered, true).open(player, live);
@@ -601,8 +604,9 @@ public class SketchService {
      * @param player holder
      */
     public void stampKitsLater(Player player) {
+        var actor=net.tfminecraft.archaeo.ownership.CharacterActors.session(player).orElse(null);
         plugin.getServer().getScheduler().runTask(plugin, () -> {
-            if (!player.isOnline()) {
+            if (!player.isOnline()||!net.tfminecraft.archaeo.ownership.CharacterActors.current(actor,player)) {
                 return;
             }
             unstackCarried(player);
@@ -628,8 +632,9 @@ public class SketchService {
             ItemStack cursor,
             ItemStack slot
     ) {
+        var actor=net.tfminecraft.archaeo.ownership.CharacterActors.session(player).orElse(null);
         plugin.getServer().getScheduler().runTask(plugin, () -> {
-            if (!player.isOnline()) {
+            if (!player.isOnline()||!net.tfminecraft.archaeo.ownership.CharacterActors.current(actor,player)) {
                 return;
             }
             player.getOpenInventory().setCursor(isEmpty(cursor) ? null : cursor);
@@ -650,16 +655,19 @@ public class SketchService {
      * @param stack unsigned sketch
      */
     public void enter(Player player, ItemStack stack) {
+        discardStale(player);
         if (!isSketchMap(stack) || isSigned(stack) || editing(player)) {
             return;
         }
+        if (net.tfminecraft.archaeo.ownership.CharacterActors.session(player).isEmpty()) return;
         hydrate(stack);
         unstackSketch(player, stack);
         MapView view = mapView(stack);
         if (view == null) {
             return;
         }
-        sessions.put(player.getUniqueId(), new SketchSession(view, sheets.get(view.getId())));
+        SketchSession captured = new SketchSession(view, sheets.get(view.getId())); captured.setActor(identity.capture(player));
+        sessions.put(player.getUniqueId(), captured);
         freeze(player);
         player.sendMessage(ChatColor.GOLD + "Editing field sketch.");
         player.sendMessage(ChatColor.WHITE + "Sneak paints. Right-click erases. Space changes ink.");
@@ -676,6 +684,8 @@ public class SketchService {
      */
     public void leave(Player player, boolean announce, ItemStack stack) {
         SketchSession session = sessions.remove(player.getUniqueId());
+        if(session==null)return;
+        identity.forget(player);
         thaw(player);
         hideHud(player);
         ItemStack target = matchesView(stack, session.view().getId())
@@ -727,6 +737,7 @@ public class SketchService {
      * @param hand main-hand stack after the change; {@code null} means empty
      */
     public void syncHand(Player player, ItemStack hand) {
+        discardStale(player);
         SketchSession session = sessions.get(player.getUniqueId());
         if (session != null) {
             if (!matchesView(hand, session.view().getId())) {
@@ -758,7 +769,10 @@ public class SketchService {
      * @param extras stacks involved in the click (cursor, clicked slot, hotbar swap)
      */
     public void syncHandLater(Player player, ItemStack... extras) {
+        SketchSession captured = sessions.get(player.getUniqueId());
+        var initiating = captured == null ? net.tfminecraft.archaeo.ownership.CharacterActors.session(player).orElse(null) : captured.actor();
         plugin.getServer().getScheduler().runTask(plugin, () -> {
+            if (!net.tfminecraft.archaeo.ownership.CharacterActors.current(initiating, player) || (captured != null && sessions.get(player.getUniqueId()) != captured)) return;
             SketchSession session = sessions.get(player.getUniqueId());
             if (session != null && !holdingThisSketch(player, session)) {
                 leave(player, true, java.util.Arrays.asList(extras));
@@ -774,7 +788,8 @@ public class SketchService {
      * @param raw chat line
      */
     public void handleSignChatLater(Player player, String raw) {
-        plugin.getServer().getScheduler().runTask(plugin, () -> handleSignChat(player, raw));
+        SketchSession captured = sessions.get(player.getUniqueId());
+        plugin.getServer().getScheduler().runTask(plugin, () -> { if (captured != null && sessions.get(player.getUniqueId()) == captured && net.tfminecraft.archaeo.ownership.CharacterActors.current(captured.actor(), player)) handleSignChat(player, raw); });
     }
 
     /**
@@ -784,6 +799,7 @@ public class SketchService {
      * @param player editor
      */
     public void askToSign(Player player) {
+        if(!editing(player))return;
         SketchSession session = sessions.get(player.getUniqueId());
         if (!session.sheet().hasInk()) {
             refuseBlankSign(player);
@@ -801,7 +817,7 @@ public class SketchService {
      */
     public boolean handleSignChat(Player player, String raw) {
         SketchSession session = sessions.get(player.getUniqueId());
-        if (session == null || !session.awaitingSign()) {
+        if (session == null || !net.tfminecraft.archaeo.ownership.CharacterActors.current(session.actor(), player) || !session.awaitingSign()) {
             return false;
         }
         if (raw.equalsIgnoreCase("cancel")) {
@@ -825,7 +841,7 @@ public class SketchService {
             player.sendMessage(ChatColor.GOLD + "The sketch is no longer with you. Nothing was signed.");
             return true;
         }
-        writeItem(sketch, session.sheet(), true, player.getName());
+        writeItem(sketch, session.sheet(), true, net.tfminecraft.tlibs.character.Characters.displayName(player));
         leave(player, false, sketch);
         player.sendMessage(ChatColor.GOLD + "Sketch signed. It can no longer be edited.");
         return true;
@@ -845,8 +861,10 @@ public class SketchService {
      * @param player possible editor
      * @return whether they are frozen in the prototype
      */
+    private void discardStale(Player player){SketchSession session=sessions.get(player.getUniqueId());if(session!=null&&!net.tfminecraft.archaeo.ownership.CharacterActors.current(session.actor(),player)){checkpoint(session);sessions.remove(player.getUniqueId(),session);identity.forget(player);thaw(player);hideHud(player);}}
+
     public boolean editing(Player player) {
-        return sessions.containsKey(player.getUniqueId());
+        SketchSession session=sessions.get(player.getUniqueId());return session!=null&&net.tfminecraft.archaeo.ownership.CharacterActors.current(session.actor(),player);
     }
 
     /**
@@ -916,6 +934,7 @@ public class SketchService {
      * @param player editor
      */
     public void erase(Player player) {
+        if(!editing(player))return;
         sessions.get(player.getUniqueId()).beginEraseStroke();
     }
 
@@ -954,6 +973,7 @@ public class SketchService {
                 continue;
             }
             SketchSession session = entry.getValue();
+            if (!net.tfminecraft.archaeo.ownership.CharacterActors.current(session.actor(), player)) { checkpoint(session); sessions.remove(entry.getKey(), session); thaw(player); hideHud(player); continue; }
             if (!holdingThisSketch(player, session)) {
                 leave(player, true);
                 continue;

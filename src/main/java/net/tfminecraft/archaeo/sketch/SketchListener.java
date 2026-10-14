@@ -184,6 +184,7 @@ public class SketchListener implements Listener {
         }
         Player player = (Player) event.getWhoClicked();
         Inventory top = event.getView().getTopInventory();
+        if(!net.tfminecraft.archaeo.ownership.CharacterActors.menuCurrent(player,top)){event.setCancelled(true);player.closeInventory();return;}
         if (event.getClickedInventory() == top) {
             event.setCancelled(true);
             ItemStack next = sketches.handleCabinetClick(player, top, event.getSlot(), event.getCursor().clone());
@@ -211,6 +212,7 @@ public class SketchListener implements Listener {
         }
         Player player = (Player) event.getWhoClicked();
         event.setCancelled(true);
+        if(!net.tfminecraft.archaeo.ownership.CharacterActors.menuCurrent(player,event.getView().getTopInventory())){player.closeInventory();return;}
         if (event.getClickedInventory() != event.getView().getTopInventory()) {
             return;
         }
