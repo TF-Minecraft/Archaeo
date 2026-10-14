@@ -23,8 +23,12 @@ public final class SiteEstates implements EstateParticipant {
     }
     @Override public Holdings describe(UUID character){
         SiteOwnership store=repository.ownership();List<String> names=new ArrayList<>();
-        for(String name:store.names())if(store.plannedDirector(name).map(ref->ref.characterId().equals(character)).orElse(false)||(store.held(name)&&net.tfminecraft.tlibs.character.Characters.info(character).map(info->store.potentialOwner(name,info.ref())).orElse(false)))names.add(name+(store.held(name)?" (held: "+store.holds().get(name)+")":""));
+        for(String name:store.names())if(store.plannedDirector(name).map(ref->ref.characterId().equals(character)).orElse(false)||(store.held(name)&&net.tfminecraft.tlibs.character.Characters.info(character).map(info->store.potentialOwner(name,info.ref())).orElse(false)))names.add(label(store,name)+(store.held(name)?" (held: "+store.holds().get(name)+")":""));
         return new Holdings(Map.of("sites",names.size()),names);
+    }
+    private static String label(SiteOwnership store,String name){
+        String id=name.replace(".yml","");Map<String,Object> raw=store.documents().get(name);
+        return (raw!=null&&raw.get("name") instanceof String title&&!title.isBlank()?title:"Ruin site")+" "+id.substring(0,Math.min(8,id.length()));
     }
     private record Journal(Path path,Map<String,Object> value){}
     private record Inspection(List<Journal> journals,Map<Long,Set<String>> receipts,Map<Long,String> decisions,Map<String,Object> completion){}

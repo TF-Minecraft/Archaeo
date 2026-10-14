@@ -18,6 +18,8 @@ public final class SiteDocuments {
     public static Map<String,Object> parse(String text) throws IOException {
         try {
             LoaderOptions options=new LoaderOptions();options.setAllowDuplicateKeys(false);options.setAllowRecursiveKeys(false);
+            // Bukkit saves shared empty lists as aliases and reads them without SnakeYAML's 50-alias cap.
+            options.setMaxAliasesForCollections(Integer.MAX_VALUE);
             Object value=new Yaml(new SafeConstructor(options)).load(text);
             if(!(value instanceof Map<?,?> map))throw new IOException("Dossier must be an object");
             checkKeys(map,Collections.newSetFromMap(new IdentityHashMap<>()));return (Map<String,Object>)map;

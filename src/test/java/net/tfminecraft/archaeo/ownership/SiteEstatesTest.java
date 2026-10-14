@@ -92,6 +92,7 @@ public class SiteEstatesTest {
         assertEquals(first,participant.settle(decision(1,Recipient.character(to))));
         int revision=2;for(var recipient:List.of(Recipient.FROZEN,Recipient.WAITING)){var next=decision(revision++,recipient);activate(next);store.open();assertEquals(first,participant.settle(next));}
         assertEquals(Integer.valueOf(1),participant.describe(to.characterId()).counts().get("sites"));assertEquals(Integer.valueOf(0),participant.describe(from.characterId()).counts().get("sites"));
+        assertEquals(List.of("Ruin site "+id.toString().substring(0,8)),participant.describe(to.characterId()).labels());
     }
     @Test public void everyEstateWriteCutRecoversExactlyOnceAndStalePartialDecisionBlocks()throws Exception{
         for(int cut=1;cut<=3;cut++){

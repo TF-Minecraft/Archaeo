@@ -58,6 +58,12 @@ public class SiteOwnershipTest {
         save(id+".yml",raw);String before=Files.readString(root.resolve("sites/"+id+".yml"));SiteOwnership store=new SiteOwnership(root);store.open();assertTrue(store.held(id+".yml"));assertEquals(before,Files.readString(root.resolve("sites/"+id+".yml")));assertEquals(Optional.of(from),store.plannedDirector(id+".yml"));assertEquals(1,store.countOpen(from));
         var ownerless=raw(false);ownerless.put("id",UUID.randomUUID().toString());ownerless.put("director",null);ownerless.put("excavators",List.of());ownerless.put("status","HIDDEN");save(ownerless.get("id")+".yml",ownerless);store.open();assertFalse(store.held(ownerless.get("id")+".yml"));assertNull(SiteOwnership.director(store.documents().get(ownerless.get("id")+".yml")));
     }
+    @Test public void bukkitAliasedEmptyListsBeyondSnakeYamlDefaultLimitMigrate()throws Exception{
+        StringBuilder text=new StringBuilder(SiteDocuments.text(raw(false)).replaceAll("(?s)future:.*","")).append("cells:\n  - grazed: &id001 []\n");
+        for(int i=0;i<60;i++)text.append("  - grazed: *id001\n");
+        SiteDocuments.write(root.resolve("sites/"+id+".yml"),text.toString());SiteOwnership store=new SiteOwnership(root);store.open();
+        assertFalse(store.holds().toString(),store.held(id+".yml"));assertEquals(61,((List<?>)store.documents().get(id+".yml").get("cells")).size());
+    }
     @Test public void nestedDuplicateKeysAndMalformedSourcesRetainTheirOriginalBytes()throws Exception{
         for(String suffix:List.of("future: {null: null, null: changed}\n","future: &loop [*loop]\n","workers: {bad: {role: director}}\n")){
             Path folder=root.resolve(UUID.randomUUID().toString());String text=SiteDocuments.text(raw(false)).replaceAll("(?s)future:.*","")+suffix;SiteDocuments.write(folder.resolve("sites/"+id+".yml"),text);SiteOwnership store=new SiteOwnership(folder);store.open();assertTrue(store.held(id+".yml"));assertEquals(text,Files.readString(folder.resolve("sites/"+id+".yml")));assertEquals(text,Files.readString(folder.resolve("ownership/source/"+id+".yml")));
