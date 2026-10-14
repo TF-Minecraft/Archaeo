@@ -63,7 +63,10 @@ def same(left, right):
     if type(left) is not type(right):
         return False
     if isinstance(left, dict):
-        return left.keys() == right.keys() and all(same(left[key], right[key]) for key in left)
+        left_keys = {(type(key), key): key for key in left}
+        right_keys = {(type(key), key): key for key in right}
+        return left_keys.keys() == right_keys.keys() and all(
+            same(left[left_keys[key]], right[right_keys[key]]) for key in left_keys)
     if isinstance(left, list):
         return len(left) == len(right) and all(same(a, b) for a, b in zip(left, right))
     return left == right

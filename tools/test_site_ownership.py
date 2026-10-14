@@ -139,6 +139,23 @@ class RecoveryTests(unittest.TestCase):
         self.write_yaml(self.journal, dict(self.saved, after=yaml.safe_dump(output)))
         self.assertIn("error", sites.inspect(self.root)["journals"][0])
 
+        for previous, changed in ((False, 0), (True, 1), (1, 1.0)):
+            with self.subTest(previous=type(previous), changed=type(changed)):
+                original = copy.deepcopy(self.original)
+                original["future"]["typed-keys"] = {previous: "kept"}
+                before = yaml.safe_dump(original, sort_keys=False)
+                output = sites.migrated(original, self.mapping)
+                output["future"]["typed-keys"] = {changed: "kept"}
+                after = yaml.safe_dump(output, sort_keys=False)
+                self.write(self.source, before.encode())
+                self.write_yaml(self.plan, {"version": 1, "source": before, "legacy-map": self.mapping})
+                self.write_yaml(self.journal, dict(self.saved, before=before, after=after))
+                self.write(self.target, after.encode())
+                current = sites.hashes(self.root)
+                self.assertIn("apply_error", self.apply())
+                self.assertEqual(current, sites.hashes(self.root))
+                self.assertFalse(self.backup.exists())
+
     def test_fixed_mapping_archive_fullrefs_and_unsupported_versions_fail_closed(self):
         for key, value in [("version", 1.5), ("version", True), ("version", "1"), ("file", "../outside.yml")]:
             self.write_yaml(self.journal, dict(self.saved, **{key: value}))
