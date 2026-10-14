@@ -25,11 +25,12 @@ public final class SiteRawOverlay {
     private static Map<String,Object> merge(Map<String,Object> before,Map<String,Object> after,String path){
         Map<String,Object> result=SiteDocuments.copy(before);
         for(String key:fields(path,before,after)){
+            String child=path.isEmpty()?key:path+"."+key;
             if(!after.containsKey(key)){
-                if(before.containsKey(key))result.put(key,before.get(key) instanceof Map<?,?>?new LinkedHashMap<>():before.get(key) instanceof List<?>?new ArrayList<>():null);
+                if(before.containsKey(key))result.put(key,before.get(key) instanceof Map<?,?> map?merge(SiteDocuments.map(map),Map.of(),child):before.get(key) instanceof List<?>?new ArrayList<>():null);
                 continue;
             }
-            String child=path.isEmpty()?key:path+"."+key;Object old=before.get(key),value=after.get(key);
+            Object old=before.get(key),value=after.get(key);
             if(value instanceof Map<?,?>){result.put(key,merge(old instanceof Map<?,?>?SiteDocuments.map(old):Map.of(),SiteDocuments.map(value),child));}
             else if(value instanceof List<?> list&&(child.equals("finds")||child.equals("finds[].interpretations"))){
                 List<?> prior=old instanceof List<?> original?original:List.of();List<Object> rows=new ArrayList<>();
@@ -50,6 +51,8 @@ public final class SiteRawOverlay {
             if(!raw.containsKey(key)||raw.get(key)==null)continue;
             Object value=raw.get(key),typed=known.get(key);String child=path.isEmpty()?key:path+"."+key;
             if(value instanceof Map<?,?>&&typed instanceof Map<?,?>)check(SiteDocuments.map(value),SiteDocuments.map(typed),child);
+            else if(typed==null&&value instanceof Map<?,?>)check(SiteDocuments.map(value),Map.of(),child);
+            else if(typed==null&&value instanceof List<?> list&&list.isEmpty())continue;
             else if(value instanceof List<?> list&&(child.equals("finds")||child.equals("finds[].interpretations"))&&typed instanceof List<?> rows){
                 if(list.size()!=rows.size())throw new IOException("Unloaded dossier rows "+child);
                 for(int i=0;i<list.size();i++)check(SiteDocuments.map(list.get(i)),SiteDocuments.map(rows.get(i)),child+"[]");

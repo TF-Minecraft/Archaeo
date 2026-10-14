@@ -77,7 +77,7 @@ public class ArcheologyPlugin extends JavaPlugin {
         sites.start();
         if (net.tfminecraft.archaeo.ownership.CharacterActors.supports(getClass().getClassLoader(), true)) net.tfminecraft.archaeo.ownership.SiteEstates.start(this, sites);
         getServer().getScheduler().runTaskTimer(this, () -> {
-            if (!sites.ownership().holds().isEmpty()) { sites.flushDirty(); sites.loadAll(); }
+            if (sites.needsOwnershipReload()) sites.loadAll();
         }, 2L, 20L * 60 * 60);
         generator = new SiteGenerator(catalogs, sites);
         autoRuinLedger = new AutoRuinEvaluationLedger(this);

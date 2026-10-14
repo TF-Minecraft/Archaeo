@@ -409,9 +409,10 @@ public class SiteRepositoryTest {
     }
 
     @Test public void deletionAndErasureHoldExternallyChangedOrMissingDossiersWithoutRemovingTheInventory()throws Exception{
+        List<Site> originals=new ArrayList<>();for(int index=0;index<3;index++){Site fresh=site(index+1,"world",index,0,SiteStatus.HIDDEN);repository.save(fresh);originals.add(fresh);}
         for(boolean erase:List.of(false,true)){
-            Site site=site(1,"world",0,0,SiteStatus.HIDDEN);repository.save(site);String original=Files.readString(file(site).toPath());String changed=original+"external: retained\n";Files.writeString(file(site).toPath(),changed);assertThrows(IllegalStateException.class,()->{if(erase)repository.erase(site);else repository.delete(site);});assertEquals(changed,Files.readString(file(site).toPath()));assertTrue(repository.ownership().names().contains(site.getId()+".yml"));assertTrue(site.isOwnershipHeld());assertTrue(repository.findById(site.getId()).isPresent());
+            Site site=originals.get(erase?1:0);String original=Files.readString(file(site).toPath());String changed=original+"external: retained\n";Files.writeString(file(site).toPath(),changed);assertThrows(IllegalStateException.class,()->{if(erase)repository.erase(site);else repository.delete(site);});assertEquals(changed,Files.readString(file(site).toPath()));assertTrue(repository.ownership().names().contains(site.getId()+".yml"));assertTrue(site.isOwnershipHeld());assertTrue(repository.findById(site.getId()).isPresent());
         }
-        Site missing=site(3,"world",2,0,SiteStatus.HIDDEN);repository.save(missing);Files.delete(file(missing).toPath());assertThrows(IllegalStateException.class,()->repository.delete(missing));assertTrue(repository.ownership().held(missing.getId()+".yml"));assertTrue(repository.ownership().names().contains(missing.getId()+".yml"));assertTrue(repository.findById(missing.getId()).isPresent());
+        Site missing=originals.get(2);Files.delete(file(missing).toPath());assertThrows(IllegalStateException.class,()->repository.delete(missing));assertTrue(repository.ownership().held(missing.getId()+".yml"));assertTrue(repository.ownership().names().contains(missing.getId()+".yml"));assertTrue(repository.findById(missing.getId()).isPresent());
     }
 }

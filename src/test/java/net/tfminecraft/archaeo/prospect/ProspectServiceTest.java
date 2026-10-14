@@ -42,11 +42,17 @@ public class ProspectServiceTest {
         sites = mock(SiteRepository.class); catalogs = mock(CatalogRegistry.class);
         site = new Site(); site.setId(UUID.randomUUID()); site.setStatus(SiteStatus.HIDDEN); site.setInterest(InterestLevel.LOW);
         when(sites.findByChunk("world", 0, 0)).thenReturn(Optional.of(site));
+        when(sites.findById(site.getId())).thenReturn(Optional.of(site));
         when(catalogs.interest(InterestLevel.LOW)).thenReturn(new InterestSettings(InterestLevel.LOW, "Low", 8, 1, 1, 1, 0, 0, 0, 0, 0));
         service = new ProspectService(MockBukkit.createMockPlugin(), catalogs, sites,
                 new ProspectItem(ItemRef.vanilla(Material.IRON_HOE)), new ProspectSettings(true, 4, 2, 3));
     }
     @After public void tearDown() { MockBukkit.unmock(); }
+
+    @Test public void replacingTheCapturedSiteCancelsSamplingBeforeDurabilityOrProgressEffects(){
+        service.begin(player,ground(1,1));Site fresh=new Site();fresh.setId(site.getId());fresh.setStatus(SiteStatus.HIDDEN);when(sites.findById(site.getId())).thenReturn(Optional.of(fresh));server.getScheduler().performTicks(5);
+        assertTrue(site.allProspectSamples().isEmpty());assertTrue(fresh.allProspectSamples().isEmpty());assertEquals(0,((Damageable)player.getInventory().getItemInMainHand().getItemMeta()).getDamage());verify(sites,never()).save(any());
+    }
 
     @Test
     public void distinctSpacedSamplesProgressToConfirmationAndSpendOneDurabilityEach() {

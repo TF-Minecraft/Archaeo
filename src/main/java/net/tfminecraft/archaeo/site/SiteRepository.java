@@ -53,10 +53,11 @@ public class SiteRepository {
     private final net.tfminecraft.archaeo.ownership.SiteOwnership ownership;
     public net.tfminecraft.archaeo.ownership.SiteOwnership ownership() { return ownership; }
     public int countDirectedCamps(net.tfminecraft.tlibs.character.CharacterRef actor) { return ownership.countOpen(actor); }
-    public void releaseUntouchedPlan(UUID id){Site site=byId.get(id);if(site!=null&&ownership.ready()&&!ownership.held(id+".yml"))site.setOwnershipHeld(false);}
+    public void releaseUntouchedPlan(UUID id){Site site=byId.get(id);if(ownership.ready()&&!ownership.held(id+".yml")){if(site!=null)site.setOwnershipHeld(false);else loadAvailable(id+".yml");}}
     public void syncOwnershipHolds(){byId.values().forEach(site->{if(!ownership.ready()||ownership.held(site.getId()+".yml"))site.setOwnershipHeld(true);});}
     public void directorCommitted(UUID id, net.tfminecraft.tlibs.character.CharacterRef target) {
         Site site = byId.get(id);
+        if (site == null) { loadAvailable(id+".yml"); site=byId.get(id); }
         if (site != null) { site.setDirector(target.characterId()); net.tfminecraft.archaeo.ownership.CharacterActors.remember(site, target); site.setOwnershipHeld(false); }
     }
     private final File sitesFolder;
@@ -65,6 +66,7 @@ public class SiteRepository {
     private final Set<UUID> dirty = ConcurrentHashMap.newKeySet();
     private int nextSerial = 1;
     private final Set<UUID> retryWrites = new HashSet<>();
+    private final Map<Site,String> pendingConflictSnapshots=new java.util.IdentityHashMap<>();
     /** Last {@link #nextSerial} known to be on disk in {@code sites-index.yml}. */
     private int persistedSerial = 1;
     private BukkitTask flushTask;
@@ -83,25 +85,27 @@ public class SiteRepository {
     /**
      * Reads every {@code .yml} in the sites folder into a new map, then swaps it in so a failed
      * listing cannot wipe the live session. Temp files and {@code .trash/} are ignored.
+     * @return false while progress cannot be preserved or the whole inventory is unavailable
      */
-    public void loadAll() {
-        if(!dirty.isEmpty()){flushDirty();if(!dirty.isEmpty())return;}
+    public boolean loadAll() {
+        flushDirty();if(!dirty.isEmpty()||!pendingConflictSnapshots.isEmpty())return false;
+        Map<String,String> prior=new java.util.HashMap<>();for(Site site:byId.values())prior.put(site.getId()+".yml",ownership.before(site.getId()+".yml"));
         try { ownership.open(); }
         catch (IOException failure) {
             byId.values().forEach(site -> site.setOwnershipHeld(true));
-            plugin.getLogger().log(Level.WARNING, "Site ownership inventory unavailable", failure); return;
+            plugin.getLogger().log(Level.WARNING, "Site ownership inventory unavailable", failure); return false;
         }
         if (!sitesFolder.exists() && !sitesFolder.mkdirs()) {
             plugin.getLogger().warning("Could not create " + sitesFolder.getPath());
             if (!byId.isEmpty()) {
-                return;
+                return false;
             }
         }
         File[] files = sitesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
         if (files == null) {
             plugin.getLogger().warning("Could not list " + sitesFolder.getPath());
             if (!byId.isEmpty()) {
-                return;
+                return false;
             }
             files = new File[0];
         }
@@ -110,6 +114,8 @@ public class SiteRepository {
         for (File file : files) {
             try {
                 if (ownership.held(file.getName())) { plugin.getLogger().warning("Held dossier " + file.getName() + ": " + ownership.holds().get(file.getName())); continue; }
+                UUID id=UUID.fromString(file.getName().replace(".yml",""));Site existing=byId.get(id);
+                if(existing!=null&&!existing.isOwnershipHeld()&&java.util.Objects.equals(prior.get(file.getName()),ownership.before(file.getName()))){loaded.put(id,existing);serial=Math.max(serial,existing.getSerial()+1);continue;}
                 YamlConfiguration yaml = new YamlConfiguration(); yaml.loadFromString(ownership.before(file.getName()));
                 Site site = read(yaml);
                 net.tfminecraft.archaeo.ownership.SiteRawOverlay.validateReadable(ownership.documents().get(file.getName()), net.tfminecraft.archaeo.ownership.SiteDocuments.parse(write(site).saveToString()));
@@ -122,11 +128,23 @@ public class SiteRepository {
         }
         for(var raw:ownership.documents().values())if(raw.get("serial") instanceof Number value){long used=value.longValue();if(used>=1&&used<Integer.MAX_VALUE)serial=Math.max(serial,(int)used+1);}
         serial = Math.max(serial, readIndexSerial());
+        byId.forEach((id,site)->{if(loaded.get(id)!=site)site.setOwnershipHeld(true);});
         byId.clear();
         byId.putAll(loaded);
         dirty.clear();
         nextSerial = serial;
         persistedSerial = serial;
+        return true;
+    }
+
+    public boolean needsOwnershipReload(){return !ownership.ready()||!pendingConflictSnapshots.isEmpty()||!ownership.holds().isEmpty()||ownership.names().stream().anyMatch(name->!ownership.held(name)&&!byId.containsKey(UUID.fromString(name.replace(".yml",""))));}
+
+    private void loadAvailable(String name){
+        if(!ownership.ready()||ownership.held(name))return;
+        try{YamlConfiguration yaml=new YamlConfiguration();yaml.loadFromString(ownership.before(name));Site site=read(yaml);
+            net.tfminecraft.archaeo.ownership.SiteRawOverlay.validateReadable(ownership.documents().get(name),net.tfminecraft.archaeo.ownership.SiteDocuments.parse(write(site).saveToString()));
+            byId.putIfAbsent(site.getId(),site);nextSerial=Math.max(nextSerial,site.getSerial()+1);
+        }catch(Exception failure){ownership.hold(name,"Unloaded dossier: "+failure.getMessage());plugin.getLogger().log(Level.WARNING,"Could not load released dossier "+name,failure);}
     }
 
     /**
@@ -196,13 +214,18 @@ public class SiteRepository {
      * @return whether a ruin or a camp already uses that chunk
      */
     public boolean chunkOccupied(String world, int chunkX, int chunkZ) {
+        if(!ownership.ready())return true;
         if(findByChunk(world,chunkX,chunkZ).isPresent()||findByEstablishmentChunk(world,chunkX,chunkZ).isPresent())return true;
-        for(String name:ownership.holds().keySet()){
-            var raw=ownership.documents().get(name);if(raw==null||!(raw.get("world") instanceof String))return true;
+        Set<String> rawNames=new HashSet<>(ownership.names());rawNames.addAll(ownership.holds().keySet());
+        for(String name:rawNames){
+            if(!ownership.held(name)&&byId.containsKey(UUID.fromString(name.replace(".yml",""))))continue;
+            var frames=ownership.evidence(name);if(frames.isEmpty())return true;
+            for(var raw:frames){if(raw==null||!(raw.get("world") instanceof String))return true;
             if(!world.equalsIgnoreCase((String)raw.get("world")))continue;
             if(!(raw.get("chunk-x") instanceof Number x)||!(raw.get("chunk-z") instanceof Number z))return true;
             if(x.intValue()==chunkX&&z.intValue()==chunkZ)return true;
             Object place=raw.get("establishment");if(place instanceof Map<?,?> camp&&camp.get("chunk-x") instanceof Number cx&&camp.get("chunk-z") instanceof Number cz&&cx.intValue()==chunkX&&cz.intValue()==chunkZ)return true;
+            }
         }
         return false;
     }
@@ -417,21 +440,26 @@ public class SiteRepository {
     }
 
     public void erase(Site site) {
-        if(site!=null && (site.isOwnershipHeld()||ownership.held(site.getId()+".yml")))throw new IllegalStateException("Held dossier cannot be erased");
+        precheckErase(site);
         if (site == null || site.getId() == null) {
             return;
         }
         UUID id = site.getId();
-        requireDeletionSource(site);
-        byId.remove(id);
-        dirty.remove(id);
         File file = new File(sitesFolder, id + ".yml");
         if (file.exists() && !file.delete()) throw new IllegalStateException("Could not delete " + file.getName());
+        byId.remove(id);
+        dirty.remove(id);
         ownership.removed(id+".yml");retryWrites.remove(id);
         File trashed = new File(new File(sitesFolder, ".trash"), id + ".yml");
         if (trashed.exists() && !trashed.delete()) {
             plugin.getLogger().warning("Could not delete trash copy " + trashed.getName());
         }
+    }
+
+    public void precheckErase(Site site){
+        if(site==null||site.getId()==null)return;
+        if(!ownership.ready()||site.isOwnershipHeld()||ownership.held(site.getId()+".yml"))throw new IllegalStateException("Held dossier cannot be erased");
+        requireDeletionSource(site);
     }
 
     /**
@@ -445,6 +473,7 @@ public class SiteRepository {
         if (site == null || site.getId() == null) {
             throw new IllegalArgumentException("Site with id is required");
         }
+        rejectStale(site);
         if (site.isOwnershipHeld() && !retryWrites.contains(site.getId())) throw new IllegalStateException("Held dossier " + site.getId());
         byId.put(site.getId(), site);
         try {
@@ -464,10 +493,11 @@ public class SiteRepository {
      * @param site dossier whose RAM copy changed
      */
     public void touch(Site site) {
-        if (site != null && site.isOwnershipHeld()) throw new IllegalStateException("Held dossier cannot be changed");
         if (site == null || site.getId() == null) {
             return;
         }
+        rejectStale(site);
+        if (site.isOwnershipHeld()) throw new IllegalStateException("Held dossier cannot be changed");
         byId.put(site.getId(), site);
         dirty.add(site.getId());
     }
@@ -476,15 +506,33 @@ public class SiteRepository {
      * Commits every dirty dossier. Safe to call from the scheduler, disable, or reload.
      */
     public void flushDirty() {
+        for(var entry:List.copyOf(pendingConflictSnapshots.entrySet()))if(captureConflict(entry.getKey(),entry.getValue())&&byId.get(entry.getKey().getId())==entry.getKey()&&entry.getKey().isOwnershipHeld()&&!retryWrites.contains(entry.getKey().getId()))dirty.remove(entry.getKey().getId());
         // Every dirty id is in byId: touch and commit add both; delete, erase and loadAll drop both.
         for (UUID id : List.copyOf(dirty)) {
             Site site = byId.get(id);
             try {
+                if(site.isOwnershipHeld()&&!retryWrites.contains(id)){preserveHeld(site);continue;}
                 commit(site);
             } catch (RuntimeException exception) {
                 plugin.getLogger().log(Level.WARNING, "Could not flush site " + id, exception);
+                if(site.isOwnershipHeld()&&!retryWrites.contains(id))preserveHeld(site);
             }
         }
+    }
+
+    private void preserveHeld(Site site){
+        if(captureConflict(site,ownership.holds().getOrDefault(site.getId()+".yml","Dossier inventory unavailable")))dirty.remove(site.getId());
+    }
+
+    private boolean captureConflict(Site site,String reason){
+        try{net.tfminecraft.archaeo.ownership.SiteConflicts.capture(ownership,site.getId(),write(site).saveToString(),reason);pendingConflictSnapshots.remove(site);syncOwnershipHolds();return true;}
+        catch(IOException|RuntimeException failure){pendingConflictSnapshots.put(site,reason);plugin.getLogger().log(Level.SEVERE,"Unsaved conflict progress retained in memory; reload refused for "+site.getId(),failure);return false;}
+    }
+
+    private void rejectStale(Site site){
+        Site live=byId.get(site.getId());if(live==null||live==site)return;
+        captureConflict(site,"Stale runtime instance");
+        throw new IllegalStateException("Stale runtime instance cannot replace current dossier");
     }
 
     /**
@@ -504,12 +552,13 @@ public class SiteRepository {
             throw new IllegalStateException("Could not create " + sitesFolder.getPath());
         }
         try {
+            if(!ownership.ready()&&ownership.names().isEmpty()&&retryWrites.contains(site.getId()))ownership.open();
             String name = site.getId() + ".yml";
             var raw = ownership.documents().get(name);
             var known = net.tfminecraft.archaeo.ownership.SiteDocuments.parse(write(site).saveToString());
             ownership.save(site.getId(), net.tfminecraft.archaeo.ownership.SiteRawOverlay.patch(raw, known));
             retryWrites.remove(site.getId());site.setOwnershipHeld(false);
-        } catch (IOException failure) { site.setOwnershipHeld(true);if(failure instanceof net.tfminecraft.archaeo.ownership.SiteOwnership.Conflict){ownership.hold(site.getId()+".yml",failure.getMessage());retryWrites.remove(site.getId());}else retryWrites.add(site.getId());throw new IllegalStateException("Dossier requires reviewed recovery", failure); }
+        } catch (IOException|RuntimeException invalid) { IOException failure=invalid instanceof IOException io?io:new net.tfminecraft.archaeo.ownership.SiteOwnership.Conflict("Invalid runtime dossier",invalid);site.setOwnershipHeld(true);if(failure instanceof net.tfminecraft.archaeo.ownership.SiteOwnership.Conflict){ownership.hold(site.getId()+".yml",failure.getMessage());retryWrites.remove(site.getId());}else retryWrites.add(site.getId());throw new IllegalStateException("Dossier requires reviewed recovery", failure); }
         persistIndexIfNeeded();
     }
 

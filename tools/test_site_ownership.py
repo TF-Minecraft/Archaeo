@@ -79,6 +79,65 @@ class RecoveryTests(unittest.TestCase):
         self.assertFalse(self.journal.exists())
         self.assertTrue((self.root / "ownership/rolled-back/journals" / self.journal.name).exists())
 
+    def conflict(self):
+        key = str(uuid.uuid4())
+        path = self.root / "ownership/conflicts" / (key + ".yml")
+        captured = copy.deepcopy(self.output)
+        captured["recovered-count"] = 13
+        saved = {"version": 1, "kind": "runtime-conflict", "id": key, "file": self.name,
+                 "reason": "Post-load dossier edit", "source": self.after, "runtime": yaml.safe_dump(captured),
+                 "captured": yaml.safe_dump(captured), "current": self.after, "current-error": None}
+        self.write_yaml(path, saved)
+        return path, saved
+
+    def test_runtime_conflict_progress_prevents_rollback_even_when_current_migration_bytes_match(self):
+        path, saved = self.conflict()
+        original = path.read_bytes()
+        report = self.apply()
+        self.assertEqual("runtime conflict progress retained; manual recovery", report["journals"][0]["result"])
+        self.assertEqual("unsaved runtime progress retained; manual recovery", report["conflicts"][0]["result"])
+        self.assertEqual(original, path.read_bytes())
+        self.assertEqual(13, sites.document(saved["captured"])["recovered-count"])
+        self.assert_unchanged()
+        self.assertEqual(original, (self.backup / "data/ownership/conflicts" / path.name).read_bytes())
+
+    def test_malformed_runtime_conflict_inventory_globally_blocks_apply_without_effects(self):
+        path, saved = self.conflict()
+        for field, value in (("version", 1.5), ("file", "../bad.yml"), ("kind", "migration"),
+                             ("captured", "id: bad\n"), ("current-error", "unreadable")):
+            bad = copy.deepcopy(saved)
+            bad[field] = value
+            self.write_yaml(path, bad)
+            report = self.apply()
+            self.assertIn("error", report["conflicts"][0])
+            self.assertEqual("invalid inventory; no dossier changed", report["apply_error"])
+            self.assert_unchanged()
+            self.assertFalse(self.backup.exists())
+
+    def test_reviewed_conflict_archive_preserves_proof_and_keeps_migration_manual(self):
+        path, saved = self.conflict()
+        archive = self.root / "ownership/reconciled-conflicts" / path.name
+        original = path.read_bytes()
+        archive.parent.mkdir(parents=True)
+        path.rename(archive)
+        result = self.apply()
+        self.assertEqual("reviewed archive", result["conflicts"][0]["state"])
+        self.assertEqual("runtime conflict progress retained; manual recovery", result["journals"][0]["result"])
+        self.assertEqual(original, archive.read_bytes())
+        self.assertEqual(original, (self.backup / "data/ownership/reconciled-conflicts" / path.name).read_bytes())
+        self.assert_unchanged()
+
+    def test_malformed_reviewed_conflict_archive_blocks_all_apply_before_backup(self):
+        path, saved = self.conflict()
+        archive = self.root / "ownership/reconciled-conflicts" / path.name
+        saved["file"] = "bad.yml"
+        self.write_yaml(archive, saved)
+        result = self.apply()
+        self.assertEqual("invalid inventory; no dossier changed", result["apply_error"])
+        self.assertTrue(any("error" in row for row in result["conflicts"]))
+        self.assert_unchanged()
+        self.assertFalse(self.backup.exists())
+
     def test_gameplay_drift_and_new_dossier_are_preserved(self):
         changed = copy.deepcopy(self.output)
         changed["workers"][self.worker]["cells-brushed"] += 1

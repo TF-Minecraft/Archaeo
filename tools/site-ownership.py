@@ -230,6 +230,31 @@ def placement(path):
     return saved
 
 
+def runtime_conflict(path):
+    saved = document(text(path))
+    integral(saved.get("version"), 1)
+    fields = {"version", "kind", "id", "file", "reason", "source", "runtime", "captured", "current", "current-error"}
+    if set(saved) != fields or saved["kind"] != "runtime-conflict" or identity(saved["id"]) != path.stem:
+        raise ValueError("invalid runtime conflict header")
+    name = saved["file"]
+    if not isinstance(name, str) or not name.endswith(".yml") or identity(name[:-4]) + ".yml" != name:
+        raise ValueError("invalid runtime conflict dossier filename")
+    if not isinstance(saved["reason"], str) or not saved["reason"]:
+        raise ValueError("missing runtime conflict reason")
+    for field in ("source", "runtime", "captured"):
+        value = saved[field]
+        if value is None and field == "source":
+            continue
+        if not isinstance(value, str) or identity(document(value)["id"]) + ".yml" != name:
+            raise ValueError("runtime conflict snapshot identity mismatch")
+    for field in ("current", "current-error"):
+        if saved[field] is not None and not isinstance(saved[field], str):
+            raise ValueError("invalid runtime conflict current evidence")
+    if saved["current-error"] is not None and saved["current"] is not None:
+        raise ValueError("contradictory runtime conflict current evidence")
+    return saved
+
+
 def completion(path, receipts):
     saved = document(text(path))
     integral(saved.get("version"), 1)
@@ -336,8 +361,8 @@ def inspect(root, apply=False, backup=None):
         raise ValueError("plugin data directory is missing")
     if any(path.is_symlink() for path in root.rglob("*")):
         raise ValueError("symlink in plugin data requires manual recovery")
-    report = {"journals": [], "superseded": [], "completions": [], "placements": [], "held_dossiers": [], "unplanned_dossiers": []}
-    actions, estate_files, placement_files, planned = [], set(), set(), set()
+    report = {"journals": [], "superseded": [], "completions": [], "placements": [], "conflicts": [], "held_dossiers": [], "unplanned_dossiers": []}
+    actions, estate_files, placement_files, conflict_files, planned = [], set(), set(), set(), set()
     receipts, decisions, completed_ids = [], {}, set()
     def bind(saved):
         if saved["kind"] != "estate":
@@ -353,6 +378,17 @@ def inspect(root, apply=False, backup=None):
                 raise ValueError("duplicate completed estate property ID")
             completed_ids.add(key)
     failed = False
+    conflict_paths = sorted((root / "ownership/conflicts").glob("*.yml")) + sorted((root / "ownership/reconciled-conflicts").glob("*.yml"))
+    for path in conflict_paths:
+        row = {"journal": str(path)}
+        try:
+            saved = runtime_conflict(path)
+            conflict_files.add(saved["file"])
+            row.update({"file": saved["file"], "state": "held" if path.parent.name == "conflicts" else "reviewed archive", "result": "unsaved runtime progress retained; manual recovery"})
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, yaml.YAMLError) as error:
+            row["error"] = str(error)
+            failed = True
+        report["conflicts"].append(row)
     for path in sorted((root / "ownership/placements").glob("*.yml")):
         row = {"journal": str(path)}
         try:
@@ -413,7 +449,9 @@ def inspect(root, apply=False, backup=None):
         target = root / "sites" / saved["file"]
         archive = root / "ownership/rolled-back/journals" / path.name
         current = target.read_bytes() if target.is_file() else None
-        if saved["file"] in placement_files:
+        if saved["file"] in conflict_files:
+            row["result"] = "runtime conflict progress retained; manual recovery"
+        elif saved["file"] in placement_files:
             row["result"] = "placement history retained; manual recovery"
         elif saved["file"] in estate_files:
             row["result"] = "estate history retained; manual recovery"

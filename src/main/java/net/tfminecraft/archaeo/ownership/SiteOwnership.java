@@ -17,6 +17,7 @@ public final class SiteOwnership {
     private final Map<String,String> holds=new LinkedHashMap<>();
     private final Map<String,String> publicationHolds=new HashMap<>();
     private final Set<String> inventoryHolds=new HashSet<>();
+    private final Map<String,List<Map<String,Object>>> conflictEvidence=new LinkedHashMap<>();
     public Predicate<Map<String,Object>> estateGuard=ignored->false;
     private boolean ready;
     public static final class Conflict extends IOException { public Conflict(String message){super(message);} public Conflict(String message,Throwable cause){super(message,cause);} }
@@ -25,6 +26,8 @@ public final class SiteOwnership {
     public boolean ready(){return ready;}
     public Map<String,String> holds(){return Collections.unmodifiableMap(holds);}
     public Map<String,Map<String,Object>> documents(){return Collections.unmodifiableMap(documents);}
+    public List<Map<String,Object>> evidence(String name){List<Map<String,Object>> frames=new ArrayList<>();if(documents.containsKey(name))frames.add(documents.get(name));frames.addAll(conflictEvidence.getOrDefault(name,List.of()));return frames;}
+    void retainConflict(String name,List<Map<String,Object>> frames){expected.putIfAbsent(name,null);conflictEvidence.computeIfAbsent(name,ignored->new ArrayList<>()).addAll(frames);hold(name,"Unsaved runtime conflict requires offline reconciliation");inventoryHolds.add(name);}
     public static Map<String,Object> refs(Map<String,Object> document){return SiteDocuments.map(document.get("actor-refs"));}
     public static CharacterRef director(Map<String,Object> document){Object id=document.get("director");return id==null?null:CharacterActors.ref(refs(document).get(id));}
     private static void require(boolean condition,String cause)throws IOException{if(!condition)throw new Conflict(cause);}
@@ -36,7 +39,16 @@ public final class SiteOwnership {
         long number=((Number)value).longValue();require(number>=0,"Negative ownership version/revision");return number;
     }
     public void open()throws IOException{
-        ready=false;expected.clear();documents.clear();holds.clear();publicationHolds.clear();inventoryHolds.clear();Files.createDirectories(root.resolve("sites"));
+        Map<String,String> oldExpected=new LinkedHashMap<>(expected),oldHolds=new LinkedHashMap<>(holds),oldPublication=new HashMap<>(publicationHolds);
+        Map<String,Map<String,Object>> oldDocuments=new LinkedHashMap<>(documents);Set<String> oldInventory=new HashSet<>(inventoryHolds);
+        Map<String,List<Map<String,Object>>> oldEvidence=new LinkedHashMap<>(conflictEvidence);
+        try{openInventory();}catch(IOException|RuntimeException failure){
+            expected.clear();expected.putAll(oldExpected);documents.clear();documents.putAll(oldDocuments);holds.clear();holds.putAll(oldHolds);publicationHolds.clear();publicationHolds.putAll(oldPublication);inventoryHolds.clear();inventoryHolds.addAll(oldInventory);conflictEvidence.clear();conflictEvidence.putAll(oldEvidence);ready=false;
+            throw failure instanceof IOException io?io:new Conflict("Invalid whole dossier inventory",failure);
+        }
+    }
+    private void openInventory()throws IOException{
+        ready=false;expected.clear();documents.clear();holds.clear();publicationHolds.clear();inventoryHolds.clear();conflictEvidence.clear();Files.createDirectories(root.resolve("sites"));
         Map<UUID,List<String>> ids=new HashMap<>();
         // Preflight the complete inventory before any source publication or replay.
         for(Path path:files("sites")) {
@@ -51,7 +63,7 @@ public final class SiteOwnership {
             }catch(Exception failure){holds.put(name,failure.getMessage());}
         }
         for(List<String> copies:ids.values())if(copies.size()>1)for(String name:copies)holds.put(name,"Duplicate dossier ID");
-        SitePlacements.inventory(this);inventoryHolds.addAll(holds.keySet());
+        SitePlacements.inventory(this);SiteConflicts.inventory(this);inventoryHolds.addAll(holds.keySet());
         for(Path path:files("ownership/journals")) {
             Map<String,Object> journal=SiteDocuments.parse(Files.readString(path));String name=(String)journal.get("file");
             if(!Boolean.TRUE.equals(journal.get("done"))&&!holds.containsKey(name))try{publish(path,journal);}catch(IOException failure){holds.put(name,failure.getMessage());}
@@ -133,33 +145,42 @@ public final class SiteOwnership {
         }catch(Exception ignored){}return Optional.empty();
     }
     public boolean potentialOwner(String name,CharacterRef actor){
-        Map<String,Object> raw=documents.get(name);if(raw==null)return true;
+        if(conflictEvidence.containsKey(name))for(var raw:conflictEvidence.get(name))if(potentialOwner(raw,actor))return true;
+        Map<String,Object> raw=documents.get(name);if(raw==null)return !conflictEvidence.containsKey(name);
         long schema;try{schema=integral(raw.getOrDefault("schema",1));}catch(IOException invalid){return true;}if(schema!=1&&schema!=SCHEMA)return true;
         if(raw.get("director")==null)return false;
         Optional<CharacterRef> owner=plannedDirector(name);if(owner.isPresent())return owner.get().equals(actor);
         if(schema==1)return raw.get("director").equals(actor.ownerId().toString());return true;
     }
+    private static boolean potentialOwner(Map<String,Object> raw,CharacterRef actor){
+        if(raw==null)return true;try{long schema=integral(raw.getOrDefault("schema",1));if(raw.get("director")==null)return false;if(schema==1)return actor.ownerId().toString().equals(raw.get("director"));validate(raw);return actor.equals(director(raw));}catch(Exception invalid){return true;}
+    }
     public Set<String> names(){return Collections.unmodifiableSet(expected.keySet());}
     public int countOpen(CharacterRef actor){
         if(actor==null||!ready)return Integer.MAX_VALUE;int count=0;
-        for(String name:expected.keySet()) {var raw=documents.get(name);if(raw!=null&&Set.of("CLOSED","HIDDEN").contains(raw.get("status")))continue;if(potentialOwner(name,actor))count++;}
+        for(String name:expected.keySet()) {var frames=evidence(name);if(!frames.isEmpty()&&frames.stream().allMatch(raw->raw!=null&&("CLOSED".equals(raw.get("status"))||"HIDDEN".equals(raw.get("status")))))continue;if(potentialOwner(name,actor))count++;}
         return count;
     }
     public void checkInventory()throws IOException{checkInventory(Map.of());}
     public void checkInventory(Map<String,Set<String>> recoverable)throws IOException{
-        Set<String> current=new HashSet<>();
-        for(Path path:files("sites")){
+        Set<String> current=new HashSet<>(),changed=new TreeSet<>();List<Path> paths;
+        try{paths=files("sites");}catch(IOException failure){ready=false;throw failure;}
+        for(Path path:paths){
             String name=path.getFileName().toString();current.add(name);
-            try{String actual=Files.readString(path);require(Objects.equals(actual,expected.get(name))||recoverable.getOrDefault(name,Set.of()).contains(actual),"Post-load dossier inventory change "+name);}catch(IOException failure){holds.put(name,failure.getMessage());ready=false;throw failure;}
+            String actual;try{actual=Files.readString(path);}catch(IOException failure){hold(name,failure.getMessage());ready=false;throw failure;}
+            if(!Objects.equals(actual,expected.get(name))&&!recoverable.getOrDefault(name,Set.of()).contains(actual)){hold(name,"Post-load dossier inventory change "+name);inventoryHolds.add(name);changed.add(name);}
         }
-        if(!current.equals(expected.keySet())){for(String name:expected.keySet())if(!current.contains(name))holds.put(name,"Dossier removed after load");ready=false;throw new Conflict("Dossier inventory added/removed after load");}
+        for(String name:expected.keySet())if(!current.contains(name)){hold(name,"Dossier removed after load");inventoryHolds.add(name);changed.add(name);}
+        require(changed.isEmpty(),"Dossier inventory changed: "+changed);
     }
     public void removed(String name){expected.remove(name);documents.remove(name);holds.remove(name);}
     public void hold(String name,String cause){holds.put(name,cause);publicationHolds.remove(name);}
     public void releaseUntouchedPlan(Map<String,Object> journal){String name=(String)journal.get("file");if(!inventoryHolds.contains(name)&&Objects.equals(publicationHolds.get(name),journal.get("id"))){holds.remove(name);publicationHolds.remove(name);}}
     public boolean held(String name){return holds.containsKey(name);}
     public void save(UUID id,Map<String,Object> desired)throws IOException{
-        String name=id+".yml";require(ready&&!held(name),"Held dossier "+name);validate(desired);
+        String name=id+".yml";require(ready&&!held(name),"Held dossier "+name);
+        if(!expected.containsKey(name))checkInventory();
+        try{validate(desired);}catch(RuntimeException invalid){throw new Conflict("Invalid runtime dossier "+name,invalid);}
         String current=SiteDocuments.read(root.resolve("sites/"+name));require(Objects.equals(current,expected.get(name)),"Post-load dossier edit "+name);
         SiteDocuments.write(root.resolve("sites/"+name),SiteDocuments.text(desired));expected.put(name,SiteDocuments.text(desired));documents.put(name,SiteDocuments.copy(desired));
     }

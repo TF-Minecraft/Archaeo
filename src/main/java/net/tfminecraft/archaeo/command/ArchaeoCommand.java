@@ -248,7 +248,10 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                     catalogs.sketch().pencilUses());
             plugin.sketch().setSettings(catalogs.sketch());
             autoRuins.setSettings(catalogs.autoRuins());
-            sites.loadAll();
+            if(!sites.loadAll()){
+                sender.sendMessage("Config and catalogs reloaded; site reload refused while unsaved progress or the ownership inventory needs recovery.");
+                return true;
+            }
             sender.sendMessage("Reloaded Archaeo config, catalogs, and sites from disk.");
             sender.sendMessage(autoRuins.statusLine());
         } catch (RuntimeException exception) {
@@ -898,7 +901,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         String label = site.displayLabel();
-        sitePurge.erase(site);
+        try{sitePurge.erase(site);}catch(IllegalStateException refused){sender.sendMessage("Site deletion refused: "+refused.getMessage());return true;}
         sender.sendMessage("Deleted " + label + " as if it had never existed.");
         return true;
     }

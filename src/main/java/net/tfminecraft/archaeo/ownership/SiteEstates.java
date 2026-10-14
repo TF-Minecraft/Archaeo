@@ -23,7 +23,7 @@ public final class SiteEstates implements EstateParticipant {
     }
     @Override public Holdings describe(UUID character){
         SiteOwnership store=repository.ownership();List<String> names=new ArrayList<>();
-        for(String name:store.names())if(store.plannedDirector(name).map(ref->ref.characterId().equals(character)).orElseGet(()->store.held(name)&&net.tfminecraft.tlibs.character.Characters.info(character).map(info->store.potentialOwner(name,info.ref())).orElse(false)))names.add(name+(store.held(name)?" (held: "+store.holds().get(name)+")":""));
+        for(String name:store.names())if(store.plannedDirector(name).map(ref->ref.characterId().equals(character)).orElse(false)||(store.held(name)&&net.tfminecraft.tlibs.character.Characters.info(character).map(info->store.potentialOwner(name,info.ref())).orElse(false)))names.add(name+(store.held(name)?" (held: "+store.holds().get(name)+")":""));
         return new Holdings(Map.of("sites",names.size()),names);
     }
     private record Journal(Path path,Map<String,Object> value){}

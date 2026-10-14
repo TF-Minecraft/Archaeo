@@ -198,12 +198,20 @@ public class ArchaeoCommandTest {
         UUID id = site.getId(); int serial = site.getSerial();
         assertContains(run("ruin create low Duplicate"), "already");
         assertEquals(1, plugin.sites().all().size());
+        net.tfminecraft.archaeo.CharacterTestSupport.addProspectSample(site,staff.getUniqueId(),new BlockCell(1,40,1));plugin.sites().save(site);
         assertContains(run("ruin set-interest high #" + serial), "Rebuilt");
         assertEquals(net.tfminecraft.archaeo.model.InterestLevel.HIGH, site.getInterest());
         assertEquals(id, site.getId()); assertEquals("River ruin", site.getName());
+        assertTrue(plugin.sites().loadAll());assertFalse(plugin.sites().ownership().held(id+".yml"));assertTrue(plugin.sites().findById(id).orElseThrow().allProspectSamples().isEmpty());
         net.tfminecraft.archaeo.CharacterTestSupport.establish(site, staff.getUniqueId(), 0, 0, 2, 4, 2);
         assertFalse(run("ruin set-interest low #" + serial).isEmpty());
         assertEquals(net.tfminecraft.archaeo.model.InterestLevel.HIGH, site.getInterest());
+    }
+
+    @Test public void reloadReportsRefusalInsteadOfClaimingSitesWereReloaded()throws Exception{
+        Site site=dossier(1,"Unsaved");var file=plugin.getDataFolder().toPath().resolve("sites/"+site.getId()+".yml");java.nio.file.Files.writeString(file,java.nio.file.Files.readString(file)+"external: retained\n");site.setRecoveredCount(17);plugin.sites().touch(site);
+        var blocked=plugin.getDataFolder().toPath().resolve("ownership/conflicts");java.nio.file.Files.createDirectories(blocked.getParent());java.nio.file.Files.writeString(blocked,"not a directory");
+        var messages=run("reload");assertContains(messages,"site reload refused");assertFalse(messages.stream().anyMatch(line->line.contains("Reloaded Archaeo config, catalogs, and sites from disk")));assertSame(site,plugin.sites().findById(site.getId()).orElseThrow());assertEquals(17,site.getRecoveredCount());java.nio.file.Files.delete(blocked);plugin.sites().flushDirty();
     }
 
     @Test

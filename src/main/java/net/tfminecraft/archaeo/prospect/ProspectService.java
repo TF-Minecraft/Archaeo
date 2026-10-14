@@ -211,7 +211,8 @@ public class ProspectService {
         final BukkitTask[] capturedTask = {null};
         final int[] elapsed = {0};
         BukkitTask task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
-            if (!net.tfminecraft.archaeo.ownership.CharacterActors.current(captured, player) || site.isOwnershipHeld()) { identity.cancelCaptured(player, captured); capturedTask[0].cancel(); return; }
+            if (!net.tfminecraft.archaeo.ownership.CharacterActors.current(captured, player) || site.isOwnershipHeld()
+                    || sites.findById(site.getId()).orElse(null)!=site || site.getStatus()!=SiteStatus.HIDDEN) { identity.cancelCaptured(player, captured); capturedTask[0].cancel(); return; }
             if (!player.isOnline() || !item.isProspect(player.getInventory().getItemInMainHand())) {
                 cancel(player);
                 return;
@@ -254,6 +255,7 @@ public class ProspectService {
      * @param cell sample coordinates
      */
     private void finishSample(Player player, Site site, BlockCell cell) {
+        if(sites.findById(site.getId()).orElse(null)!=site||site.isOwnershipHeld()||site.getStatus()!=SiteStatus.HIDDEN)return;
         // begin() refused a repeated cell and one player runs one channel, so the point is new.
         site.addProspectSample(net.tfminecraft.archaeo.ownership.CharacterActors.id(site, player), cell);
         damageKit(player);
