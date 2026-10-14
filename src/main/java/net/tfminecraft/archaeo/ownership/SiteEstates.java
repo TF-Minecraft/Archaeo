@@ -27,10 +27,10 @@ public final class SiteEstates implements EstateParticipant {
         return new Holdings(Map.of("sites",names.size()),names);
     }
     private record Journal(Path path,Map<String,Object> value){}
-    private record Inspection(List<Journal> journals,Map<Long,Set<String>> receipts,Map<String,Object> completion){}
+    private record Inspection(List<Journal> journals,Map<Long,Set<String>> receipts,Map<Long,String> decisions,Map<String,Object> completion){}
     private static Inspection inspect(SiteOwnership store,EstateDecision decision)throws IOException{
         try{
-            List<Journal> journals=new ArrayList<>();Map<Long,Set<String>> receipts=new TreeMap<>();Set<String> completedIds=new HashSet<>();Map<String,Set<String>> recoverable=new HashMap<>();Map<Long,String> decisions=new HashMap<>();
+            List<Journal> journals=new ArrayList<>();Map<Long,Set<String>> receipts=new TreeMap<>();Set<String> completedIds=new HashSet<>(),recoverableHolds=new HashSet<>();Map<String,Set<String>> recoverable=new HashMap<>();Map<Long,String> decisions=new HashMap<>();
             for(Path path:store.files("ownership/journals")){
                 var journal=SiteDocuments.parse(Files.readString(path));if(!journal.containsKey("estate")&&!"estate".equals(journal.get("kind")))continue;var header=SiteDocuments.map(journal.get("estate"));UUID death=UUID.fromString((String)header.get("death"));if(!decision.deathId().equals(death))continue;store.validateReceipt(path,journal);if(!decision.testator().equals(CharacterActors.ref(header.get("from"))))throw new SiteOwnership.Conflict("Site receipt testator conflict");
                 long revision=SiteOwnership.integral(header.get("revision"));bindDecision(decisions,revision,(String)header.get("decision"));if(revision==decision.revision()&&(!decision.toString().equals(header.get("decision"))||!decision.property().character().map(CharacterActors::ref).equals(Optional.ofNullable(header.get("to")))))throw new SiteOwnership.Conflict("Same-revision site decision conflict");journals.add(new Journal(path,journal));String name=(String)journal.get("file");String id=name.replace(".yml","");
@@ -40,6 +40,7 @@ public final class SiteEstates implements EstateParticipant {
                     if(!same&&(revision>=decision.revision()||!Objects.equals(actual,journal.get("before"))))throw new SiteOwnership.Conflict("Stale published/conflicting site intent "+name);
                     if(same&&!Objects.equals(actual,journal.get("before"))&&!Objects.equals(actual,journal.get("after")))throw new SiteOwnership.Conflict("Conflicting pending site intent "+name);
                     recoverable.computeIfAbsent(name,ignored->new HashSet<>()).add((String)journal.get("before"));if(same)recoverable.get(name).add((String)journal.get("after"));
+                    if(store.publicationHeld(name,(String)journal.get("id")))recoverableHolds.add(name);
                 }
             }
             for(Path path:store.files("ownership/superseded")){
@@ -48,8 +49,13 @@ public final class SiteEstates implements EstateParticipant {
             Map<String,Object> completion=SiteCompletions.current(store,decision,receipts,decisions);
             if(completion!=null){SiteCompletions.unchangedRetention(store,decision,completion);for(Journal journal:journals)if(!Boolean.TRUE.equals(journal.value().get("done"))&&SiteOwnership.integral(SiteDocuments.map(journal.value().get("estate")).get("revision"))==decision.revision())throw new SiteOwnership.Conflict("Completed revision has an incomplete site intent");}
             for(String id:completedIds){String actual=SiteDocuments.read(store.root().resolve("sites/"+id+".yml"));if(actual!=null){var raw=SiteDocuments.parse(actual);SiteOwnership.validate(raw);if(decision.testator().equals(SiteOwnership.director(raw)))throw new SiteOwnership.Conflict("Completed source restored to testator "+id);}}
-            store.checkInventory(recoverable);return new Inspection(journals,receipts,completion);
+            store.checkInventory(recoverable);
+            for(String name:store.names())if(store.potentialOwner(name,decision.testator())&&(store.documents().get(name)==null||store.hasConflict(name)||(store.held(name)&&!store.holds().get(name).startsWith("Unloaded dossier")&&!recoverableHolds.contains(name))))throw new SiteOwnership.Conflict("Held possible site ownership "+name);
+            return new Inspection(journals,receipts,decisions,completion);
         }catch(Exception invalid){throw invalid instanceof IOException io?io:new SiteOwnership.Conflict("Invalid site estate inventory",invalid);}
+    }
+    static void validateCompletion(SiteOwnership store,EstateDecision decision,Path path,Map<String,Object> stamp)throws IOException{
+        Inspection checked=inspect(store,decision);SiteCompletions.validate(path,stamp,decision,checked.receipts(),checked.decisions());SiteCompletions.unchangedRetention(store,decision,stamp);
     }
     private static void bindDecision(Map<Long,String> decisions,long revision,String decision)throws IOException{String previous=decisions.putIfAbsent(revision,decision);if(previous!=null&&!previous.equals(decision))throw new SiteOwnership.Conflict("Site receipt full decisions disagree at revision "+revision);}
     public static void preflightPublication(SiteOwnership store,Map<String,Object> journal)throws IOException{

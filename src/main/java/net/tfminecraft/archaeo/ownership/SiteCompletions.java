@@ -36,7 +36,7 @@ final class SiteCompletions {
         try{if(!name.endsWith(".yml")||!name.equals(UUID.fromString(name.substring(0,name.length()-4))+".yml"))throw new IllegalArgumentException();}catch(IllegalArgumentException invalid){throw new SiteOwnership.Conflict("Invalid retained dossier UUID filename",invalid);}
     }
     static Map<String,Object> retained(SiteOwnership store,EstateDecision decision)throws IOException{
-        Map<String,Object> retained=new TreeMap<>();for(String name:store.names())if(store.potentialOwner(name,decision.testator())){validateRetainedName(name);retained.put(name,store.plannedDirector(name).map(CharacterActors::ref).orElse(null));}return retained;
+        Map<String,Object> retained=new TreeMap<>();for(String name:store.names())if(store.potentialOwner(name,decision.testator())){validateRetainedName(name);var owner=store.plannedDirector(name);if(owner.isPresent()&&!owner.get().equals(decision.testator()))throw new SiteOwnership.Conflict("Possible retained owner conflict "+name);retained.put(name,owner.map(CharacterActors::ref).orElse(null));}return retained;
     }
     static void unchangedRetention(SiteOwnership store,EstateDecision decision,Map<String,Object> stamp)throws IOException{
         if(!SiteDocuments.same(stamp.get("retained"),retained(store,decision)))throw new SiteOwnership.Conflict("Completed revision has new/remaining/resolved site ownership; a new revision is required");
@@ -45,6 +45,6 @@ final class SiteCompletions {
     static void write(SiteOwnership store,EstateDecision decision,Set<String> moved)throws IOException{
         if(decision.property().kind()==Recipient.Kind.ACCOUNT)throw new SiteOwnership.Conflict("Ledger account cannot direct a site");
         if(!Estates.guardHolds(decision))throw new IOException("Estate guard changed before completion");Map<String,Object> stamp=new LinkedHashMap<>();stamp.put("version",1);stamp.put("kind","estate-completion");stamp.put("death",decision.deathId().toString());stamp.put("revision",decision.revision());stamp.put("decision",decision.toString());stamp.put("from",CharacterActors.ref(decision.testator()));stamp.put("to",decision.property().character().map(CharacterActors::ref).orElse(null));stamp.put("property",decision.property().toString());stamp.put("counts",Map.of("sites",moved.size()));stamp.put("moved",List.copyOf(moved));stamp.put("retained",retained(store,decision));Path path=store.root().resolve("ownership/completions/"+decision.deathId()+"/"+decision.revision()+".yml");
-        if(Files.exists(path))throw new SiteOwnership.Conflict("Completion already exists");SiteDocuments.write(path,SiteDocuments.text(stamp));if(!Estates.guardHolds(decision))throw new IOException("Estate changed before completion acknowledgement");
+        if(Files.exists(path))throw new SiteOwnership.Conflict("Completion already exists");SiteEstates.validateCompletion(store,decision,path,stamp);if(!Estates.guardHolds(decision))throw new IOException("Estate changed before completion publication");SiteDocuments.write(path,SiteDocuments.text(stamp));if(!Estates.guardHolds(decision))throw new IOException("Estate changed before completion acknowledgement");
     }
 }

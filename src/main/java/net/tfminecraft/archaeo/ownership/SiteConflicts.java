@@ -24,7 +24,7 @@ public final class SiteConflicts {
         catch(IOException unreadable){record.put("current",null);record.put("current-error",unreadable.toString());}
         Path path=store.root().resolve("ownership/conflicts/"+id+".yml");
         if(Files.exists(path))throw new IOException("Conflict evidence already exists");
-        SiteDocuments.write(path,SiteDocuments.text(record));store.retainConflict(name,frames(record));return path;
+        SiteDocuments.write(path,SiteDocuments.text(record));store.retainConflict(name,frames(record),missing(store,record));return path;
     }
 
     public static Map<String,Object> validate(Path path)throws IOException{
@@ -48,9 +48,10 @@ public final class SiteConflicts {
     public static void inventory(SiteOwnership store)throws IOException{
         for(Path path:store.files("ownership/reconciled-conflicts"))validate(path);
         for(Path path:store.files("ownership/conflicts")){
-            var saved=validate(path);store.retainConflict((String)saved.get("file"),frames(saved));
+            var saved=validate(path);store.retainConflict((String)saved.get("file"),frames(saved),missing(store,saved));
         }
     }
+    private static boolean missing(SiteOwnership store,Map<String,Object> saved){return saved.get("current")==null&&saved.get("current-error")==null&&Files.notExists(store.root().resolve("sites/"+saved.get("file")));}
     private static List<Map<String,Object>> frames(Map<String,Object> saved){
         List<Map<String,Object>> frames=new ArrayList<>();
         for(String field:List.of("source","captured","current"))if(saved.get(field) instanceof String text){try{frames.add(SiteDocuments.parse(text));}catch(IOException unreadable){frames.add(null);}}

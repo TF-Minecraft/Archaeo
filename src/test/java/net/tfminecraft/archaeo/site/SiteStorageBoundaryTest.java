@@ -94,4 +94,24 @@ public class SiteStorageBoundaryTest {
     @Test public void incompleteCurrentConflictMetadataKeepsConservativeCapWithoutUncheckedStatusFailure()throws Exception{
         Site site=site(1);UUID actor=UUID.randomUUID();CharacterTestSupport.setDirector(site,actor);site.setStatus(SiteStatus.ESTABLISHED);repository.save(site);var current=SiteDocuments.parse(Files.readString(file(site)));current.remove("status");Files.writeString(file(site),SiteDocuments.text(current));site.setRecoveredCount(3);repository.touch(site);repository.flushDirty();assertTrue(repository.loadAll());assertEquals(1,repository.countDirectedCamps(new net.tfminecraft.tlibs.character.CharacterRef(actor,actor)));assertTrue(repository.ownership().held(site.getId()+".yml"));
     }
+
+    private Site unpublished(int serial){Site site=new Site();site.setId(UUID.randomUUID());site.setSerial(serial);site.setWorldName("world");site.setChunkX(serial);site.setStatus(SiteStatus.HIDDEN);site.setInterest(InterestLevel.LOW);site.setCreatedAt(Instant.EPOCH);return site;}
+
+    @Test public void refusedFirstCreationHasNoPhantomAndLaterCreationsSurviveReloadAndRestart()throws Exception{
+        Site a=site(1);String edited=Files.readString(file(a))+"external: retained\n";Files.writeString(file(a),edited);Site refused=unpublished(2);
+        assertThrows(IllegalStateException.class,()->repository.save(refused));repository.flushDirty();assertFalse(Files.exists(file(refused)));assertTrue(repository.findById(refused.getId()).isEmpty());assertFalse(repository.ownership().names().contains(refused.getId()+".yml"));assertFalse(repository.ownership().held(refused.getId()+".yml"));assertTrue(snapshots().isEmpty());assertTrue(a.isOwnershipHeld());assertEquals(edited,Files.readString(file(a)));
+        assertTrue(repository.loadAll());assertFalse(repository.ownership().held(a.getId()+".yml"));Site next=unpublished(3);repository.save(next);SiteRepository restarted=new SiteRepository(plugin);assertTrue(restarted.loadAll());Site last=unpublished(4);restarted.save(last);assertTrue(Files.exists(file(next)));assertTrue(Files.exists(file(last)));assertTrue(snapshots().isEmpty());assertTrue(restarted.ownership().holds().isEmpty());
+    }
+
+    @Test public void runtimeUnreadableFileHoldsOnlyItAndNeverCapturesHealthyDirtyNeighbour()throws Exception{
+        Site a=site(1),b=site(2);String original=Files.readString(file(a));byte[] unreadable=(original+"extension: caf\u00e9\n").getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);Files.write(file(a),unreadable);b.setRecoveredCount(17);repository.touch(b);Site refused=unpublished(3);
+        assertThrows(IllegalStateException.class,()->repository.save(refused));assertTrue(repository.ownership().ready());assertTrue(a.isOwnershipHeld());assertFalse(b.isOwnershipHeld());repository.flushDirty();assertEquals(17,SiteDocuments.parse(Files.readString(file(b))).get("recovered-count"));assertArrayEquals(unreadable,Files.readAllBytes(file(a)));assertTrue(snapshots().isEmpty());assertFalse(repository.ownership().held(refused.getId()+".yml"));
+        Files.writeString(file(a),original);assertTrue(repository.loadAll());SiteRepository restarted=new SiteRepository(plugin);assertTrue(restarted.loadAll());assertFalse(restarted.ownership().held(a.getId()+".yml"));assertFalse(restarted.ownership().held(b.getId()+".yml"));assertEquals(17,restarted.findById(b.getId()).orElseThrow().getRecoveredCount());assertTrue(snapshots().isEmpty());
+    }
+
+    @Test public void knownMissingConflictAllowsOtherCreationButLaterReappearanceIsStillUnexpected()throws Exception{
+        Site missing=site(1);UUID actor=UUID.randomUUID();CharacterTestSupport.setDirector(missing,actor);missing.setStatus(SiteStatus.ESTABLISHED);repository.save(missing);missing.setRecoveredCount(13);repository.touch(missing);Files.delete(file(missing));repository.flushDirty();assertEquals(1,snapshots().size());repository.ownership().checkInventory();
+        SiteRepository restarted=new SiteRepository(plugin);assertTrue(restarted.loadAll());restarted.ownership().checkInventory();Site other=unpublished(3);restarted.save(other);assertTrue(restarted.ownership().held(missing.getId()+".yml"));assertTrue(restarted.chunkOccupied("world",1,0));assertFalse(restarted.chunkOccupied("world",9,0));assertEquals(1,restarted.countDirectedCamps(new net.tfminecraft.tlibs.character.CharacterRef(actor,actor)));
+        Files.writeString(file(missing),(String)SiteDocuments.parse(Files.readString(snapshots().getFirst())).get("captured"));assertThrows(SiteOwnership.Conflict.class,()->restarted.ownership().checkInventory());assertTrue(restarted.ownership().held(missing.getId()+".yml"));
+    }
 }

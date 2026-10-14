@@ -214,13 +214,13 @@ public class SiteRepositoryTest {
         assertThrows(IllegalArgumentException.class, () -> net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, new Site()));
     }
 
-    @Test public void failedCommitRemainsDirtyAndSucceedsWhenStorageRecovers() throws Exception {
+    @Test public void refusedUnpublishedFirstSaveDoesNotRetainPhantomWhenStorageRecovers() throws Exception {
         Path sites = temporary.getRoot().toPath().resolve("sites"); Files.writeString(sites, "blocked");
         Site site = site(1, "world", 0, 0, SiteStatus.HIDDEN);
         assertThrows(IllegalStateException.class, () -> net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, site));
-        repository.flushDirty(); assertSame(site, repository.findById(site.getId()).orElseThrow());
-        repository.loadAll(); assertSame(site, repository.findById(site.getId()).orElseThrow());
-        Files.delete(sites); repository.flushDirty(); assertTrue(file(site).exists());
+        repository.flushDirty(); assertTrue(repository.findById(site.getId()).isEmpty());
+        assertFalse(repository.loadAll());assertTrue(repository.findById(site.getId()).isEmpty());
+        Files.delete(sites);assertTrue(repository.loadAll());Site replacement=site(1,"world",0,0,SiteStatus.HIDDEN);net.tfminecraft.archaeo.CharacterTestSupport.commit(repository,replacement);assertTrue(file(replacement).exists());assertFalse(repository.ownership().held(site.getId()+".yml"));
         assertFalse(new File(file(site).getPath() + ".tmp").exists());
     }
 
@@ -288,15 +288,15 @@ public class SiteRepositoryTest {
         assertEquals("RED", copy.getCampWoolSecondary());
     }
 
-    @Test public void uncreatableDataFolderPreservesLiveStateAndRejectsCommits() throws Exception {
+    @Test public void uncreatableDataFolderRejectsUnpublishedDossierWithoutCreatingAPhantom() throws Exception {
         File blocked = temporary.newFile("blocked");
         when(plugin.getDataFolder()).thenReturn(blocked);
         SiteRepository failed = new SiteRepository(plugin);
         failed.loadAll(); assertTrue(failed.all().isEmpty());
         Site site = site(1, "world", 0, 0, SiteStatus.HIDDEN); failed.touch(site);
-        failed.loadAll(); assertSame(site, failed.findById(site.getId()).orElseThrow());
+        assertFalse(failed.loadAll());assertTrue(failed.findById(site.getId()).isEmpty());
         assertThrows(IllegalStateException.class, () -> failed.commit(site));
-        failed.flushDirty(); assertSame(site, failed.findById(site.getId()).orElseThrow());
+        failed.flushDirty();assertTrue(failed.findById(site.getId()).isEmpty());assertFalse(failed.ownership().held(site.getId()+".yml"));assertFalse(failed.ownership().names().contains(site.getId()+".yml"));
     }
 
     @Test public void emptyRepositorySurvivesAnUnlistableSitesPath() throws Exception {

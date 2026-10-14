@@ -78,4 +78,9 @@ public class SiteOwnershipTest {
     @Test public void numericJournalIdCannotPassThroughMatchingFilenameCoercion()throws Exception{
         save(id+".yml",raw(false));SiteOwnership store=new SiteOwnership(root);store.open();var receipt=SiteDocuments.parse(Files.readString(store.files("ownership/journals").getFirst()));receipt.put("id",1);receipt.put("done",false);Path numeric=root.resolve("ownership/journals/1.yml");String current=store.before(id+".yml");assertThrows(IOException.class,()->store.publish(numeric,receipt));assertEquals(current,Files.readString(root.resolve("sites/"+id+".yml")));assertFalse(Files.exists(numeric));
     }
+
+    @Test public void validPendingPublicationCannotClearAnActiveRuntimeConflictHold()throws Exception{
+        save(id+".yml",raw(false));SiteOwnership store=new SiteOwnership(root);store.open();Path path=store.files("ownership/journals").getFirst();var pending=SiteDocuments.parse(Files.readString(path));pending.put("done",false);SiteDocuments.write(path,SiteDocuments.text(pending));Files.writeString(root.resolve("sites/"+id+".yml"),(String)pending.get("before"));
+        Path snapshot=SiteConflicts.capture(store,id,SiteDocuments.text(store.documents().get(id+".yml")),"Captured progress while a journal is pending");String before=Files.readString(root.resolve("sites/"+id+".yml")),journal=Files.readString(path),evidence=Files.readString(snapshot);var refusal=assertThrows(IOException.class,()->store.publish(path,pending));assertTrue(refusal.getMessage().contains("Runtime conflict requires offline reconciliation"));assertTrue(store.held(id+".yml"));assertEquals(before,Files.readString(root.resolve("sites/"+id+".yml")));assertEquals(journal,Files.readString(path));assertEquals(evidence,Files.readString(snapshot));
+    }
 }

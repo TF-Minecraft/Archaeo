@@ -475,14 +475,25 @@ public class SiteRepository {
         }
         rejectStale(site);
         if (site.isOwnershipHeld() && !retryWrites.contains(site.getId())) throw new IllegalStateException("Held dossier " + site.getId());
+        String name=site.getId()+".yml";Path path=sitesFolder.toPath().resolve(name);
+        boolean firstSave=!ownership.names().contains(name)&&unpublishedPath(path);
         byId.put(site.getId(), site);
         try {
             writeAtomic(site);
             dirty.remove(site.getId());
         } catch (RuntimeException exception) {
-            dirty.add(site.getId());
+            if(firstSave&&unpublishedPath(path)){
+                byId.remove(site.getId(),site);dirty.remove(site.getId());retryWrites.remove(site.getId());ownership.removed(name);
+            }else dirty.add(site.getId());
+            syncOwnershipHolds();
             throw exception;
         }
+    }
+
+    private static boolean unpublishedPath(Path path){
+        if(Files.notExists(path))return true;
+        for(Path parent=path.getParent();parent!=null;parent=parent.getParent())if(Files.isRegularFile(parent))return true;
+        return false;
     }
 
     /**
