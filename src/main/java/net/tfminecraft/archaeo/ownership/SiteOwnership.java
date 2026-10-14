@@ -185,7 +185,10 @@ public final class SiteOwnership {
         String name=id+".yml";require(ready&&!held(name),"Held dossier "+name);
         if(!expected.containsKey(name))checkInventory();
         try{validate(desired);}catch(RuntimeException invalid){throw new Conflict("Invalid runtime dossier "+name,invalid);}
-        String current=SiteDocuments.read(root.resolve("sites/"+name));require(Objects.equals(current,expected.get(name)),"Post-load dossier edit "+name);
+        String current;
+        try{current=SiteDocuments.read(root.resolve("sites/"+name));}
+        catch(IOException unreadable){hold(name,"Unreadable dossier before save "+name+": "+unreadable.getMessage());inventoryHolds.add(name);throw new Conflict("Unreadable dossier before save "+name,unreadable);}
+        require(Objects.equals(current,expected.get(name)),"Post-load dossier edit "+name);
         SiteDocuments.write(root.resolve("sites/"+name),SiteDocuments.text(desired));expected.put(name,SiteDocuments.text(desired));documents.put(name,SiteDocuments.copy(desired));
     }
     public String before(String name){return expected.get(name);}
