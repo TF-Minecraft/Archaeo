@@ -176,7 +176,7 @@ public class ArchaeoCommandTest {
         assertFalse(complete("ruin", "close", "").contains(hidden.getName()));
         assertTrue(complete("ruin", "delete", "con").contains("confirm"));
         assertTrue(complete("ruin", "info", "#").containsAll(List.of("#1", "#2")));
-        assertTrue(complete("ruin", "tp", "Old", "r").contains("Old ruin"));
+        assertTrue(complete("ruin", "tp", "Old", "r").contains("ruin"));
         assertTrue(complete("ruin", "camps", "#").contains("#2"));
         assertTrue(complete("ruin", "camps", "Archaeologist", "2").contains("#2"));
         assertTrue(complete("ruin", "delete", "#1", "confirm").isEmpty());
@@ -517,24 +517,146 @@ public class ArchaeoCommandTest {
                 new String[]{"ruin", "camps", "Nobody", "#"}, new String[]{"ruin", "camps", "Archaeologist", "#2", "x"}))
             assertTrue(String.join(" ", extra), complete(extra).isEmpty());
         assertEquals(List.of("Archaeologist"), complete("workday", "reset", "arch"));
-        assertEquals(List.of("Old ruin"), complete("ruin", "set-interest", "high", "Old", "r"));
+        assertEquals(List.of("ruin"), complete("ruin", "set-interest", "high", "Old", "r"));
         assertEquals(List.of("confirm"), complete("ruin", "close", "confirm"));
         assertEquals(List.of("Open camp"), complete("ruin", "close", "Open"));
-        assertEquals(List.of("Open camp", "confirm"), complete("ruin", "close", "Open", "c"));
+        assertEquals(List.of("camp", "confirm"), complete("ruin", "close", "Open", "c"));
         assertEquals(List.of("#2"), complete("ruin", "close", "2"));
         assertEquals(List.of("confirm"), complete("ruin", "delete", "confirm"));
         assertEquals(List.of("#1"), complete("ruin", "delete", "1"));
         assertTrue(complete("ruin", "delete", "z").isEmpty());
-        assertEquals(List.of("Old ruin"), complete("ruin", "delete", "Old", "r"));
+        assertEquals(List.of("ruin"), complete("ruin", "delete", "Old", "r"));
         assertEquals(List.of("#1"), complete("ruin", "info", "1"));
         assertTrue(complete("ruin", "info", "z").isEmpty());
-        assertEquals(List.of("Old ruin"), complete("ruin", "info", "Old", "r"));
+        assertEquals(List.of("ruin"), complete("ruin", "info", "Old", "r"));
         assertEquals(java.util.Set.of("#1", "#2"), new java.util.HashSet<>(complete("ruin", "tp", "#")));
         assertEquals(List.of("#2"), complete("ruin", "camps", "2"));
         assertTrue(complete("ruin", "camps", "z").isEmpty());
         assertEquals(List.of("#2"), complete("ruin", "camps", "Archaeologist", "#"));
         assertTrue(complete("ruin", "camps", "Archaeologist", "9").isEmpty());
         assertEquals(SiteStatus.HIDDEN, hidden.getStatus());
+    }
+
+    @Test public void acceptedNameCompletionsReplaceOnlyTheCurrentToken() {
+        Site hidden = dossier(1, "Old ruined city");
+        hidden.setSurfaceY(40);
+        for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++)
+            staff.getWorld().getBlockAt(x, 40, z).setType(Material.STONE);
+        Site camp = dossier(2, "Open camp");
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(camp, staff.getUniqueId(), 1, 0, 20, 4, 4);
+        for (String action : List.of("info", "tp", "delete", "set-interest high")) {
+            for (String query : List.of("Ol", "oLD r", "Old ", "Old ruined c", "Old ruined ")) {
+                String input = "ruin " + action + " " + query;
+                List<String> suggestions = complete(input.split(" ", -1)).stream()
+                        .filter(value -> !value.equals("confirm")).toList();
+                assertEquals(1, suggestions.size());
+                String accepted = input.substring(0, input.lastIndexOf(' ') + 1) + suggestions.getFirst();
+                assertEquals("ruin " + action + " " + (query.startsWith("oLD") ? "oLD ruined city" : "Old ruined city"), accepted);
+                assertFalse(run(accepted).stream().anyMatch(message -> message.contains("No site named")));
+            }
+        }
+        assertEquals(List.of("camp", "confirm"), complete("ruin", "close", "Open", ""));
+        assertContains(run("ruin close Open " + complete("ruin", "close", "Open", "ca").getFirst()), "Closed Open camp");
+        assertEquals(SiteStatus.CLOSED, camp.getStatus());
+        assertTrue(complete("ruin", "set-interest", "high", "Open", "").isEmpty());
+        assertEquals(List.of("confirm"), complete("ruin", "close", "Old", ""));
+    }
+
+    @Test public void optionalToolSlotIncludesExecutablePlayerShorthand() {
+        assertEquals(List.of("Archaeologist"), complete("give", "tool", "aRcH"));
+        assertEquals(List.of("Archaeologist"), complete("give", "pick", "aRcH"));
+        assertTrue(complete("give", "tool", "").contains("IRON_PICKAXE"));
+        assertTrue(complete("give", "tool", "").contains("Archaeologist"));
+        assertTrue(complete("give", "tool", "absent").isEmpty());
+        assertContains(run("give tool " + complete("give", "tool", "Arch").getFirst()), "Gave");
+    }
+
+    @Test public void optionalToolSlotOmitsCollidingPlayerAliasesButExplicitRecipientsStillWork() {
+        PlayerMock recipient = player("bRuSh");
+        player("BrushUser");
+        assertEquals(List.of("bRuSh", "BrushUser"), complete("give", "tool", "br"));
+        plugin.getConfig().set("excavation.tools.light.items", List.of("BRUSH"));
+        plugin.saveConfig();
+        assertContains(run("reload"), "Reloaded Archaeo");
+
+        for (String kind : List.of("tool", "pick")) {
+            for (String prefix : List.of("", "b", "bRu", "bRuSh")) {
+                List<String> suggestions = complete("give", kind, prefix);
+                assertTrue(suggestions.toString(), suggestions.contains("BRUSH"));
+                assertTrue(suggestions.toString(), suggestions.contains("BrushUser"));
+                assertFalse(suggestions.toString(), suggestions.contains("bRuSh"));
+                assertTrue(complete("give", kind, "BRUSH", prefix).contains("bRuSh"));
+            }
+            staff.getInventory().clear();
+            recipient.getInventory().clear();
+            String explicitRecipient = complete("give", kind, "BRUSH", "bRuSh").stream()
+                    .filter(name -> name.equals("bRuSh")).findFirst().orElseThrow();
+            assertContains(run("give " + kind + " BRUSH " + explicitRecipient), "to bRuSh");
+            assertTrue(recipient.getInventory().contains(Material.BRUSH));
+            assertTrue(staff.getInventory().isEmpty());
+
+            recipient.getInventory().clear();
+            assertContains(run("give " + kind + " " + complete("give", kind, "bRuSh").getFirst()), "to Archaeologist");
+            assertTrue(staff.getInventory().contains(Material.BRUSH));
+            assertTrue(recipient.getInventory().isEmpty());
+        }
+
+        plugin.getConfig().set("excavation.tools.light.items", List.of("AIR"));
+        plugin.saveConfig();
+        assertContains(run("reload"), "Reloaded Archaeo");
+        assertEquals(List.of("bRuSh", "BrushUser"), complete("give", "tool", "br"));
+    }
+
+    @Test public void optionalToolSlotKeepsCanonicalToolTokensThatAreAlsoPlayerNames() {
+        PlayerMock recipient = player("IRON_PICKAXE");
+        for (String kind : List.of("tool", "pick")) {
+            for (String prefix : List.of("", "iRoN_", "IRON_PICKAXE")) {
+                assertEquals(1L, complete("give", kind, prefix).stream()
+                        .filter(token -> token.equals("IRON_PICKAXE")).count());
+            }
+            staff.getInventory().clear();
+            recipient.getInventory().clear();
+            String explicitRecipient = complete("give", kind, "IRON_PICKAXE", "iRoN_").getFirst();
+            assertContains(run("give " + kind + " IRON_PICKAXE " + explicitRecipient), "to IRON_PICKAXE");
+            assertTrue(recipient.getInventory().contains(Material.IRON_PICKAXE));
+            assertTrue(staff.getInventory().isEmpty());
+        }
+    }
+
+    @Test public void campDirectorCompletionIncludesOfflineDirectoryIdsAndSafeNames() {
+        var identity = mock(net.tfminecraft.tlibs.character.CharacterIdentity.class);
+        UUID multiword = UUID.randomUUID(), single = UUID.randomUUID(), duplicate = UUID.randomUUID();
+        var info = new net.tfminecraft.tlibs.character.CharacterInfo(
+            new net.tfminecraft.tlibs.character.CharacterRef(UUID.randomUUID(), multiword), "Old Owner",
+            net.tfminecraft.tlibs.character.CharacterStatus.ALIVE, null, java.util.Set.of(), 0, null);
+        var safe = new net.tfminecraft.tlibs.character.CharacterInfo(
+            new net.tfminecraft.tlibs.character.CharacterRef(UUID.randomUUID(), single), "Director",
+            net.tfminecraft.tlibs.character.CharacterStatus.ALIVE, null, java.util.Set.of(), 0, null);
+        var repeated = new net.tfminecraft.tlibs.character.CharacterInfo(
+            new net.tfminecraft.tlibs.character.CharacterRef(UUID.randomUUID(), duplicate), "Duplicate",
+            net.tfminecraft.tlibs.character.CharacterStatus.ALIVE, null, java.util.Set.of(), 0, null);
+        when(identity.info(multiword)).thenReturn(java.util.Optional.of(info));
+        when(identity.info(single)).thenReturn(java.util.Optional.of(safe));
+        when(identity.info(duplicate)).thenReturn(java.util.Optional.of(repeated));
+        when(identity.findByName("Director")).thenReturn(List.of(safe));
+        when(identity.findByName("Duplicate")).thenReturn(List.of(repeated, safe));
+        server.getServicesManager().unregister(net.tfminecraft.tlibs.character.CharacterIdentity.class,
+            server.getServicesManager().load(net.tfminecraft.tlibs.character.CharacterIdentity.class));
+        server.getServicesManager().register(net.tfminecraft.tlibs.character.CharacterIdentity.class, identity,
+            plugin, org.bukkit.plugin.ServicePriority.Highest);
+        int serial = 1;
+        for (UUID id : List.of(multiword, single, duplicate, UUID.randomUUID())) {
+            Site camp = dossier(serial++, "Camp " + serial);
+            net.tfminecraft.archaeo.CharacterTestSupport.establish(camp, id, serial, 0, 20, 4, 4);
+        }
+        dossier(20, "Hidden");
+        var all = complete("ruin", "camps", "");
+        assertTrue(all.containsAll(List.of(multiword.toString(), single.toString(), duplicate.toString(), "Director")));
+        assertFalse(all.contains("Old Owner")); assertFalse(all.contains("Duplicate"));
+        assertFalse(all.contains("#20"));
+        assertEquals(List.of("Director"), complete("ruin", "camps", "dIr"));
+        assertEquals(List.of(multiword.toString()), complete("ruin", "camps", multiword.toString().substring(0, 8)));
+        assertContains(run("ruin camps " + multiword), "Camp");
     }
 
     @Test public void worldCompletionOffersUnloadedDossierWorldsAndSkipsDossiersWithoutAWorld() {
@@ -549,7 +671,7 @@ public class ArchaeoCommandTest {
         for (String profile : List.of("hand", "light", "heavy", "super-heavy")) plugin.getConfig().set("excavation.tools." + profile + ".items", List.of("AIR"));
         plugin.saveConfig();
         assertContains(run("reload"), "Reloaded Archaeo");
-        assertTrue(complete("give", "tool", "").isEmpty());
+        assertEquals(List.of("Archaeologist"), complete("give", "tool", ""));
         assertContains(run("give tool Missing"), "Player not online: Missing");
         staff.getInventory().clear();
         assertContains(run("give tool"), "an excavation tool (stone pickaxe)");
