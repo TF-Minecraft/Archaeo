@@ -1341,7 +1341,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                 if ("tool".equalsIgnoreCase(args[1]) || "pick".equalsIgnoreCase(args[1])) {
                     String typed = args[2].toLowerCase(Locale.ROOT);
                     return java.util.stream.Stream.concat(handPick.giveToolTokens().stream(),
-                                    onlineNamesStartingWith(args[2]).stream())
+                                    onlineNamesStartingWith(args[2]).stream()
+                                            .filter(name -> handPick.toolForGive(name).isEmpty()))
                             .distinct()
                             .filter(token -> token.toLowerCase(Locale.ROOT).startsWith(typed))
                             .toList();

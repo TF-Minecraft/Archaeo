@@ -571,6 +571,58 @@ public class ArchaeoCommandTest {
         assertContains(run("give tool " + complete("give", "tool", "Arch").getFirst()), "Gave");
     }
 
+    @Test public void optionalToolSlotOmitsCollidingPlayerAliasesButExplicitRecipientsStillWork() {
+        PlayerMock recipient = player("bRuSh");
+        player("BrushUser");
+        assertEquals(List.of("bRuSh", "BrushUser"), complete("give", "tool", "br"));
+        plugin.getConfig().set("excavation.tools.light.items", List.of("BRUSH"));
+        plugin.saveConfig();
+        assertContains(run("reload"), "Reloaded Archaeo");
+
+        for (String kind : List.of("tool", "pick")) {
+            for (String prefix : List.of("", "b", "bRu", "bRuSh")) {
+                List<String> suggestions = complete("give", kind, prefix);
+                assertTrue(suggestions.toString(), suggestions.contains("BRUSH"));
+                assertTrue(suggestions.toString(), suggestions.contains("BrushUser"));
+                assertFalse(suggestions.toString(), suggestions.contains("bRuSh"));
+                assertTrue(complete("give", kind, "BRUSH", prefix).contains("bRuSh"));
+            }
+            staff.getInventory().clear();
+            recipient.getInventory().clear();
+            String explicitRecipient = complete("give", kind, "BRUSH", "bRuSh").stream()
+                    .filter(name -> name.equals("bRuSh")).findFirst().orElseThrow();
+            assertContains(run("give " + kind + " BRUSH " + explicitRecipient), "to bRuSh");
+            assertTrue(recipient.getInventory().contains(Material.BRUSH));
+            assertTrue(staff.getInventory().isEmpty());
+
+            recipient.getInventory().clear();
+            assertContains(run("give " + kind + " " + complete("give", kind, "bRuSh").getFirst()), "to Archaeologist");
+            assertTrue(staff.getInventory().contains(Material.BRUSH));
+            assertTrue(recipient.getInventory().isEmpty());
+        }
+
+        plugin.getConfig().set("excavation.tools.light.items", List.of("AIR"));
+        plugin.saveConfig();
+        assertContains(run("reload"), "Reloaded Archaeo");
+        assertEquals(List.of("bRuSh", "BrushUser"), complete("give", "tool", "br"));
+    }
+
+    @Test public void optionalToolSlotKeepsCanonicalToolTokensThatAreAlsoPlayerNames() {
+        PlayerMock recipient = player("IRON_PICKAXE");
+        for (String kind : List.of("tool", "pick")) {
+            for (String prefix : List.of("", "iRoN_", "IRON_PICKAXE")) {
+                assertEquals(1L, complete("give", kind, prefix).stream()
+                        .filter(token -> token.equals("IRON_PICKAXE")).count());
+            }
+            staff.getInventory().clear();
+            recipient.getInventory().clear();
+            String explicitRecipient = complete("give", kind, "IRON_PICKAXE", "iRoN_").getFirst();
+            assertContains(run("give " + kind + " IRON_PICKAXE " + explicitRecipient), "to IRON_PICKAXE");
+            assertTrue(recipient.getInventory().contains(Material.IRON_PICKAXE));
+            assertTrue(staff.getInventory().isEmpty());
+        }
+    }
+
     @Test public void campDirectorCompletionIncludesOfflineDirectoryIdsAndSafeNames() {
         var identity = mock(net.tfminecraft.tlibs.character.CharacterIdentity.class);
         UUID multiword = UUID.randomUUID(), single = UUID.randomUUID(), duplicate = UUID.randomUUID();
