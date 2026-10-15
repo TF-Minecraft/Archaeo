@@ -1340,7 +1340,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             if (args.length == 3) {
                 if ("tool".equalsIgnoreCase(args[1]) || "pick".equalsIgnoreCase(args[1])) {
                     String typed = args[2].toLowerCase(Locale.ROOT);
-                    return handPick.giveToolTokens().stream()
+                    return java.util.stream.Stream.concat(handPick.giveToolTokens().stream(),
+                                    onlineNamesStartingWith(args[2]).stream())
+                            .distinct()
                             .filter(token -> token.toLowerCase(Locale.ROOT).startsWith(typed))
                             .toList();
                 }
@@ -1446,32 +1448,38 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         }
         if ("info".equalsIgnoreCase(args[1]) || "tp".equalsIgnoreCase(args[1])) {
             String typed = Arrays.stream(args).skip(2).collect(Collectors.joining(" "));
-            List<String> names = new ArrayList<>(sites.namesStartingWith(typed));
-            if (args.length == 3) {
-                String token = args[2].toLowerCase(Locale.ROOT);
-                for (Site site : sites.all()) {
-                    String serial = "#" + site.getSerial();
-                    if (serial.startsWith(token) || String.valueOf(site.getSerial()).startsWith(token)) {
-                        names.add(serial);
-                    }
-                }
-            }
-            return names;
+            return suggestSiteQueries(typed, args.length == 3, site -> true);
         }
         if ("camps".equalsIgnoreCase(args[1])) {
             if (args.length == 3) {
-                List<String> suggestions = new ArrayList<>(onlineNamesStartingWith(args[2]));
+                List<String> suggestions = new ArrayList<>(onlineNamesStartingWith(args[2]).stream()
+                        .filter(name -> parseSerial(name).isEmpty()
+                            && net.tfminecraft.archaeo.ownership.CharacterActors.invited(name).isPresent())
+                        .toList());
                 String token = args[2].toLowerCase(Locale.ROOT);
                 for (Site site : sites.all()) {
                     if (!site.isCampLocked()) {
                         continue;
+                    }
+                    var director = site.getDirector() == null ? null
+                            : net.tfminecraft.tlibs.character.Characters.info(site.getDirector()).orElse(null);
+                    if (director != null) {
+                        String id = director.ref().characterId().toString();
+                        if (id.startsWith(token)) suggestions.add(id);
+                        String name = director.name();
+                        if (name != null && !name.isBlank() && name.chars().noneMatch(Character::isWhitespace)
+                                && parseSerial(name).isEmpty() && name.toLowerCase(Locale.ROOT).startsWith(token)
+                                && net.tfminecraft.archaeo.ownership.CharacterActors.invited(name)
+                                    .filter(ref -> ref.equals(director.ref())).isPresent()) {
+                            suggestions.add(name);
+                        }
                     }
                     String serial = "#" + site.getSerial();
                     if (serial.startsWith(token) || String.valueOf(site.getSerial()).startsWith(token)) {
                         suggestions.add(serial);
                     }
                 }
-                return suggestions;
+                return suggestions.stream().distinct().toList();
             }
             if (args.length == 4) {
                 var director = net.tfminecraft.archaeo.ownership.CharacterActors.invited(args[2]).orElse(null);
@@ -1512,7 +1520,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                 }
             }
             if (allowed) {
-                names.add(name);
+                names.add(name.substring(needle.lastIndexOf(' ') + 1));
             }
         }
         if (includeSerials) {
