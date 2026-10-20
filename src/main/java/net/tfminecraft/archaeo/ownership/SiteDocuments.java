@@ -43,13 +43,18 @@ public final class SiteDocuments {
     public static Map<String,Object> copy(Map<String,Object> map){try{return parse(text(map));}catch(IOException failure){throw new IllegalArgumentException(failure);}}
     @SuppressWarnings("unchecked") public static Map<String,Object> map(Object value){return (Map<String,Object>)value;}
     public static String read(Path path)throws IOException{return Files.exists(path)?Files.readString(path):null;}
-    public static void forceDirectory(Path path)throws IOException{try(FileChannel directory=FileChannel.open(path,READ)){directory.force(true);}}
+    public static void forceDirectory(Path path)throws IOException{
+        // The Windows provider cannot open directory FileChannels. File contents are still
+        // forced before the atomic replacement; directory fsync remains enabled on Unix.
+        if(path.getFileSystem().getSeparator().equals("\\"))return;
+        try(FileChannel directory=FileChannel.open(path,READ)){directory.force(true);}
+    }
     public static void write(Path path,String text)throws IOException {
         Files.createDirectories(path.getParent());
-        for(Path parent=path.toAbsolutePath().getParent();parent!=null;parent=parent.getParent())try(FileChannel directory=FileChannel.open(parent,READ)){directory.force(true);}
+        for(Path parent=path.toAbsolutePath().getParent();parent!=null;parent=parent.getParent())forceDirectory(parent);
         Path temporary=path.resolveSibling(path.getFileName()+".next");
         try(FileChannel file=FileChannel.open(temporary,CREATE,TRUNCATE_EXISTING,WRITE)){ByteBuffer buffer=StandardCharsets.UTF_8.encode(text);while(buffer.hasRemaining())file.write(buffer);file.force(true);}
         Files.move(temporary,path,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
-        try(FileChannel directory=FileChannel.open(path.getParent(),READ)){directory.force(true);}
+        forceDirectory(path.getParent());
     }
 }
