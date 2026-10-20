@@ -34,6 +34,13 @@ Imperial denars have four current variants; pottery sherds have four current var
 
 ## Replace a piece
 
+First locate the excavation with `/archaeo ruin list <player>` (or `ruin list`
+for all sites). The directory shows `#serial` next to the site name, status,
+and director, including closed sites. A player filter follows their recorded
+character references as director, excavator, worker, or recoverer. Click a row
+to prepare `/archaeo find list #serial`; the directory does not teleport you.
+For large lists use `/archaeo ruin list <player|all> <page>`.
+
 1. Bring the old object into a connected player inventory or another loaded location. Read its identity with `/archaeo find info` (main hand) or `/archaeo find info #12 3`. Note the artifact ID and full UUID.
 2. Preview deletion with `/archaeo find delete #12 3`. The preview supplies a command using the UUID, which identifies the exact piece even if numbers are ambiguous.
 3. Run `/archaeo find delete #12 <uuid> confirm`. This removes only that recovered row, reduces the site recovered count, and removes matching physical pieces from connected player inventories, ender chests, cursors, loaded dropped items, frames, item displays, armor stands, and loaded block inventories, including items packed in shulkers. The site and all other finds remain.

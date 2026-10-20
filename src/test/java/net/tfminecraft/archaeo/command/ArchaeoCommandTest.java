@@ -830,6 +830,64 @@ public class ArchaeoCommandTest {
         assertTrue(site.getFinds().isEmpty());
     }
 
+    @Test public void listsNamedSitesAcrossCharactersAndStatusesForOneAccount() {
+        UUID account = staff.getUniqueId(), oldCharacter = UUID.randomUUID(), newCharacter = UUID.randomUUID();
+        Site closed = dossier(12, "Old valley dig"); closed.setStatus(SiteStatus.CLOSED);
+        closed.getActorRefs().put(oldCharacter, new net.tfminecraft.tlibs.character.CharacterRef(account, oldCharacter));
+        closed.setDirector(oldCharacter);
+        Site assisted = dossier(4, "Harbour dig"); assisted.setStatus(SiteStatus.EXHAUSTED);
+        assisted.getActorRefs().put(newCharacter, new net.tfminecraft.tlibs.character.CharacterRef(account, newCharacter));
+        assisted.worker(newCharacter);
+        Site unrelated = dossier(2, "Other player's dig");
+        unrelated.getActorRefs().put(oldCharacter, new net.tfminecraft.tlibs.character.CharacterRef(account, oldCharacter));
+        net.tfminecraft.archaeo.CharacterTestSupport.setDirector(unrelated, UUID.randomUUID());
+        var listed = console("ruin list Archaeologist");
+        assertContains(listed, "2 total"); assertContains(listed, closed.displayLabel());
+        assertContains(listed, assisted.displayLabel()); assertContains(listed, "closed");
+        assertFalse(listed.stream().anyMatch(line -> line.contains("Other player's dig")));
+        int harbourIndex = java.util.stream.IntStream.range(0, listed.size())
+                .filter(i -> listed.get(i).contains(assisted.displayLabel())).findFirst().orElseThrow();
+        int valleyIndex = java.util.stream.IntStream.range(0, listed.size())
+                .filter(i -> listed.get(i).contains(closed.displayLabel())).findFirst().orElseThrow();
+        assertTrue(harbourIndex < valleyIndex);
+        assertEquals(SiteStatus.CLOSED, closed.getStatus()); assertEquals(1, assisted.getWorkers().size());
+        assertEquals(oldCharacter, closed.getDirector());
+    }
+
+    @Test public void paginatesSiteDirectoryAndCompletesPlayersWithPermissionChecks() {
+        for (int serial = 1; serial <= 11; serial++) dossier(serial, "Dig " + serial);
+        var first = console("ruin list"); assertContains(first, "11 total (page 1/2)");
+        assertContains(first, "Next: /archaeo ruin list all 2");
+        assertFalse(first.stream().anyMatch(line -> line.contains("Dig 11")));
+        var second = console("ruin list all 2"); assertContains(second, "#11"); assertContains(second, "Dig 11");
+        assertFalse(second.stream().anyMatch(line -> line.contains("Dig 1 ")));
+        assertContains(console("ruin list all 0"), "Page must be");
+        assertContains(console("ruin list Nobody"), "Unknown player");
+        assertContains(console("ruin list all 1 extra"), "Usage:");
+        assertEquals(List.of("Archaeologist"), complete("ruin", "list", "arch"));
+        assertTrue(complete("ruin", "list", "a").contains("all"));
+        staff.setOp(false); staff.addAttachment(plugin, plugin.catalogs().staffPermission(), false);
+        assertContains(run("ruin list"), "You do not have permission");
+        assertTrue(complete("ruin", "list", "").isEmpty());
+    }
+
+    @Test public void siteDirectorySuggestsTheFindCommandAndFindInfoShowsIdAndName() {
+        Site site = dossier(12, "River museum dig");
+        var before = staff.getLocation().clone();
+        Player.Spigot spigot = mock(Player.Spigot.class); doReturn(spigot).when(staff).spigot();
+        List<BaseComponent> choices = new ArrayList<>();
+        doAnswer(call -> { choices.add(call.getArgument(0)); return null; })
+                .when(spigot).sendMessage(any(BaseComponent.class));
+        run("ruin list");
+        assertEquals(1, choices.size()); assertTrue(choices.getFirst().toPlainText().contains(site.displayLabel()));
+        assertEquals(ClickEvent.Action.SUGGEST_COMMAND, choices.getFirst().getClickEvent().getAction());
+        assertEquals("/archaeo find list #12", choices.getFirst().getClickEvent().getValue());
+        assertEquals(before, staff.getLocation());
+        run("give artifact coin #12");
+        assertContains(run("find info"), "ruin " + site.displayLabel());
+        assertContains(run("find info #12 1"), "ruin " + site.displayLabel());
+    }
+
     private void stoneColumn() {
         // Give all configured strata room below the surface in MockBukkit's shallow world.
         for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) for (int y = 4; y <= 40; y++) staff.getWorld().getBlockAt(x, y, z).setType(Material.STONE);

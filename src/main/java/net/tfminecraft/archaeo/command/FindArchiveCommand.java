@@ -133,7 +133,7 @@ final class FindArchiveCommand {
     }
 
     private void describe(CommandSender sender, Site site, BuriedFind find) {
-        sender.sendMessage("Find " + find.publicNumber(site) + " · ruin #" + site.getSerial());
+        sender.sendMessage("Find " + find.publicNumber(site) + " · ruin " + site.displayLabel());
         sender.sendMessage("UUID: " + find.getId());
         sender.sendMessage("Artifact: " + find.getArtifactId() + " · state: " + find.getState()
                 + " · conservation: " + find.getConservation() + "%");

@@ -36,6 +36,12 @@ label. It uses the configured item pool and conservation rules, and the piece ca
 at the cabinet as usual. If the inventory is full, the piece drops at the recipient's feet.
 Access uses `config.yml` `permissions.staff` (default `archaeo.admin`).
 
+Staff can look up sites with `/archaeo ruin list [player|all] [page]`. Every row
+shows its serial, name, state, and director; click a row to prepare `find list`
+for that serial. Omit the player to list all sites. A player filter includes
+sites where any recorded character of that account directed or participated,
+including closed digs. This directory never teleports or edits a site.
+
 Staff can inspect and remove individual recovered pieces:
 
 - `/archaeo find list <#serial> [page]` lists recovered pieces and their stored/current item IDs.

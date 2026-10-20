@@ -64,7 +64,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private static final List<String> ROOT = List.of(
             "give", "ruin", "workday", "find", "sketch", "reload");
     private static final List<String> RUIN_ACTIONS = List.of(
-            "create", "info", "stats", "set-interest", "close", "delete", "camps", "tp", "auto");
+            "create", "info", "list", "stats", "set-interest", "close", "delete", "camps", "tp", "auto");
     private static final List<String> RUIN_AUTO_ACTIONS = List.of("status", "reset");
     private static final List<String> GIVE_KINDS = List.of(
             "tracker", "prospect", "establish", "tool", "brush", "paper", "pencil", "artifact");
@@ -193,6 +193,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         }
         if ("info".equalsIgnoreCase(args[1])) {
             return handleInfo(sender, args);
+        }
+        if ("list".equalsIgnoreCase(args[1])) {
+            return new RuinListCommand(sites).execute(sender, args);
         }
         if ("stats".equalsIgnoreCase(args[1])) {
             return handleRuinStats(sender, args);
@@ -1266,6 +1269,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private void sendUsage(CommandSender sender) {
         sender.sendMessage("Usage: /archaeo ruin create <low|medium|high|exceptional> [name]");
         sender.sendMessage("       /archaeo ruin info [name|#serial]");
+        sender.sendMessage("       /archaeo ruin list [player|all] [page]");
         sender.sendMessage("       /archaeo ruin stats [world]");
         sender.sendMessage("       /archaeo ruin set-interest <low|medium|high|exceptional> [name|#serial]");
         sender.sendMessage("       /archaeo ruin close [name|#serial] [confirm]");
@@ -1398,6 +1402,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             return RUIN_ACTIONS.stream()
                     .filter(value -> value.startsWith(args[1].toLowerCase(Locale.ROOT)))
                     .toList();
+        }
+        if ("list".equalsIgnoreCase(args[1])) {
+            return new RuinListCommand(sites).complete(args);
         }
         if (args.length == 3 && "auto".equalsIgnoreCase(args[1])) {
             return RUIN_AUTO_ACTIONS.stream()
