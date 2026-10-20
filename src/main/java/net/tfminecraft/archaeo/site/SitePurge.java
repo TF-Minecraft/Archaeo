@@ -15,6 +15,7 @@ import net.tfminecraft.archaeo.excavation.FindDustService;
 import net.tfminecraft.archaeo.excavation.RecoverService;
 import net.tfminecraft.archaeo.item.RecoveredFindItem;
 import net.tfminecraft.archaeo.model.BlockCell;
+import net.tfminecraft.archaeo.model.BuriedFind;
 import net.tfminecraft.archaeo.model.Site;
 import net.tfminecraft.archaeo.sketch.CabinetLabBoard;
 import net.tfminecraft.archaeo.sketch.SketchCabinet;
@@ -39,6 +40,8 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.UUID;
+import java.nio.file.Path;
+import java.util.function.Predicate;
 
 /**
  * Staff wipe of one ruin: dossier, camp blocks, tagged items, and auto-spawn memory.
@@ -102,10 +105,19 @@ public final class SitePurge {
         establish.abortSessionsFor(id);
         recover.abortForSite(id);
         closeBoards(id);
-        stripTaggedItems(id);
+        stripTaggedItems(stack -> belongs(stack, id));
         removeCamp(site);
         autoRuins.forgetChunk(site.getWorldName(), site.getChunkX(), site.getChunkZ());
         findDust.syncTimer();
+    }
+
+    /** Deletes one archived piece and removes matching physical items in loaded locations. */
+    public Path eraseFind(Site site, BuriedFind find) {
+        Path backup = sites.deleteRecoveredFind(site, find);
+        closeBoards(site.getId());
+        stripTaggedItems(stack -> site.getId().equals(recovered.siteIdOf(stack))
+                && find.getId().equals(recovered.findIdOf(stack)));
+        return backup;
     }
 
     /**
@@ -161,40 +173,40 @@ public final class SitePurge {
      * Removes recovered finds, field books, reports, and registered sketches from players
      * and from loaded world inventories and displays.
      *
-     * @param siteId excavation
+     * @param matches items to remove
      */
-    private void stripTaggedItems(UUID siteId) {
+    private void stripTaggedItems(Predicate<ItemStack> matches) {
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             PlayerInventory inventory = player.getInventory();
-            stripInventory(inventory, siteId);
-            stripInventory(player.getEnderChest(), siteId);
-            if (belongs(player.getItemOnCursor(), siteId)) {
+            stripInventory(inventory, matches);
+            stripInventory(player.getEnderChest(), matches);
+            if (matches.test(player.getItemOnCursor())) {
                 player.setItemOnCursor(null);
             }
         }
         for (World world : plugin.getServer().getWorlds()) {
             for (Item item : world.getEntitiesByClass(Item.class)) {
-                if (belongs(item.getItemStack(), siteId)) {
+                if (matches.test(item.getItemStack())) {
                     item.remove();
                 }
             }
             for (ItemFrame frame : world.getEntitiesByClass(ItemFrame.class)) {
-                if (belongs(frame.getItem(), siteId)) {
+                if (matches.test(frame.getItem())) {
                     frame.setItem(null);
                 }
             }
             for (ItemDisplay display : world.getEntitiesByClass(ItemDisplay.class)) {
-                if (belongs(display.getItemStack(), siteId)) {
+                if (matches.test(display.getItemStack())) {
                     display.setItemStack(null);
                 }
             }
             for (ArmorStand stand : world.getEntitiesByClass(ArmorStand.class)) {
-                stripArmorStand(stand, siteId);
+                stripArmorStand(stand, matches);
             }
             for (Chunk chunk : world.getLoadedChunks()) {
                 for (BlockState state : chunk.getTileEntities()) {
                     if (state instanceof InventoryHolder holder) {
-                        stripInventory(holder.getInventory(), siteId);
+                        stripInventory(holder.getInventory(), matches);
                     }
                 }
             }
@@ -203,12 +215,12 @@ public final class SitePurge {
 
     /**
      * @param stand display stand
-     * @param siteId excavation
+     * @param matches items to remove
      */
-    private void stripArmorStand(ArmorStand stand, UUID siteId) {
+    private void stripArmorStand(ArmorStand stand, Predicate<ItemStack> matches) {
         EntityEquipment equipment = stand.getEquipment();
         for (EquipmentSlot slot : EquipmentSlot.values()) {
-            if (belongs(equipment.getItem(slot), siteId)) {
+            if (matches.test(equipment.getItem(slot))) {
                 equipment.setItem(slot, null);
             }
         }
@@ -216,10 +228,10 @@ public final class SitePurge {
 
     /**
      * @param inventory bag, chest, or similar
-     * @param siteId excavation
+     * @param matches items to remove
      * @return whether any slot was cleared or rewritten
      */
-    private boolean stripInventory(Inventory inventory, UUID siteId) {
+    private boolean stripInventory(Inventory inventory, Predicate<ItemStack> matches) {
         boolean changed = false;
         ItemStack[] contents = inventory.getContents();
         for (int i = 0; i < contents.length; i++) {
@@ -228,10 +240,10 @@ public final class SitePurge {
             if (stack == null) {
                 continue;
             }
-            if (belongs(stack, siteId)) {
+            if (matches.test(stack)) {
                 inventory.setItem(i, null);
                 changed = true;
-            } else if (stripNested(stack, siteId)) {
+            } else if (stripNested(stack, matches)) {
                 inventory.setItem(i, stack);
                 changed = true;
             }
@@ -243,16 +255,16 @@ public final class SitePurge {
      * Empties matching finds packed inside a shulker or similar block-state item.
      *
      * @param stack container item
-     * @param siteId excavation
+     * @param matches items to remove
      * @return whether an inner inventory lost an item, in which case {@code stack} was rewritten
      */
-    private boolean stripNested(ItemStack stack, UUID siteId) {
+    private boolean stripNested(ItemStack stack, Predicate<ItemStack> matches) {
         ItemMeta meta = stack.getItemMeta();
         if (!(meta instanceof BlockStateMeta blockMeta)) {
             return false;
         }
         BlockState innerState = blockMeta.getBlockState();
-        if (!(innerState instanceof InventoryHolder holder) || !stripInventory(holder.getInventory(), siteId)) {
+        if (!(innerState instanceof InventoryHolder holder) || !stripInventory(holder.getInventory(), matches)) {
             return false;
         }
         blockMeta.setBlockState(innerState);

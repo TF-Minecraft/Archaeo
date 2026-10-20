@@ -64,12 +64,12 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private static final List<String> ROOT = List.of(
             "give", "ruin", "workday", "find", "sketch", "reload");
     private static final List<String> RUIN_ACTIONS = List.of(
-            "create", "info", "stats", "set-interest", "close", "delete", "camps", "tp", "auto");
+            "create", "info", "list", "stats", "set-interest", "close", "delete", "camps", "tp", "auto");
     private static final List<String> RUIN_AUTO_ACTIONS = List.of("status", "reset");
     private static final List<String> GIVE_KINDS = List.of(
             "tracker", "prospect", "establish", "tool", "brush", "paper", "pencil", "artifact");
     private static final List<String> WORKDAY_ACTIONS = List.of("reset");
-    private static final List<String> FIND_ACTIONS = List.of("spawn");
+    private static final List<String> FIND_ACTIONS = List.of("spawn", "list", "info", "delete");
 
     private final ArcheologyPlugin plugin;
     private final CatalogRegistry catalogs;
@@ -193,6 +193,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         }
         if ("info".equalsIgnoreCase(args[1])) {
             return handleInfo(sender, args);
+        }
+        if ("list".equalsIgnoreCase(args[1])) {
+            return new RuinListCommand(sites).execute(sender, args);
         }
         if ("stats".equalsIgnoreCase(args[1])) {
             return handleRuinStats(sender, args);
@@ -583,17 +586,19 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * Plants a find at the issuer's feet and opens the chunk as an excavation, skipping
-     * ruin create, prospect, and camp.
+     * Inspects or removes archive rows, or plants a test find at the issuer's feet.
      *
      * @param sender staff issuer
-     * @param args {@code find spawn [artifact] [size]}
+     * @param args {@code find spawn|list|info|delete ...}
      * @return {@code true} always (handled)
      */
     private boolean handleFind(CommandSender sender, String[] args) {
-        if (args.length < 2 || !"spawn".equalsIgnoreCase(args[1])) {
-            sender.sendMessage("Usage: /archaeo find spawn [artifact] [size]");
+        if (args.length < 2) {
+            FindArchiveCommand.usage(sender);
             return true;
+        }
+        if (!"spawn".equalsIgnoreCase(args[1])) {
+            return new FindArchiveCommand(sites, catalogs, recoveredItem, sitePurge).execute(sender, args);
         }
         if (!(sender instanceof Player player)) {
             sender.sendMessage("Find spawn must be used in-world at the test block.");
@@ -1264,6 +1269,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private void sendUsage(CommandSender sender) {
         sender.sendMessage("Usage: /archaeo ruin create <low|medium|high|exceptional> [name]");
         sender.sendMessage("       /archaeo ruin info [name|#serial]");
+        sender.sendMessage("       /archaeo ruin list [player|all] [page]");
         sender.sendMessage("       /archaeo ruin stats [world]");
         sender.sendMessage("       /archaeo ruin set-interest <low|medium|high|exceptional> [name|#serial]");
         sender.sendMessage("       /archaeo ruin close [name|#serial] [confirm]");
@@ -1276,6 +1282,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("       /archaeo give artifact <artifact> <#serial> [player]");
         sender.sendMessage("       /archaeo workday reset [player|all]");
         sender.sendMessage("       /archaeo find spawn [artifact] [size]");
+        sender.sendMessage("       /archaeo find list <#serial> [page]");
+        sender.sendMessage("       /archaeo find info [<#serial> <number|uuid>]");
+        sender.sendMessage("       /archaeo find delete <#serial> <number|uuid> confirm");
         sender.sendMessage("       /archaeo sketch");
         sender.sendMessage("       /archaeo reload");
     }
@@ -1375,6 +1384,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                         .filter(value -> value.startsWith(args[1].toLowerCase(Locale.ROOT)))
                         .toList();
             }
+            if (!"spawn".equalsIgnoreCase(args[1])) {
+                return new FindArchiveCommand(sites, catalogs, recoveredItem, sitePurge).complete(args);
+            }
             if (args.length == 3 && "spawn".equalsIgnoreCase(args[1])) {
                 String typed = args[2].toLowerCase(Locale.ROOT);
                 return catalogs.artifacts().keySet().stream()
@@ -1390,6 +1402,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
             return RUIN_ACTIONS.stream()
                     .filter(value -> value.startsWith(args[1].toLowerCase(Locale.ROOT)))
                     .toList();
+        }
+        if ("list".equalsIgnoreCase(args[1])) {
+            return new RuinListCommand(sites).complete(args);
         }
         if (args.length == 3 && "auto".equalsIgnoreCase(args[1])) {
             return RUIN_AUTO_ACTIONS.stream()

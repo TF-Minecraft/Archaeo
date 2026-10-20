@@ -6,7 +6,7 @@ import java.util.*;
 /** Recognized fields change narrowly; unknown maps/list-row fields and nulls survive. */
 public final class SiteRawOverlay {
     private SiteRawOverlay(){}
-    private static final Set<String> ROOT=Set.of("schema","actors-version","actor-refs","id","serial","type","status","interest","name","world","chunk-x","chunk-z","surface-y","created-by","created-at","director","visibility","recovered-count","hint-ids","excavators","workers","factions","establishment","prospect","strata","finds","jornada","fill-damage");
+    private static final Set<String> ROOT=Set.of("schema","actors-version","actor-refs","id","serial","type","status","interest","name","world","chunk-x","chunk-z","surface-y","created-by","created-at","director","visibility","recovered-count","last-find-number","hint-ids","excavators","workers","factions","establishment","prospect","strata","finds","jornada","fill-damage");
     private static final Set<String> FIND=Set.of("id","artifact-id","item","given-name","stratum","conservation","buried-conservation","state","cells","prior-cells","grazed-cells","direct-hit-cells","cleaned-cells","brush-remaining","find-number","recovered-by","recovered-at","studied","lab-cleaned","field-sketch","study-notes","interpretations");
     private static Set<String> fields(String path,Map<String,Object> before,Map<String,Object> after){
         if(path.isEmpty())return ROOT;

@@ -307,7 +307,7 @@ public class SiteGenerator {
         find.setState(FindState.RECOVERED);
         find.setBuriedConservation(rollBuriedConservation(
                 template, stratumId, site.getStrata().get(stratumId), random));
-        find.setFindNumber(site.getFinds().stream().mapToInt(BuriedFind::getFindNumber).max().orElse(0) + 1);
+        find.setFindNumber(site.nextFindNumber());
         find.setRecoveredBy(recipient);
         find.setRecoveredAt(Instant.now());
         return find;

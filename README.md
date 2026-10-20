@@ -36,6 +36,20 @@ label. It uses the configured item pool and conservation rules, and the piece ca
 at the cabinet as usual. If the inventory is full, the piece drops at the recipient's feet.
 Access uses `config.yml` `permissions.staff` (default `archaeo.admin`).
 
+Staff can look up sites with `/archaeo ruin list [player|all] [page]`. Every row
+shows its serial, name, state, and director; click a row to prepare `find list`
+for that serial. Omit the player to list all sites. A player filter includes
+sites where any recorded character of that account directed or participated,
+including closed digs. This directory never teleports or edits a site.
+
+Staff can inspect and remove individual recovered pieces:
+
+- `/archaeo find list <#serial> [page]` lists recovered pieces and their stored/current item IDs.
+- `/archaeo find info` inspects the piece in the main hand; add `<#serial> <number|uuid>` for an explicit record.
+- `/archaeo find delete <#serial> <number|uuid> confirm` backs up the dossier, deletes that recovered row, and removes matching physical pieces in online inventories and loaded locations. Omit `confirm` to preview. Offline inventories and unloaded chunks are not edited.
+
+See [artifact migration and TFMC equivalences](ARTIFACT-MIGRATION.md) before replacing old pieces with `give artifact`. Reissuing creates a new find; it does not transfer the original study or recovery history.
+
 [Project documentation](https://github.com/TF-Minecraft/Docs/blob/main/projects/Archaeo/README.md)
 
 Technical documentation is maintained in [TF-Minecraft/Docs](https://github.com/TF-Minecraft/Docs).
