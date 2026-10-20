@@ -339,6 +339,8 @@ public class SiteRepositoryTest {
 
     // Must run as a non-root user (as GitHub Actions does): root ignores the folder's write bit.
     @Test public void readOnlySitesFolderKeepsOldFilesRetriesWritesAndStillDropsDeletedDossiersFromTheSession() throws Exception {
+        org.junit.Assume.assumeTrue("Requires POSIX directory permissions",
+                Files.getFileStore(temporary.getRoot().toPath()).supportsFileAttributeView("posix"));
         Site kept = site(1, "world", 0, 0, SiteStatus.HIDDEN), trashed = site(2, "world", 1, 0, SiteStatus.HIDDEN), dropped = site(3, "world", 2, 0, SiteStatus.HIDDEN);
         kept.setName("Before"); for (Site site : List.of(kept, trashed, dropped)) net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, site);
         File folder = file(kept).getParentFile();
@@ -365,7 +367,11 @@ public class SiteRepositoryTest {
         Site site = site(1, "world", 0, 0, SiteStatus.HIDDEN); net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, site);
         // e.g. .trash linked to a backup disk that is not mounted
         Path trash = file(site).toPath().getParent().resolve(".trash");
-        Files.createSymbolicLink(trash, temporary.getRoot().toPath().resolve("unmounted/trash"));
+        try {
+            Files.createSymbolicLink(trash, temporary.getRoot().toPath().resolve("unmounted/trash"));
+        } catch (java.nio.file.FileSystemException | UnsupportedOperationException unavailable) {
+            org.junit.Assume.assumeNoException("Symbolic links are unavailable to this user", unavailable);
+        }
         assertThrows(IllegalStateException.class,()->repository.delete(site));assertTrue(file(site).exists());
         repository.loadAll();assertTrue(repository.findById(site.getId()).isPresent());
     }
@@ -379,6 +385,23 @@ public class SiteRepositoryTest {
         Files.delete(file(site).toPath().resolve("child")); Files.delete(file(site).toPath());
         // Restoring the exact checked source permits an ordinary I/O retry; disappearance conflicts.
         repository.flushDirty();assertTrue(site.isOwnershipHeld());assertFalse(file(site).exists());
+    }
+
+    @Test public void failedDeletionSaveRestoresTheRowOrderAndCount() throws Exception {
+        Site site = site(7, "world", 2, -3, SiteStatus.CLOSED);
+        BuriedFind first = find(), removed = find(), last = find();
+        first.setState(FindState.RECOVERED); first.setFindNumber(1);
+        removed.setState(FindState.RECOVERED); removed.setFindNumber(2);
+        last.setState(FindState.RECOVERED); last.setFindNumber(3);
+        site.getFinds().addAll(List.of(first, removed, last)); site.setRecoveredCount(3);
+        repository.save(site);
+        SiteRepository failing = spy(repository);
+        doCallRealMethod().doThrow(new IllegalStateException("Disk full")).when(failing).save(site);
+        assertThrows(IllegalStateException.class, () -> failing.deleteRecoveredFind(site, removed));
+        assertEquals(List.of(first, removed, last), site.getFinds());
+        assertEquals(3, site.getRecoveredCount());
+        repository.loadAll();
+        assertEquals(3, repository.findById(site.getId()).orElseThrow().getFinds().size());
     }
 
     private File file(Site site) { return new File(temporary.getRoot(), "sites/" + site.getId() + ".yml"); }

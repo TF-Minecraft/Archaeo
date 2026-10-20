@@ -406,6 +406,42 @@ public class SiteRepository {
     }
 
     /**
+     * Removes one recovered row, backing up the complete current dossier first. No terrain,
+     * worker history, or other finds change. A failed save restores the in-memory register.
+     *
+     * @return path to the dossier backup
+     */
+    public Path deleteRecoveredFind(Site site, BuriedFind find) {
+        if (site == null || find == null || find.getState() != FindState.RECOVERED
+                || !site.getFinds().contains(find)) {
+            throw new IllegalArgumentException("Choose a recovered find from this ruin");
+        }
+        // Flush pending changes and apply the usual ownership/conflict guards before backing up.
+        save(site);
+        Path backup = sitesFolder.toPath().resolve(".deleted-finds")
+                .resolve(site.getId() + "-" + find.getId() + "-" + UUID.randomUUID() + ".yml");
+        try {
+            Files.createDirectories(backup.getParent());
+            Files.copy(sitesFolder.toPath().resolve(site.getId() + ".yml"), backup);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Could not back up the find; nothing was deleted", exception);
+        }
+        int index = site.getFinds().indexOf(find);
+        int count = site.getRecoveredCount();
+        site.reserveFindNumbers();
+        site.getFinds().remove(index);
+        site.setRecoveredCount(Math.max(0, count - 1));
+        try {
+            save(site);
+        } catch (RuntimeException exception) {
+            site.getFinds().add(index, find);
+            site.setRecoveredCount(count);
+            throw exception;
+        }
+        return backup;
+    }
+
+    /**
      * Drops a site from memory and moves its YAML under {@code sites/.trash/} so a bad auto-spawn
      * (empty find list) does not leave a hollow ruin on the map.
      *
@@ -658,6 +694,7 @@ public class SiteRepository {
         yaml.set("director", site.getDirector() == null ? null : site.getDirector().toString());
         yaml.set("visibility", site.getVisibility());
         yaml.set("recovered-count", site.getRecoveredCount());
+        yaml.set("last-find-number", site.getLastFindNumber());
         yaml.set("hint-ids", site.getHintIds());
         yaml.set("excavators", site.getExcavators().stream().map(UUID::toString).toList());
         writeWorkers(yaml, site);
@@ -897,6 +934,7 @@ public class SiteRepository {
         }
         site.setVisibility(yaml.getString("visibility", "private"));
         site.setRecoveredCount(yaml.getInt("recovered-count"));
+        site.setLastFindNumber(yaml.getInt("last-find-number"));
         site.getHintIds().addAll(yaml.getStringList("hint-ids"));
         for (String raw : yaml.getStringList("excavators")) {
             site.getExcavators().add(UUID.fromString(raw));

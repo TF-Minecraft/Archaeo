@@ -34,6 +34,7 @@ public class Site {
     public Map<UUID, net.tfminecraft.tlibs.character.CharacterRef> getActorRefs() { return actorRefs; }
     private String visibility = "private";
     private int recoveredCount;
+    private int lastFindNumber;
     private final List<String> hintIds = new ArrayList<>();
     private final Map<String, StratumBand> strata = new LinkedHashMap<>();
     private final List<BuriedFind> finds = new ArrayList<>();
@@ -433,14 +434,33 @@ public class Site {
     }
 
     /**
-     * @return next unused inventory sequence on this excavation
+     * @return inventory sequence floor retained when finds are deleted
      */
-    private int nextFindNumber() {
-        int max = 0;
+    public int getLastFindNumber() {
+        return lastFindNumber;
+    }
+
+    private int highestFindNumber() {
+        int max = lastFindNumber;
         for (BuriedFind find : finds) {
             max = Math.max(max, find.getFindNumber());
         }
-        return max + 1;
+        return max;
+    }
+
+    /** Keeps removed inventory numbers reserved across saves and restarts. */
+    public void setLastFindNumber(int number) {
+        lastFindNumber = Math.max(lastFindNumber, number);
+    }
+
+    /** Call before removing rows so their inventory numbers cannot be reused. */
+    public void reserveFindNumbers() {
+        lastFindNumber = highestFindNumber();
+    }
+
+    /** @return a fresh inventory number, including numbers of removed finds */
+    public int nextFindNumber() {
+        return Math.addExact(highestFindNumber(), 1);
     }
 
     /**

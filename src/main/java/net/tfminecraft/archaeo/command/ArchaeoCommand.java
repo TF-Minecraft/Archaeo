@@ -69,7 +69,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private static final List<String> GIVE_KINDS = List.of(
             "tracker", "prospect", "establish", "tool", "brush", "paper", "pencil", "artifact");
     private static final List<String> WORKDAY_ACTIONS = List.of("reset");
-    private static final List<String> FIND_ACTIONS = List.of("spawn");
+    private static final List<String> FIND_ACTIONS = List.of("spawn", "list", "info", "delete");
 
     private final ArcheologyPlugin plugin;
     private final CatalogRegistry catalogs;
@@ -583,17 +583,19 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * Plants a find at the issuer's feet and opens the chunk as an excavation, skipping
-     * ruin create, prospect, and camp.
+     * Inspects or removes archive rows, or plants a test find at the issuer's feet.
      *
      * @param sender staff issuer
-     * @param args {@code find spawn [artifact] [size]}
+     * @param args {@code find spawn|list|info|delete ...}
      * @return {@code true} always (handled)
      */
     private boolean handleFind(CommandSender sender, String[] args) {
-        if (args.length < 2 || !"spawn".equalsIgnoreCase(args[1])) {
-            sender.sendMessage("Usage: /archaeo find spawn [artifact] [size]");
+        if (args.length < 2) {
+            FindArchiveCommand.usage(sender);
             return true;
+        }
+        if (!"spawn".equalsIgnoreCase(args[1])) {
+            return new FindArchiveCommand(sites, catalogs, recoveredItem, sitePurge).execute(sender, args);
         }
         if (!(sender instanceof Player player)) {
             sender.sendMessage("Find spawn must be used in-world at the test block.");
@@ -1276,6 +1278,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("       /archaeo give artifact <artifact> <#serial> [player]");
         sender.sendMessage("       /archaeo workday reset [player|all]");
         sender.sendMessage("       /archaeo find spawn [artifact] [size]");
+        sender.sendMessage("       /archaeo find list <#serial> [page]");
+        sender.sendMessage("       /archaeo find info [<#serial> <number|uuid>]");
+        sender.sendMessage("       /archaeo find delete <#serial> <number|uuid> confirm");
         sender.sendMessage("       /archaeo sketch");
         sender.sendMessage("       /archaeo reload");
     }
@@ -1374,6 +1379,9 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
                 return FIND_ACTIONS.stream()
                         .filter(value -> value.startsWith(args[1].toLowerCase(Locale.ROOT)))
                         .toList();
+            }
+            if (!"spawn".equalsIgnoreCase(args[1])) {
+                return new FindArchiveCommand(sites, catalogs, recoveredItem, sitePurge).complete(args);
             }
             if (args.length == 3 && "spawn".equalsIgnoreCase(args[1])) {
                 String typed = args[2].toLowerCase(Locale.ROOT);
