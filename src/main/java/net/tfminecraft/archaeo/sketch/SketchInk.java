@@ -3,7 +3,8 @@ package net.tfminecraft.archaeo.sketch;
 import java.awt.Color;
 
 /**
- * Small field-notebook palette: paper plus five strokes. Jump cycles the strokes; paper is erase.
+ * Field-notebook pigments. Paper is erase-only; the inventory palette selects strokes.
+ * Existing entries must keep their order: saved sketches store these ordinals.
  */
 public enum SketchInk {
     PAPER(247, 236, 214, "paper"),
@@ -11,7 +12,22 @@ public enum SketchInk {
     RED(168, 42, 36, "red"),
     OCHRE(186, 122, 48, "ochre"),
     SLATE(62, 92, 138, "slate"),
-    MOSS(72, 108, 58, "moss");
+    MOSS(72, 108, 58, "moss"),
+
+    // Append new pigments so existing map items and autosaves retain their colours.
+    LIGHT_CHARCOAL(145, 140, 133, "light charcoal"),
+    DARK_CHARCOAL(15, 14, 13, "dark charcoal"),
+    LIGHT_RED(214, 120, 99, "light red"),
+    DARK_RED(105, 26, 25, "dark red"),
+    LIGHT_OCHRE(229, 190, 111, "light ochre"),
+    DARK_OCHRE(120, 76, 31, "dark ochre"),
+    LIGHT_SLATE(137, 167, 195, "light slate"),
+    DARK_SLATE(38, 46, 66, "dark slate"),
+    LIGHT_MOSS(139, 163, 102, "light moss"),
+    DARK_MOSS(41, 59, 35, "dark moss"),
+    BROWN(117, 79, 49, "brown"),
+    LIGHT_BROWN(182, 139, 100, "light brown"),
+    DARK_BROWN(68, 45, 30, "dark brown");
 
     private final Color color;
     private final String label;
@@ -20,7 +36,7 @@ public enum SketchInk {
      * @param red 0–255
      * @param green 0–255
      * @param blue 0–255
-     * @param label action-bar name
+     * @param label palette and HUD name
      */
     SketchInk(int red, int green, int blue, String label) {
         this.color = new Color(red, green, blue);
@@ -39,20 +55,5 @@ public enum SketchInk {
      */
     public String label() {
         return label;
-    }
-
-    /**
-     * Walks charcoal → red → ochre → slate → moss. Paper is not in the cycle.
-     *
-     * @return the next stroke colour
-     */
-    public SketchInk next() {
-        SketchInk[] values = values();
-        // PAPER sits just before CHARCOAL, so it steps straight into the stroke cycle.
-        int next = ordinal() + 1;
-        if (next >= values.length) {
-            return CHARCOAL;
-        }
-        return values[next];
     }
 }

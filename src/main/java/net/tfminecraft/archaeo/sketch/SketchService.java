@@ -670,7 +670,7 @@ public class SketchService {
         sessions.put(player.getUniqueId(), captured);
         freeze(player);
         player.sendMessage(ChatColor.GOLD + "Editing field sketch.");
-        player.sendMessage(ChatColor.WHITE + "Sneak paints. Right-click erases. Space changes ink.");
+        player.sendMessage(ChatColor.WHITE + "Sneak paints. Right-click erases. Space opens the ink palette.");
         player.sendMessage(ChatColor.WHITE + "Switch the item away to save. Left-click, then type sign to lock.");
     }
 
@@ -688,7 +688,12 @@ public class SketchService {
         identity.forget(player);
         thaw(player);
         hideHud(player);
-        ItemStack target = matchesView(stack, session.view().getId())
+        Inventory openInventory = player.getOpenInventory().getTopInventory();
+        if (openInventory != null && openInventory.getHolder() instanceof SketchPalette palette
+                && palette.belongsTo(session)) {
+            player.closeInventory();
+        }
+        ItemStack target = stack != null && matchesView(stack, session.view().getId())
                 ? stack
                 : findSaveTarget(player, session);
         if (target == null) {
@@ -895,6 +900,49 @@ public class SketchService {
         return sessions.get(player.getUniqueId());
     }
 
+    /** @return whether this inventory is the current editor's own palette */
+    boolean isPaletteFor(Player player, Inventory inventory) {
+        SketchSession session = session(player);
+        return session != null && inventory != null && inventory.getHolder() instanceof SketchPalette palette
+                && palette.belongsTo(session);
+    }
+
+    /** Opens the pigment picker without leaving or saving over the live sheet. */
+    void openPalette(Player player) {
+        SketchSession session = session(player);
+        if (session == null || isPaletteFor(player, player.getOpenInventory().getTopInventory())) {
+            return;
+        }
+        session.pauseInput();
+        new SketchPalette(session).open(player);
+    }
+
+    /** Selects and closes next tick, after the cancelled inventory click has finished. */
+    void handlePaletteClick(Player player, SketchPalette palette, int slot) {
+        SketchInk ink = SketchPalette.inkAt(slot);
+        if (ink == null && slot != SketchPalette.SLOT_CLOSE) {
+            return;
+        }
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            SketchSession session = session(player);
+            if (!player.isOnline() || session == null || !palette.belongsTo(session)
+                    || player.getOpenInventory().getTopInventory().getHolder() != palette) {
+                return;
+            }
+            session.selectInk(ink);
+            player.closeInventory();
+            sendHud(player, session);
+        });
+    }
+
+    /** Prevents held inventory controls from becoming a stroke or reopening the picker. */
+    void handlePaletteClose(Player player, SketchPalette palette) {
+        SketchSession session = session(player);
+        if (session != null && palette.belongsTo(session)) {
+            session.pauseInput();
+        }
+    }
+
     /**
      * @param view map the renderer is painting
      * @return sheet for that view, or {@code null} if this plugin did not create it
@@ -1021,15 +1069,25 @@ public class SketchService {
      * @param session their map
      */
     private void applyInput(Player player, SketchSession session) {
+        Inventory openInventory = player.getOpenInventory().getTopInventory();
+        if (openInventory != null && openInventory.getHolder() instanceof SketchPalette) {
+            return;
+        }
         Input input = player.getCurrentInput();
+        if (!session.acceptsInput(!input.isLeft() && !input.isRight() && !input.isForward()
+                && !input.isBackward() && !input.isJump() && !input.isSneak())) {
+            return;
+        }
+        boolean openPalette = input.isJump() && !session.jumpHeld();
+        session.setJumpHeld(input.isJump());
+        if (openPalette) {
+            openPalette(player);
+            return;
+        }
         session.moveFromInput(
                 (input.isLeft() ? -1 : 0) + (input.isRight() ? 1 : 0),
                 (input.isForward() ? -1 : 0) + (input.isBackward() ? 1 : 0));
         session.updateEraseStroke();
-        if (input.isJump() && !session.jumpHeld()) {
-            session.cycleInk();
-        }
-        session.setJumpHeld(input.isJump());
         if (input.isSneak()) {
             session.paint();
         }
@@ -1056,7 +1114,7 @@ public class SketchService {
                 ? "Type sign to lock, or cancel"
                 : session.ink().label()
                 + "  " + session.cursorX() + "," + session.cursorY()
-                + "  ·  sneak paints  ·  right-click erases  ·  space ink  ·  left-click signs"));
+                + "  ·  sneak paints  ·  right-click erases  ·  space palette  ·  left-click signs"));
     }
 
     /**
@@ -1381,6 +1439,7 @@ public class SketchService {
         meta.setDisplayName(ChatColor.WHITE + "Field sketch");
         meta.setLore(java.util.List.of(
                 ChatColor.GRAY + "Hold to draw. Sneak paints. Right-click erases.",
+                ChatColor.GRAY + "Space opens the ink palette.",
                 ChatColor.GRAY + "Switch the map away to save.",
                 ChatColor.GRAY + "Left-click, then type sign to lock."));
     }

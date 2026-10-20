@@ -193,7 +193,7 @@ public class SketchListenerTest {
         InventoryDragEvent event = drag(player.getOpenInventory().getTopInventory(), Set.of(0)); when(event.getWhoClicked()).thenReturn(player);
         when(event.getCursor()).thenReturn(cursor); when(event.getOldCursor()).thenReturn(slot); when(event.getNewItems()).thenReturn(Map.of(0, hotbar));
         listener.onInventoryDrag(event); verify(service, times(2)).syncHandLater(player, cursor, slot, hotbar);
-        InventoryCloseEvent close = close(player.getOpenInventory().getTopInventory()); when(close.getView().getCursor()).thenReturn(cursor);
+        InventoryCloseEvent close = close(player.getInventory()); when(close.getView().getCursor()).thenReturn(cursor);
         listener.onInventoryClose(close); verify(service).syncHandLater(player, cursor);
     }
 
