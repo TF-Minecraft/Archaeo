@@ -8,6 +8,48 @@ import org.bukkit.map.MapView;
 import org.junit.Test;
 
 public class SketchSessionTest {
+    @Test
+    public void choosingAShadeOnlyAffectsFutureStrokesAndPaperStaysEraseOnly() {
+        SketchSheet sheet = new SketchSheet();
+        SketchSession session = new SketchSession(null, sheet);
+        session.paint();
+        long revision = sheet.revision();
+
+        session.selectInk(SketchInk.DARK_BROWN);
+        assertEquals(revision, sheet.revision());
+        assertEquals(SketchInk.CHARCOAL, sheet.at(16, 16));
+        session.move(1, 0);
+        session.paint();
+        assertEquals(SketchInk.DARK_BROWN, sheet.at(17, 16));
+
+        session.selectInk(SketchInk.PAPER);
+        session.selectInk(null);
+        assertEquals(SketchInk.DARK_BROWN, session.ink());
+    }
+
+    @Test
+    public void palettePauseRequiresFreshInputAndDiscardsThePreviousEraserStroke() {
+        SketchSheet sheet = new SketchSheet();
+        sheet.set(17, 16, SketchInk.RED);
+        SketchSession session = new SketchSession(null, sheet);
+        session.moveFromInput(1, 0);
+        session.moveFromInput(-1, 0);
+        session.beginEraseStroke();
+        session.setJumpHeld(true);
+
+        session.pauseInput();
+        assertFalse(session.acceptsInput(false));
+        assertFalse(session.acceptsInput(false));
+        assertFalse(session.acceptsInput(true));
+        assertFalse(session.jumpHeld());
+        assertTrue(session.acceptsInput(false));
+
+        session.moveFromInput(1, 0);
+        assertEquals(17, session.cursorX());
+        session.updateEraseStroke();
+        assertEquals(SketchInk.RED, sheet.at(17, 16));
+    }
+
     /** Verifies one immediate step followed by deterministic held-key repeats. */
     @Test
     public void tapMovesOnceAndHeldDirectionRepeatsAfterDelay() {
@@ -72,11 +114,15 @@ public class SketchSessionTest {
         assertTrue(session.erase()); assertFalse(session.erase()); assertEquals(SketchInk.PAPER, sheet.at(SketchSheet.SIZE - 1, SketchSheet.SIZE - 1));
     }
 
-    @Test public void spaceWalksAllFiveStrokesThenWrapsWithoutEverSelectingEraserPaper() {
+    @Test public void paletteSelectsEveryStrokeWithoutSelectingEraserPaper() {
         SketchSession session = new SketchSession(mock(MapView.class), new SketchSheet());
-        List<SketchInk> seen = new ArrayList<>(List.of(session.ink()));
-        for (int press = 0; press < 5; press++) { session.cycleInk(); seen.add(session.ink()); }
-        assertEquals(List.of(SketchInk.CHARCOAL, SketchInk.RED, SketchInk.OCHRE, SketchInk.SLATE, SketchInk.MOSS, SketchInk.CHARCOAL), seen);
+        for (SketchInk ink : SketchInk.values()) {
+            if (ink == SketchInk.PAPER) continue;
+            session.selectInk(ink);
+            assertEquals(ink, session.ink());
+            session.selectInk(SketchInk.PAPER);
+            assertEquals(ink, session.ink());
+        }
     }
 
     /** Verifies a held eraser, re-clicked every four ticks as vanilla repeats use, clears exactly the cells the cursor passes. */

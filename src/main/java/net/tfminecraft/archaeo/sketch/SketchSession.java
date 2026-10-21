@@ -27,6 +27,7 @@ final class SketchSession {
     private int lastEraseX = -1;
     private int lastEraseY = -1;
     private boolean jumpHeld;
+    private boolean waitingForInputRelease;
     private boolean awaitingSign;
 
     /**
@@ -75,7 +76,7 @@ final class SketchSession {
     }
 
     /**
-     * @return whether jump was down last tick (edge-detect for cycling ink)
+     * @return whether jump was down last tick (edge-detect for opening the palette)
      */
     boolean jumpHeld() {
         return jumpHeld;
@@ -239,11 +240,40 @@ final class SketchSession {
         autosavedRevision = sheet.revision();
     }
 
+    /** Selects a pigment without changing any cells. Paper remains erase-only. */
+    void selectInk(SketchInk selected) {
+        if (selected != null && selected != SketchInk.PAPER) {
+            ink = selected;
+        }
+    }
+
+    /** Drops held strokes so inventory input cannot carry over into the drawing. */
+    void pauseInput() {
+        heldHorizontal = 0;
+        heldVertical = 0;
+        horizontalTicks = 0;
+        verticalTicks = 0;
+        eraseStrokeTicks = 0;
+        lastEraseX = -1;
+        lastEraseY = -1;
+        waitingForInputRelease = true;
+    }
+
     /**
-     * Walks the five stroke colours. Paper stays erase-only.
+     * After a palette closes, waits for neutral controls before accepting a fresh press.
+     *
+     * @param idle whether cursor, paint, and jump inputs are all released
+     * @return whether sketch input may be applied this tick
      */
-    void cycleInk() {
-        ink = ink.next();
+    boolean acceptsInput(boolean idle) {
+        if (!waitingForInputRelease) {
+            return true;
+        }
+        if (idle) {
+            waitingForInputRelease = false;
+            jumpHeld = false;
+        }
+        return false;
     }
 
     /**

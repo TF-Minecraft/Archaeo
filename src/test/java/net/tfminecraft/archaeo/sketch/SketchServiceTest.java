@@ -251,7 +251,7 @@ public class SketchServiceTest {
         assertEquals("#River-2", ChatColor.stripColor(bound.getItemMeta().getLore().get(0)));
     }
 
-    @Test public void inputLoopPaintsCyclesInkOncePerPressAndAutosavesBeforeStop() {
+    @Test public void inputLoopOpensDyedPaletteSelectsInkAndAutosavesBeforeStop() {
         player = spy(player);
         Input input = mock(Input.class); doReturn(input).when(player).getCurrentInput();
         mapApi.when(Bukkit::getOnlinePlayers).thenReturn(List.of(player));
@@ -260,17 +260,39 @@ public class SketchServiceTest {
         when(input.isSneak()).thenReturn(true); when(input.isRight()).thenReturn(true); when(input.isJump()).thenReturn(true);
         service.start();
         assertTrue(service.editing(player));
+        server.getScheduler().performTicks(2);
+        Inventory paletteInventory = player.getOpenInventory().getTopInventory();
+        assertTrue(paletteInventory.getHolder() instanceof SketchPalette);
+        SketchPalette palette = (SketchPalette) paletteInventory.getHolder();
+        assertFalse(service.session(player).sheet().hasInk());
+        for (int slot = 0; slot < 27; slot++) {
+            SketchInk ink = SketchPalette.inkAt(slot);
+            if (ink == null) continue;
+            ItemStack swatch = paletteInventory.getItem(slot);
+            assertEquals(Material.LEATHER_CHESTPLATE, swatch.getType());
+            org.bukkit.inventory.meta.LeatherArmorMeta meta = (org.bukkit.inventory.meta.LeatherArmorMeta) swatch.getItemMeta();
+            assertEquals(ink.color().getRGB() & 0xffffff, meta.getColor().asRGB());
+        }
+        server.getScheduler().performTicks(4);
+        assertSame(paletteInventory, player.getOpenInventory().getTopInventory());
+        service.handlePaletteClick(player, palette, 21);
+        server.getScheduler().performTicks(2);
+        Inventory reopened = player.getOpenInventory().getTopInventory();
+        assertFalse(reopened != null && reopened.getHolder() instanceof SketchPalette);
+        assertEquals(SketchInk.DARK_BROWN, service.session(player).ink());
+        assertFalse(service.session(player).sheet().hasInk());
+        when(input.isSneak()).thenReturn(false);
+        when(input.isRight()).thenReturn(false);
+        when(input.isJump()).thenReturn(false);
+        server.getScheduler().performTicks(2);
+        when(input.isSneak()).thenReturn(true);
+        when(input.isRight()).thenReturn(true);
         server.getScheduler().performTicks(42);
         // The checkpoint lands on disk; the held map is only rewritten when the session ends.
         int mapId = ((MapMeta) map.getItemMeta()).getMapView().getId();
         SketchAutosaveStore store = new SketchAutosaveStore(plugin.getDataFolder().toPath());
         try { assertTrue(SketchSheet.fromBytes(store.load(mapId).cells()).hasInk()); } catch (java.io.IOException e) { throw new AssertionError(e); }
         assertFalse(SketchSheet.fromBytes(cells(player.getInventory().getItemInMainHand())).hasInk());
-        SketchInk first = service.session(player).ink();
-        server.getScheduler().performTicks(4); assertEquals(first, service.session(player).ink());
-        when(input.isJump()).thenReturn(false); server.getScheduler().performTicks(2);
-        when(input.isJump()).thenReturn(true); server.getScheduler().performTicks(2);
-        assertNotEquals(first, service.session(player).ink());
         service.stop(); assertFalse(service.editing(player));
         assertTrue(SketchSheet.fromBytes(cells(player.getInventory().getItemInMainHand())).hasInk());
         try { assertNull(store.load(mapId)); } catch (java.io.IOException e) { throw new AssertionError(e); }
@@ -924,7 +946,7 @@ public class SketchServiceTest {
         service.session(player).paint(); service.leave(player, false);
         MapView editableView = ((MapMeta) player.getInventory().getItemInMainHand().getItemMeta()).getMapView();
         service.stop(); service = new SketchService(plugin, supplies, recovered, sites, catalogs, SketchSettings.defaults()); service.start();
-        service.session(player).move(-16, -16); service.session(player).cycleInk(); service.session(player).paint();
+        service.session(player).move(-16, -16); service.session(player).selectInk(SketchInk.RED); service.session(player).paint();
         service.leave(player, false);
         org.bukkit.map.MapCanvas canvas = mock(org.bukkit.map.MapCanvas.class);
         java.util.concurrent.atomic.AtomicReference<java.awt.Color> rendered = new java.util.concurrent.atomic.AtomicReference<>();

@@ -26,6 +26,13 @@ them before they ever reach the surface.
 
 **Track → Survey → Establish camp → Excavate → Recover → Study and display**
 
+Field sketches use WASD to move, sneak to paint, and right-click to erase. Space
+opens a 27-colour palette of dyed leather swatches, arranged in nine pigment
+columns and three shade rows (light, normal, dark). Choose charcoal, red, ochre,
+brown, slate, moss, ivory, turquoise, or violet; clicking a swatch selects it and
+closes the palette. Escape keeps the current ink. Switch the map away to save;
+left-click and type `sign` to lock the drawing.
+
 ## Documentation
 
 Staff can give any configured artifact with `/archaeo give artifact <artifact> <#serial> [player]`.

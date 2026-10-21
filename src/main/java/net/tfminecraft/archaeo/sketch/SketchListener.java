@@ -15,6 +15,7 @@ import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.hanging.HangingBreakByEntityEvent;
+import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
@@ -50,7 +51,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 /**
- * Keeps a sketch editor still and maps sneak / interact / space onto paint, erase, and ink.
+ * Keeps a sketch editor still and maps sneak / interact / space onto paint, erase, and the palette.
  * Vanilla attack, jump, flight, and block use are cancelled so those keys only mean sketch.
  */
 public class SketchListener implements Listener {
@@ -413,14 +414,17 @@ public class SketchListener implements Listener {
     }
 
     /**
-     * Own bag (E) stays available so moving the map away can save. Chests, villagers,
+     * Own bag (E) and the ink palette stay available. Chests, villagers,
      * workbenches, the camp board, and other GUIs stay closed while editing.
      *
      * @param event inventory open
      */
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onInventory(InventoryOpenEvent event) {
-        if (!sketches.editing((Player) event.getPlayer())) {
+        if (!(event.getPlayer() instanceof Player player) || !sketches.editing(player)) {
+            return;
+        }
+        if (sketches.isPaletteFor(player, event.getInventory())) {
             return;
         }
         InventoryType type = event.getInventory().getType();
@@ -603,6 +607,28 @@ public class SketchListener implements Listener {
         sketches.handleSignChatLater(player, event.getMessage().trim());
     }
 
+    /** Swatches are buttons, including when players shift-click or use hotbar keys. */
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void onPaletteClick(InventoryClickEvent event) {
+        if (!(event.getView().getTopInventory().getHolder() instanceof SketchPalette palette)) {
+            return;
+        }
+        event.setCancelled(true);
+        if (event.getWhoClicked() instanceof Player player
+                && event.getClickedInventory() == event.getView().getTopInventory()
+                && (event.getClick() == ClickType.LEFT || event.getClick() == ClickType.RIGHT)) {
+            sketches.handlePaletteClick(player, palette, event.getSlot());
+        }
+    }
+
+    /** No swatches or player stacks may be dragged through the picker. */
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void onPaletteDrag(InventoryDragEvent event) {
+        if (event.getView().getTopInventory().getHolder() instanceof SketchPalette) {
+            event.setCancelled(true);
+        }
+    }
+
     /**
      * Moving the map out of the hotbar (or onto the cursor) saves onto that stack.
      *
@@ -638,9 +664,14 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onInventoryClose(InventoryCloseEvent event) {
-        Player player = (Player) event.getPlayer();
-        sketches.syncHandLater(player, event.getView().getCursor());
-        sketches.stampKitsLater(player);
+        if (event.getPlayer() instanceof Player player) {
+            if (event.getInventory().getHolder() instanceof SketchPalette palette) {
+                sketches.handlePaletteClose(player, palette);
+                return;
+            }
+            sketches.syncHandLater(player, event.getView().getCursor());
+            sketches.stampKitsLater(player);
+        }
     }
 
     /**
