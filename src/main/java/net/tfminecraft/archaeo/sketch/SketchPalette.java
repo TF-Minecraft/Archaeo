@@ -8,22 +8,22 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.LeatherArmorMeta;
 
 import java.util.List;
 
-/** Six pigment columns, with light, normal, and dark shades from top to bottom. */
+/** Nine pigment columns, with light, normal, and dark shades from top to bottom. */
 final class SketchPalette implements InventoryHolder {
-    static final int SLOT_HELP = 8;
-    static final int SLOT_CLOSE = 26;
     private static final SketchInk[][] SHADES = {
             {SketchInk.LIGHT_CHARCOAL, SketchInk.LIGHT_RED, SketchInk.LIGHT_OCHRE,
-                    SketchInk.LIGHT_BROWN, SketchInk.LIGHT_SLATE, SketchInk.LIGHT_MOSS},
+                    SketchInk.LIGHT_BROWN, SketchInk.LIGHT_SLATE, SketchInk.LIGHT_MOSS,
+                    SketchInk.LIGHT_IVORY, SketchInk.LIGHT_TURQUOISE, SketchInk.LIGHT_VIOLET},
             {SketchInk.CHARCOAL, SketchInk.RED, SketchInk.OCHRE,
-                    SketchInk.BROWN, SketchInk.SLATE, SketchInk.MOSS},
+                    SketchInk.BROWN, SketchInk.SLATE, SketchInk.MOSS,
+                    SketchInk.IVORY, SketchInk.TURQUOISE, SketchInk.VIOLET},
             {SketchInk.DARK_CHARCOAL, SketchInk.DARK_RED, SketchInk.DARK_OCHRE,
-                    SketchInk.DARK_BROWN, SketchInk.DARK_SLATE, SketchInk.DARK_MOSS}
+                    SketchInk.DARK_BROWN, SketchInk.DARK_SLATE, SketchInk.DARK_MOSS,
+                    SketchInk.DARK_IVORY, SketchInk.DARK_TURQUOISE, SketchInk.DARK_VIOLET}
     };
 
     private final SketchSession session;
@@ -52,21 +52,15 @@ final class SketchPalette implements InventoryHolder {
                 inventory.setItem(slot, swatch(ink, session.ink() == ink));
             }
         }
-        inventory.setItem(SLOT_HELP, button(Material.PAPER, "Choose an ink",
-                "Columns: charcoal, red, ochre, brown, slate, moss.",
-                "Rows: light, normal, dark.", "Click a colour to return to your sketch."));
-        inventory.setItem(SLOT_CLOSE, button(Material.BARRIER, "Back to sketch",
-                "Keep your current ink.", "Escape also returns to the drawing."));
         player.openInventory(inventory);
     }
 
-    /** @return pigment at a swatch slot, or null for buttons, margins, and the bag */
+    /** @return pigment at a swatch slot, or null outside the palette */
     static SketchInk inkAt(int slot) {
         if (slot < 0 || slot >= 27) {
             return null;
         }
-        int column = slot % 9 - 1;
-        return column >= 0 && column < SHADES[0].length ? SHADES[slot / 9][column] : null;
+        return SHADES[slot / 9][slot % 9];
     }
 
     private static ItemStack swatch(SketchInk ink, boolean selected) {
@@ -81,12 +75,4 @@ final class SketchPalette implements InventoryHolder {
         return stack;
     }
 
-    private static ItemStack button(Material material, String title, String... lines) {
-        ItemStack stack = new ItemStack(material);
-        ItemMeta meta = stack.getItemMeta();
-        meta.setDisplayName(ChatColor.WHITE + title);
-        meta.setLore(java.util.Arrays.stream(lines).map(line -> ChatColor.GRAY + line).toList());
-        stack.setItemMeta(meta);
-        return stack;
-    }
 }

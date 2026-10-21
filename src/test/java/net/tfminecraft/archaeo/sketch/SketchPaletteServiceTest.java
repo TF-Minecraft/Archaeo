@@ -75,13 +75,13 @@ public class SketchPaletteServiceTest {
     public void selectingAPigmentIsDeferredAndKeepsTheLiveSheet() {
         session.paint();
         long revision = session.sheet().revision();
-        sketches.handlePaletteClick(player, palette, 22);
+        sketches.handlePaletteClick(player, palette, 26);
         assertEquals(SketchInk.CHARCOAL, session.ink());
         verify(player, never()).closeInventory();
 
         tasks.removeFirst().run();
 
-        assertEquals(SketchInk.DARK_BROWN, session.ink());
+        assertEquals(SketchInk.DARK_VIOLET, session.ink());
         assertSame(session, sketches.session(player));
         assertEquals(revision, session.sheet().revision());
         assertEquals(SketchInk.CHARCOAL, session.sheet().at(16, 16));
@@ -89,13 +89,8 @@ public class SketchPaletteServiceTest {
     }
 
     @Test
-    public void backButtonAndEscapeKeepTheCurrentInk() {
+    public void escapeKeepsTheCurrentInk() {
         session.selectInk(SketchInk.LIGHT_MOSS);
-        sketches.handlePaletteClick(player, palette, SketchPalette.SLOT_CLOSE);
-        tasks.removeFirst().run();
-        verify(player).closeInventory();
-        assertEquals(SketchInk.LIGHT_MOSS, session.ink());
-
         sketches.handlePaletteClose(player, palette);
         assertSame(session, sketches.session(player));
         assertEquals(SketchInk.LIGHT_MOSS, session.ink());
@@ -104,7 +99,7 @@ public class SketchPaletteServiceTest {
 
     @Test
     public void aQueuedSelectionCannotAffectAReplacedSessionOrClosedPalette() {
-        sketches.handlePaletteClick(player, palette, 22);
+        sketches.handlePaletteClick(player, palette, 21);
         sessions.put(playerId, new SketchSession(null, new SketchSheet()));
         tasks.removeFirst().run();
         assertEquals(SketchInk.CHARCOAL, sketches.session(player).ink());
@@ -112,7 +107,7 @@ public class SketchPaletteServiceTest {
         verify(player, never()).closeInventory();
 
         sessions.put(playerId, session);
-        sketches.handlePaletteClick(player, palette, 22);
+        sketches.handlePaletteClick(player, palette, 21);
         when(inventory.getHolder()).thenReturn(null);
         tasks.removeFirst().run();
         assertEquals(SketchInk.CHARCOAL, session.ink());
@@ -120,8 +115,8 @@ public class SketchPaletteServiceTest {
     }
 
     @Test
-    public void helpMarginsAndBagSlotsDoNotScheduleASelection() {
-        for (int slot : new int[]{-1, 0, SketchPalette.SLOT_HELP, 27, 36}) {
+    public void outsideAndBagSlotsDoNotScheduleASelection() {
+        for (int slot : new int[]{-1, 27, 36}) {
             sketches.handlePaletteClick(player, palette, slot);
         }
         assertTrue(tasks.isEmpty());

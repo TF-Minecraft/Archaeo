@@ -15,6 +15,7 @@ public class SketchPaletteTest {
     @SuppressWarnings("deprecation")
     public void allSwatchesRemainDistinctAfterMinecraftMapColourMatching() {
         Set<Byte> mapColours = new HashSet<>();
+        mapColours.add(MapPalette.matchColor(SketchInk.PAPER.color()));
         for (SketchInk ink : SketchInk.values()) {
             if (ink != SketchInk.PAPER) {
                 assertTrue("Map colour duplicates another pigment: " + ink,
@@ -43,6 +44,7 @@ public class SketchPaletteTest {
         SketchSheet sheet = new SketchSheet();
         for (int slot = 0; slot < 27; slot++) {
             SketchInk ink = SketchPalette.inkAt(slot);
+            assertNotNull("Empty colour slot " + slot, ink);
             if (ink != null) {
                 assertNotEquals(SketchInk.PAPER, ink);
                 assertTrue("Duplicate pigment " + ink, offered.add(ink));
@@ -50,14 +52,12 @@ public class SketchPaletteTest {
             }
         }
         assertEquals(EnumSet.complementOf(EnumSet.of(SketchInk.PAPER)), offered);
-        assertEquals(18, offered.size());
+        assertEquals(27, offered.size());
         SketchSheet restored = SketchSheet.fromBytes(sheet.toBytes());
         for (int slot = 0; slot < 27; slot++) {
             assertEquals(sheet.at(slot, 0), restored.at(slot, 0));
         }
         assertNull(SketchPalette.inkAt(-1));
-        assertNull(SketchPalette.inkAt(SketchPalette.SLOT_HELP));
-        assertNull(SketchPalette.inkAt(SketchPalette.SLOT_CLOSE));
         for (int slot = 27; slot < 64; slot++) {
             assertNull(SketchPalette.inkAt(slot));
         }

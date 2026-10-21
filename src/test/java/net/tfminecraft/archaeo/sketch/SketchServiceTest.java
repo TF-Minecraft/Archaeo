@@ -275,7 +275,7 @@ public class SketchServiceTest {
         }
         server.getScheduler().performTicks(4);
         assertSame(paletteInventory, player.getOpenInventory().getTopInventory());
-        service.handlePaletteClick(player, palette, 22);
+        service.handlePaletteClick(player, palette, 21);
         server.getScheduler().performTicks(2);
         Inventory reopened = player.getOpenInventory().getTopInventory();
         assertFalse(reopened != null && reopened.getHolder() instanceof SketchPalette);

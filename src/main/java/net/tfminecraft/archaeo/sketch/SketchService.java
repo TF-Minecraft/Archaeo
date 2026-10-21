@@ -920,7 +920,7 @@ public class SketchService {
     /** Selects and closes next tick, after the cancelled inventory click has finished. */
     void handlePaletteClick(Player player, SketchPalette palette, int slot) {
         SketchInk ink = SketchPalette.inkAt(slot);
-        if (ink == null && slot != SketchPalette.SLOT_CLOSE) {
+        if (ink == null) {
             return;
         }
         plugin.getServer().getScheduler().runTask(plugin, () -> {
