@@ -69,7 +69,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private static final List<String> GIVE_KINDS = List.of(
             "tracker", "prospect", "establish", "tool", "brush", "paper", "pencil", "artifact");
     private static final List<String> WORKDAY_ACTIONS = List.of("reset");
-    private static final List<String> FIND_ACTIONS = List.of("spawn", "list", "info", "delete");
+    private static final List<String> FIND_ACTIONS = List.of("spawn", "list", "info", "delete", "restore");
 
     private final ArcheologyPlugin plugin;
     private final CatalogRegistry catalogs;
@@ -586,10 +586,10 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * Inspects or removes archive rows, or plants a test find at the issuer's feet.
+     * Inspects, removes, or restores archived finds, or plants a test find at the issuer's feet.
      *
      * @param sender staff issuer
-     * @param args {@code find spawn|list|info|delete ...}
+     * @param args {@code find spawn|list|info|delete|restore ...}
      * @return {@code true} always (handled)
      */
     private boolean handleFind(CommandSender sender, String[] args) {
@@ -1283,6 +1283,7 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("       /archaeo find list <#serial> [page]");
         sender.sendMessage("       /archaeo find info [<#serial> <number|uuid>]");
         sender.sendMessage("       /archaeo find delete <#serial> <number|uuid> confirm");
+        sender.sendMessage("       /archaeo find restore <#serial> <number|uuid> <player> confirm");
         sender.sendMessage("       /archaeo sketch");
         sender.sendMessage("       /archaeo reload");
     }

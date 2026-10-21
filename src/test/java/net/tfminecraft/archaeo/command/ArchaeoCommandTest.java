@@ -802,6 +802,68 @@ public class ArchaeoCommandTest {
         assertEquals(3, copy.getFinds().getLast().getFindNumber());
     }
 
+    @Test public void restoresAConsumedPieceWithoutReplacingItsArchivedIdentityOrStudyHistory() {
+        Site site = dossier(12, "Holy Order Project");
+        run("give artifact coin #12");
+        BuriedFind find = site.getFinds().getFirst();
+        find.setItem("GOLD_INGOT");
+        find.setConservation(64); find.setBuriedConservation(64);
+        find.setGivenName("Faith charm");
+        find.setLabCleaned(true); find.setFieldSketch(true); find.setStudied(true);
+        UUID originalRecoverer = find.getRecoveredBy();
+        java.time.Instant originalRecovery = find.getRecoveredAt();
+        staff.getInventory().clear();
+        PlayerMock recipient = player("Recipient");
+        var tags = new net.tfminecraft.archaeo.item.RecoveredFindItem(plugin);
+
+        assertContains(run("find restore #12 1 Recipient"), "Restore this same piece");
+        assertTrue(recipient.getInventory().isEmpty());
+        assertContains(run("find restore #12 " + find.getId() + " Recipient confirm"), "Restored");
+
+        var restored = recipient.getInventory().getItem(0);
+        assertEquals(Material.GOLD_INGOT, restored.getType());
+        assertEquals("Faith charm", org.bukkit.ChatColor.stripColor(restored.getItemMeta().getDisplayName()));
+        assertEquals(find.getId(), tags.findIdOf(restored));
+        assertEquals(site.getId(), tags.siteIdOf(restored));
+        var pdc = restored.getItemMeta().getPersistentDataContainer();
+        assertEquals(Integer.valueOf(64), pdc.get(new org.bukkit.NamespacedKey(plugin, "conservation"), org.bukkit.persistence.PersistentDataType.INTEGER));
+        assertEquals(1, site.getFinds().size());
+        assertEquals(1, site.getRecoveredCount());
+        assertEquals(1, find.getFindNumber());
+        assertEquals(originalRecoverer, find.getRecoveredBy());
+        assertEquals(originalRecovery, find.getRecoveredAt());
+        assertTrue(find.isLabCleaned()); assertTrue(find.hasFieldSketch()); assertTrue(find.isStudied());
+        assertContains(run("find restore #12 1 Recipient confirm"), "already holds");
+        assertEquals(1, recipient.getInventory().all(Material.GOLD_INGOT).size());
+    }
+
+    @Test public void restorationRefusesKnownEnderChestCopiesFullInventoriesAndInvalidRecords() {
+        Site site = dossier(12, "Museum dig");
+        run("give artifact coin #12");
+        var old = staff.getInventory().getItem(0).clone();
+        staff.getInventory().clear();
+        staff.getEnderChest().setItem(0, old);
+        PlayerMock recipient = player("Recipient");
+        assertContains(run("find restore #12 1 Recipient confirm"), "already holds");
+        staff.getEnderChest().clear();
+        for (int slot = 0; slot < 36; slot++) recipient.getInventory().setItem(slot, new org.bukkit.inventory.ItemStack(Material.STONE, 64));
+        assertContains(run("find restore #12 1 Recipient confirm"), "empty inventory slot");
+        assertContains(run("find restore #12 1 Missing confirm"), "Player not online");
+        assertContains(run("find restore #12 1 Recipient invalid"), "Usage:");
+        site.setOwnershipHeld(true);
+        assertContains(run("find restore #12 1 Recipient confirm"), "held for ownership review");
+        site.setOwnershipHeld(false);
+        site.getFinds().getFirst().setState(FindState.LOST);
+        assertContains(run("find restore #12 1 Recipient confirm"), "already recovered");
+        assertEquals(1, site.getFinds().size());
+        assertEquals(List.of("restore"), complete("find", "res"));
+        assertEquals(List.of("Recipient"), complete("find", "restore", "#12", "1", "Rec"));
+        assertEquals(List.of("confirm"), complete("find", "restore", "#12", "1", "Recipient", "con"));
+        staff.setOp(false);
+        staff.addAttachment(plugin, plugin.catalogs().staffPermission(), false);
+        assertContains(run("find restore #12 1 Recipient confirm"), "You do not have permission");
+    }
+
     @Test public void reportsStoredAndCurrentItemsWithoutChangingLegacyFinds() throws Exception {
         Site site = dossier(12, "Museum dig");
         run("give artifact coin #12");
