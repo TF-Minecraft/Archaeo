@@ -60,6 +60,44 @@ public class ArchaeoCommandTest {
         assertContains(run("give tracker"), "You do not have permission");
         assertTrue(staff.getInventory().isEmpty());
         assertTrue(complete("give", "").isEmpty());
+        assertContains(run("ruin info #56"), "You do not have permission");
+    }
+
+    @Test
+    public void ruinInfoOpensOtherDirectorsActiveExhaustedAndClosedCampRecords() {
+        Site site = dossier(56, "Other camp");
+        PlayerMock owner = player("Director");
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(site, owner.getUniqueId(), 5, 5, 84, 4, 84);
+        org.bukkit.Location before = staff.getLocation().clone();
+        for (SiteStatus status : List.of(SiteStatus.ESTABLISHED, SiteStatus.EXHAUSTED, SiteStatus.CLOSED)) {
+            site.setStatus(status);
+            plugin.sites().save(site);
+
+            assertTrue(run("ruin info #56").isEmpty());
+
+            org.bukkit.inventory.Inventory inventory = staff.getOpenInventory().getTopInventory();
+            assertTrue(inventory.getHolder() instanceof net.tfminecraft.archaeo.establish.CampBoard);
+            assertEquals(site.getId(), ((net.tfminecraft.archaeo.establish.CampBoard) inventory.getHolder()).siteId());
+            assertFalse(inventory.contains(Material.NAME_TAG));
+            assertFalse(inventory.contains(Material.CAMPFIRE));
+            assertEquals(owner.getUniqueId(), site.getDirector());
+            assertEquals(before, staff.getLocation());
+        }
+    }
+
+    @Test
+    public void ruinInfoResolvesCampNamesAndTheCampChunkWhenTheRuinIsElsewhere() {
+        Site site = dossier(56, "Remote ruin");
+        site.setChunkX(10); site.setChunkZ(10);
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(site, staff.getUniqueId(), 1, 0, 20, 4, 4);
+        plugin.sites().save(site);
+        staff.teleport(new org.bukkit.Location(staff.getWorld(), 20, 4, 4));
+
+        for (String input : List.of("ruin info Remote ruin", "ruin info")) {
+            assertTrue(run(input).isEmpty());
+            assertEquals(site.getId(), ((net.tfminecraft.archaeo.establish.CampBoard)
+                    staff.getOpenInventory().getTopInventory().getHolder()).siteId());
+        }
     }
 
     @Test
@@ -301,7 +339,7 @@ public class ArchaeoCommandTest {
         find.setBuriedConservation(90); find.setConservation(90);
         find.getCells().addAll(List.of(new BlockCell(1, 38, 1), new BlockCell(2, 38, 1), new BlockCell(3, 38, 1), new BlockCell(4, 38, 1)));
         find.woundBeforeDig(find.getCells().get(0)); find.woundFromAbove(find.getCells().get(1)); find.markCleaned(find.getCells().get(2)); site.getFinds().add(find);
-        List<String> info = run("ruin info #1");
+        List<String> info = console("ruin info #1");
         assertContains(info, "Created by: " + staff.getUniqueId()); assertContains(info, "Camp chunk 1,0 · table 20,4,4");
         assertContains(info, "I · Y 36–39 · disturbed"); assertContains(info, "II · absent");
         assertContains(info, "Hints: pottery, masonry"); assertContains(info, "Prospect confirmed: 1 · samplers: 1");

@@ -49,6 +49,12 @@ for that serial. Omit the player to list all sites. A player filter includes
 sites where any recorded character of that account directed or participated,
 including closed digs. This directory never teleports or edits a site.
 
+`/archaeo ruin info <name|#serial>` opens the camp inventory for staff, including
+other players' excavations and closed records. Omit the query while standing in
+the ruin or camp chunk. The menu keeps the usual director and staff permissions;
+viewing another excavation does not grant director tools. Hidden ruins without
+a camp, and commands issued from console, still show the dossier as text.
+
 Staff can inspect and remove individual recovered pieces:
 
 - `/archaeo find list <#serial> [page]` lists recovered pieces and their stored/current item IDs.

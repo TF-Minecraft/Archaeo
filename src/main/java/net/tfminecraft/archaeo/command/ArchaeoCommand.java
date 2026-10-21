@@ -711,7 +711,8 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * Prints a site dossier. With no query, uses the player's chunk; otherwise name or serial ({@code 12} or {@code #12}).
+     * Opens a camp record for players. Hidden ruins and console retain the text dossier.
+     * With no query, uses the player's ruin or camp chunk; otherwise resolves a name or serial.
      *
      * @param sender command issuer
      * @param args full argument list including {@code ruin info}
@@ -720,21 +721,18 @@ public class ArchaeoCommand implements CommandExecutor, TabCompleter {
     private boolean handleInfo(CommandSender sender, String[] args) {
         Optional<Site> resolved;
         if (args.length == 2) {
-            if (!(sender instanceof Player player)) {
-                sender.sendMessage("Console must pass a site name or serial: /archaeo ruin info <name|#serial>");
-                return true;
-            }
-            Chunk chunk = player.getLocation().getChunk();
-            resolved = sites.findByChunk(chunk.getWorld().getName(), chunk.getX(), chunk.getZ());
-            if (resolved.isEmpty()) {
-                sender.sendMessage("No site in this chunk (" + chunk.getX() + "," + chunk.getZ() + ").");
-                return true;
-            }
+            resolved = siteHere(sender);
         } else {
             String query = Arrays.stream(args).skip(2).collect(Collectors.joining(" "));
             resolved = resolveQuery(sender, query);
         }
-        resolved.ifPresent(site -> sendSiteInfo(sender, site));
+        resolved.ifPresent(site -> {
+            if (sender instanceof Player player && site.mayConsult()) {
+                plugin.camp().openBoard(player, site);
+            } else {
+                sendSiteInfo(sender, site);
+            }
+        });
         return true;
     }
 
