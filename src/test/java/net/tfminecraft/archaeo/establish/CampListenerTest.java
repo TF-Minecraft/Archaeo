@@ -70,6 +70,30 @@ public class CampListenerTest {
     }
     @After public void teardown() { MockBukkit.unmock(); }
 
+    @Test public void remotelyOpenedBoardUsesTheExcavationWorldAndKeepsDirectorToolsRestricted() {
+        World otherWorld = server.addSimpleWorld("Another world");
+        worker.teleport(new Location(otherWorld, 0, 70, 0));
+
+        listener.openBoard(worker, site);
+
+        verify(handPick).ensureJornada(site, director.getWorld());
+        verify(handPick, never()).ensureJornada(site, otherWorld);
+        assertTrue(worker.getOpenInventory().getTopInventory().getHolder() instanceof CampBoard);
+        assertFalse(worker.getOpenInventory().getTopInventory().contains(Material.NAME_TAG));
+        assertFalse(worker.getOpenInventory().getTopInventory().contains(Material.CAMPFIRE));
+        assertEquals(director.getUniqueId(), site.getDirector());
+    }
+
+    @Test public void unopenedExcavationWorldReportsAnErrorWithoutRefreshingTheWorkday() {
+        site.setWorldName("Unloaded world");
+
+        listener.openBoard(worker, site);
+
+        assertEquals("The excavation world is not loaded.", worker.nextMessage());
+        assertNull(worker.getOpenInventory().getTopInventory());
+        verifyNoInteractions(handPick);
+    }
+
     @Test public void campInteractionDeniesVanillaUseAndOpensOnlyOneMainHandBoard() {
         PlayerInteractEvent off = interact(director, camp, EquipmentSlot.OFF_HAND, null);
         listener.onInteract(off); assertEquals(Event.Result.DENY, off.useInteractedBlock());

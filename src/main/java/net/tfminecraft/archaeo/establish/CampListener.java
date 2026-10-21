@@ -19,6 +19,7 @@ import net.tfminecraft.archaeo.sketch.SketchCabinet;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.DyeColor;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
@@ -856,11 +857,19 @@ public class CampListener implements Listener {
     }
 
     /**
+     * Opens the same camp record for an interaction, field book, or staff command.
+     * The excavation's world determines its work-day budget, including remote views.
+     *
      * @param player viewer
      * @param site excavation
      */
-    private void openBoard(Player player, Site site) {
-        handPick.ensureJornada(site, player.getWorld());
+    public void openBoard(Player player, Site site) {
+        World world = plugin.getServer().getWorld(site.getWorldName());
+        if (world == null) {
+            player.sendMessage("The excavation world is not loaded.");
+            return;
+        }
+        handPick.ensureJornada(site, world);
         new CampBoard(site.getId(), staffing(player, site), canCloseCamp(player, site), catalogs)
                 .open(player, site);
     }

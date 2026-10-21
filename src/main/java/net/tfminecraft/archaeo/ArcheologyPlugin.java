@@ -53,6 +53,7 @@ public class ArcheologyPlugin extends JavaPlugin {
     private ProspectService prospect;
     private EstablishItem establishItem;
     private EstablishService establish;
+    private CampListener camp;
     private DigTools digTools;
     private HandPickService handPick;
     private FindDustService findDust;
@@ -110,19 +111,18 @@ public class ArcheologyPlugin extends JavaPlugin {
                 new RecoveredFindListener(this, sites, catalogs, recoveredFindItem),
                 this);
         CampClosure campClosure = new CampClosure(this, sites);
-        getServer().getPluginManager().registerEvents(
-                new CampListener(
-                        this,
-                        sites,
-                        catalogs,
-                        establishItem,
-                        establish,
-                        handPick,
-                        outline,
-                        brushItem,
-                        recoveredFindItem,
-                        campClosure),
-                this);
+        camp = new CampListener(
+                this,
+                sites,
+                catalogs,
+                establishItem,
+                establish,
+                handPick,
+                outline,
+                brushItem,
+                recoveredFindItem,
+                campClosure);
+        getServer().getPluginManager().registerEvents(camp, this);
         findDust = new FindDustService(this, sites, catalogs.pick());
         establish.setFindDust(findDust);
         getServer().getPluginManager().registerEvents(findDust, this);
@@ -253,6 +253,11 @@ public class ArcheologyPlugin extends JavaPlugin {
      */
     public MuseumListener museum() {
         return museum;
+    }
+
+    /** @return the camp menus shared by block interaction, field books, and staff commands */
+    public CampListener camp() {
+        return camp;
     }
 
     /**

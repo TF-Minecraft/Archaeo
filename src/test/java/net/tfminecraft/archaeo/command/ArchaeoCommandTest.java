@@ -60,6 +60,44 @@ public class ArchaeoCommandTest {
         assertContains(run("give tracker"), "You do not have permission");
         assertTrue(staff.getInventory().isEmpty());
         assertTrue(complete("give", "").isEmpty());
+        assertContains(run("ruin info #56"), "You do not have permission");
+    }
+
+    @Test
+    public void ruinInfoOpensOtherDirectorsActiveExhaustedAndClosedCampRecords() {
+        Site site = dossier(56, "Other camp");
+        PlayerMock owner = player("Director");
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(site, owner.getUniqueId(), 5, 5, 84, 4, 84);
+        org.bukkit.Location before = staff.getLocation().clone();
+        for (SiteStatus status : List.of(SiteStatus.ESTABLISHED, SiteStatus.EXHAUSTED, SiteStatus.CLOSED)) {
+            site.setStatus(status);
+            plugin.sites().save(site);
+
+            assertTrue(run("ruin info #56").isEmpty());
+
+            org.bukkit.inventory.Inventory inventory = staff.getOpenInventory().getTopInventory();
+            assertTrue(inventory.getHolder() instanceof net.tfminecraft.archaeo.establish.CampBoard);
+            assertEquals(site.getId(), ((net.tfminecraft.archaeo.establish.CampBoard) inventory.getHolder()).siteId());
+            assertFalse(inventory.contains(Material.NAME_TAG));
+            assertFalse(inventory.contains(Material.CAMPFIRE));
+            assertEquals(owner.getUniqueId(), site.getDirector());
+            assertEquals(before, staff.getLocation());
+        }
+    }
+
+    @Test
+    public void ruinInfoResolvesCampNamesAndTheCampChunkWhenTheRuinIsElsewhere() {
+        Site site = dossier(56, "Remote ruin");
+        site.setChunkX(10); site.setChunkZ(10);
+        net.tfminecraft.archaeo.CharacterTestSupport.establish(site, staff.getUniqueId(), 1, 0, 20, 4, 4);
+        plugin.sites().save(site);
+        staff.teleport(new org.bukkit.Location(staff.getWorld(), 20, 4, 4));
+
+        for (String input : List.of("ruin info Remote ruin", "ruin info")) {
+            assertTrue(run(input).isEmpty());
+            assertEquals(site.getId(), ((net.tfminecraft.archaeo.establish.CampBoard)
+                    staff.getOpenInventory().getTopInventory().getHolder()).siteId());
+        }
     }
 
     @Test
@@ -301,7 +339,7 @@ public class ArchaeoCommandTest {
         find.setBuriedConservation(90); find.setConservation(90);
         find.getCells().addAll(List.of(new BlockCell(1, 38, 1), new BlockCell(2, 38, 1), new BlockCell(3, 38, 1), new BlockCell(4, 38, 1)));
         find.woundBeforeDig(find.getCells().get(0)); find.woundFromAbove(find.getCells().get(1)); find.markCleaned(find.getCells().get(2)); site.getFinds().add(find);
-        List<String> info = run("ruin info #1");
+        List<String> info = console("ruin info #1");
         assertContains(info, "Created by: " + staff.getUniqueId()); assertContains(info, "Camp chunk 1,0 · table 20,4,4");
         assertContains(info, "I · Y 36–39 · disturbed"); assertContains(info, "II · absent");
         assertContains(info, "Hints: pottery, masonry"); assertContains(info, "Prospect confirmed: 1 · samplers: 1");
@@ -762,6 +800,68 @@ public class ArchaeoCommandTest {
         assertEquals(1, copy.getRecoveredCount());
         assertContains(run("give artifact coin #12"), "Gave Coin");
         assertEquals(3, copy.getFinds().getLast().getFindNumber());
+    }
+
+    @Test public void restoresAConsumedPieceWithoutReplacingItsArchivedIdentityOrStudyHistory() {
+        Site site = dossier(12, "Holy Order Project");
+        run("give artifact coin #12");
+        BuriedFind find = site.getFinds().getFirst();
+        find.setItem("GOLD_INGOT");
+        find.setConservation(64); find.setBuriedConservation(64);
+        find.setGivenName("Faith charm");
+        find.setLabCleaned(true); find.setFieldSketch(true); find.setStudied(true);
+        UUID originalRecoverer = find.getRecoveredBy();
+        java.time.Instant originalRecovery = find.getRecoveredAt();
+        staff.getInventory().clear();
+        PlayerMock recipient = player("Recipient");
+        var tags = new net.tfminecraft.archaeo.item.RecoveredFindItem(plugin);
+
+        assertContains(run("find restore #12 1 Recipient"), "Restore this same piece");
+        assertTrue(recipient.getInventory().isEmpty());
+        assertContains(run("find restore #12 " + find.getId() + " Recipient confirm"), "Restored");
+
+        var restored = recipient.getInventory().getItem(0);
+        assertEquals(Material.GOLD_INGOT, restored.getType());
+        assertEquals("Faith charm", org.bukkit.ChatColor.stripColor(restored.getItemMeta().getDisplayName()));
+        assertEquals(find.getId(), tags.findIdOf(restored));
+        assertEquals(site.getId(), tags.siteIdOf(restored));
+        var pdc = restored.getItemMeta().getPersistentDataContainer();
+        assertEquals(Integer.valueOf(64), pdc.get(new org.bukkit.NamespacedKey(plugin, "conservation"), org.bukkit.persistence.PersistentDataType.INTEGER));
+        assertEquals(1, site.getFinds().size());
+        assertEquals(1, site.getRecoveredCount());
+        assertEquals(1, find.getFindNumber());
+        assertEquals(originalRecoverer, find.getRecoveredBy());
+        assertEquals(originalRecovery, find.getRecoveredAt());
+        assertTrue(find.isLabCleaned()); assertTrue(find.hasFieldSketch()); assertTrue(find.isStudied());
+        assertContains(run("find restore #12 1 Recipient confirm"), "already holds");
+        assertEquals(1, recipient.getInventory().all(Material.GOLD_INGOT).size());
+    }
+
+    @Test public void restorationRefusesKnownEnderChestCopiesFullInventoriesAndInvalidRecords() {
+        Site site = dossier(12, "Museum dig");
+        run("give artifact coin #12");
+        var old = staff.getInventory().getItem(0).clone();
+        staff.getInventory().clear();
+        staff.getEnderChest().setItem(0, old);
+        PlayerMock recipient = player("Recipient");
+        assertContains(run("find restore #12 1 Recipient confirm"), "already holds");
+        staff.getEnderChest().clear();
+        for (int slot = 0; slot < 36; slot++) recipient.getInventory().setItem(slot, new org.bukkit.inventory.ItemStack(Material.STONE, 64));
+        assertContains(run("find restore #12 1 Recipient confirm"), "empty inventory slot");
+        assertContains(run("find restore #12 1 Missing confirm"), "Player not online");
+        assertContains(run("find restore #12 1 Recipient invalid"), "Usage:");
+        site.setOwnershipHeld(true);
+        assertContains(run("find restore #12 1 Recipient confirm"), "held for ownership review");
+        site.setOwnershipHeld(false);
+        site.getFinds().getFirst().setState(FindState.LOST);
+        assertContains(run("find restore #12 1 Recipient confirm"), "already recovered");
+        assertEquals(1, site.getFinds().size());
+        assertEquals(List.of("restore"), complete("find", "res"));
+        assertEquals(List.of("Recipient"), complete("find", "restore", "#12", "1", "Rec"));
+        assertEquals(List.of("confirm"), complete("find", "restore", "#12", "1", "Recipient", "con"));
+        staff.setOp(false);
+        staff.addAttachment(plugin, plugin.catalogs().staffPermission(), false);
+        assertContains(run("find restore #12 1 Recipient confirm"), "You do not have permission");
     }
 
     @Test public void reportsStoredAndCurrentItemsWithoutChangingLegacyFinds() throws Exception {

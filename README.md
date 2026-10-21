@@ -49,11 +49,18 @@ for that serial. Omit the player to list all sites. A player filter includes
 sites where any recorded character of that account directed or participated,
 including closed digs. This directory never teleports or edits a site.
 
+`/archaeo ruin info <name|#serial>` opens the camp inventory for staff, including
+other players' excavations and closed records. Omit the query while standing in
+the ruin or camp chunk. The menu keeps the usual director and staff permissions;
+viewing another excavation does not grant director tools. Hidden ruins without
+a camp, and commands issued from console, still show the dossier as text.
+
 Staff can inspect and remove individual recovered pieces:
 
 - `/archaeo find list <#serial> [page]` lists recovered pieces and their stored/current item IDs.
 - `/archaeo find info` inspects the piece in the main hand; add `<#serial> <number|uuid>` for an explicit record.
 - `/archaeo find delete <#serial> <number|uuid> confirm` backs up the dossier, deletes that recovered row, and removes matching physical pieces in online inventories and loaded locations. Omit `confirm` to preview. Offline inventories and unloaded chunks are not edited.
+- `/archaeo find restore <#serial> <number|uuid> <player> confirm` recreates a lost or consumed physical item from its existing recovered row, preserving its UUID, inventory number, stored item, condition, and study history. Omit `confirm` to preview. The recipient must be online with an empty slot; known copies in online inventories, ender chests, and cursors prevent recovery. Staff must confirm that no stored or offline copy remains. This command does not alter money balances.
 
 See [artifact migration and TFMC equivalences](ARTIFACT-MIGRATION.md) before replacing old pieces with `give artifact`. Reissuing creates a new find; it does not transfer the original study or recovery history.
 

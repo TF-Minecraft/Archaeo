@@ -8,6 +8,7 @@ import net.tfminecraft.archaeo.model.FindState;
 import net.tfminecraft.archaeo.model.Site;
 import net.tfminecraft.archaeo.site.SitePurge;
 import net.tfminecraft.archaeo.site.SiteRepository;
+import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -18,7 +19,7 @@ import java.util.Locale;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-/** Staff inspection and removal of individual recovered pieces, including retired catalog items. */
+/** Staff inspection, removal, and restoration of individual recovered pieces. */
 final class FindArchiveCommand {
     private static final int PAGE_SIZE = 8;
     private final SiteRepository sites;
@@ -38,6 +39,7 @@ final class FindArchiveCommand {
             case "list" -> list(sender, args);
             case "info" -> info(sender, args);
             case "delete" -> delete(sender, args);
+            case "restore" -> restore(sender, args);
             default -> usage(sender);
         }
         return true;
@@ -132,6 +134,76 @@ final class FindArchiveCommand {
                 + " Offline inventories, unloaded chunks, and previously printed books are not edited.");
     }
 
+    /** Rebuilds a confirmed missing physical piece from its existing archive row. */
+    private void restore(CommandSender sender, String[] args) {
+        if (args.length < 5 || args.length > 6 || (args.length == 6 && !"confirm".equalsIgnoreCase(args[5]))) {
+            sender.sendMessage("Usage: /archaeo find restore <#serial> <number|uuid> <player> confirm");
+            return;
+        }
+        Site site = site(sender, args[2]);
+        if (site == null) return;
+        BuriedFind find = find(sender, site, args[3]);
+        if (find == null) return;
+        if (find.getState() != FindState.RECOVERED) {
+            sender.sendMessage("Only an already recovered find can be restored.");
+            return;
+        }
+        if (site.isOwnershipHeld()) {
+            sender.sendMessage("This excavation record is held for ownership review and cannot be restored.");
+            return;
+        }
+        Player target = Bukkit.getPlayerExact(args[4]);
+        if (target == null) {
+            sender.sendMessage("Player not online: " + args[4]);
+            return;
+        }
+        ArtifactTemplate template = catalogs.artifact(find.getArtifactId());
+        if (template == null || find.getItem() == null) {
+            sender.sendMessage("The original item or artifact definition is missing; restoration was refused.");
+            return;
+        }
+        if (args.length == 5) {
+            describe(sender, site, find);
+            sender.sendMessage("Restore only if the physical item was lost or consumed. Offline inventories and stored copies are not checked.");
+            sender.sendMessage("Restore this same piece to " + target.getName() + ": /archaeo find restore #"
+                    + site.getSerial() + " " + find.getId() + " " + target.getName() + " confirm");
+            return;
+        }
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            if (hasFind(online.getInventory().getContents(), find)
+                    || hasFind(online.getEnderChest().getContents(), find)
+                    || recovered.isThisFind(online.getItemOnCursor(), find.getId())) {
+                sender.sendMessage("An online player already holds this find; restoration was refused.");
+                return;
+            }
+        }
+        int slot = -1;
+        ItemStack[] storage = target.getInventory().getStorageContents();
+        for (int index = 0; index < storage.length; index++) {
+            if (storage[index] == null || storage[index].getType().isAir()) {
+                slot = index;
+                break;
+            }
+        }
+        if (slot < 0) {
+            sender.sendMessage("The recipient needs an empty inventory slot; nothing was restored.");
+            return;
+        }
+        String grade = catalogs.pick().conservation().gradeLabel(find.getConservation());
+        ItemStack stack = recovered.create(template, site, find, find.getRecoveredBy(), grade,
+                find.isFieldDamaged(), catalogs);
+        target.getInventory().setItem(slot, stack);
+        sender.sendMessage("Restored " + find.publicNumber(site) + " to " + target.getName()
+                + " with its original UUID, condition, and history.");
+    }
+
+    private boolean hasFind(ItemStack[] contents, BuriedFind find) {
+        for (ItemStack stack : contents) {
+            if (recovered.isThisFind(stack, find.getId())) return true;
+        }
+        return false;
+    }
+
     private void describe(CommandSender sender, Site site, BuriedFind find) {
         sender.sendMessage("Find " + find.publicNumber(site) + " · ruin " + site.displayLabel());
         sender.sendMessage("UUID: " + find.getId());
@@ -186,7 +258,7 @@ final class FindArchiveCommand {
 
     List<String> complete(String[] args) {
         String action = args[1].toLowerCase(Locale.ROOT);
-        if (!List.of("list", "info", "delete").contains(action)) return List.of();
+        if (!List.of("list", "info", "delete", "restore").contains(action)) return List.of();
         String typed = args[args.length - 1].toLowerCase(Locale.ROOT);
         if (args.length == 3) {
             return sites.all().stream().map(site -> "#" + site.getSerial())
@@ -197,11 +269,16 @@ final class FindArchiveCommand {
         if (site == null) return List.of();
         if (args.length == 4 && !"list".equals(action)) {
             return site.getFinds().stream()
-                    .filter(find -> !"delete".equals(action) || find.getState() == FindState.RECOVERED)
+                    .filter(find -> !("delete".equals(action) || "restore".equals(action)) || find.getState() == FindState.RECOVERED)
                     .map(find -> find.getFindNumber() > 0 ? String.valueOf(find.getFindNumber()) : find.getId().toString())
                     .filter(number -> number.toLowerCase(Locale.ROOT).startsWith(typed)).distinct().toList();
         }
-        return args.length == 5 && "delete".equals(action) && "confirm".startsWith(typed) ? List.of("confirm") : List.of();
+        if (args.length == 5 && "restore".equals(action)) {
+            return Bukkit.getOnlinePlayers().stream().map(Player::getName)
+                    .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(typed)).sorted().toList();
+        }
+        return ((args.length == 5 && "delete".equals(action)) || (args.length == 6 && "restore".equals(action)))
+                && "confirm".startsWith(typed) ? List.of("confirm") : List.of();
     }
 
     private static int positiveInt(String token) {
@@ -218,5 +295,6 @@ final class FindArchiveCommand {
         sender.sendMessage("       /archaeo find list <#serial> [page]");
         sender.sendMessage("       /archaeo find info [<#serial> <number|uuid>]");
         sender.sendMessage("       /archaeo find delete <#serial> <number|uuid> confirm");
+        sender.sendMessage("       /archaeo find restore <#serial> <number|uuid> <player> confirm");
     }
 }
