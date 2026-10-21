@@ -1013,7 +1013,9 @@ public class ArchaeoCommandTest {
 
     private Site dossier(int serial, String name) {
         Site site = new Site();
-        site.setId(UUID.randomUUID()); site.setSerial(serial); site.setName(name);
+        // Numeric queries must only match serials, never a randomly chosen UUID prefix.
+        site.setId(new UUID(0xa000000000000000L, UUID.randomUUID().getLeastSignificantBits()));
+        site.setSerial(serial); site.setName(name);
         site.setCreatedAt(java.time.Instant.parse("2026-01-01T00:00:00Z")); site.setWorldName("world"); site.setStatus(SiteStatus.HIDDEN);
         site.setInterest(net.tfminecraft.archaeo.model.InterestLevel.LOW);
         plugin.sites().save(site);
