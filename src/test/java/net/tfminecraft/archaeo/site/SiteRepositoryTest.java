@@ -158,6 +158,14 @@ public class SiteRepositoryTest {
         assertEquals(Optional.of(hidden), repository.findPrism("world", 1, 55, 1));
         assertEquals(Optional.of(established), repository.findEstablishedPrism("world", 17, 55, 1));
         assertTrue(repository.findEstablishedPrism("world", 1, 55, 1).isEmpty());
+        // Only the established site at chunk (1, 0) counts; hidden, exhausted and closed sites never do.
+        assertTrue(repository.hasEstablishedIn("world", 1, 1, 0, 0));
+        assertTrue(repository.hasEstablishedIn("world", 0, 2, -1, 1));
+        assertFalse(repository.hasEstablishedIn("world", 0, 0, 0, 0));
+        assertFalse(repository.hasEstablishedIn("world", 2, 3, -1, 1));
+        assertFalse(repository.hasEstablishedIn("world", 1, 1, 1, 2));
+        assertFalse(repository.hasEstablishedIn("world", 1, 1, -2, -1));
+        assertFalse(repository.hasEstablishedIn("other", -5, 5, -5, 5));
         assertTrue(repository.findPrism("world", 1, 80, 1).isEmpty());
         assertTrue(repository.findPrism("other", 33, 55, 1).isEmpty());
         assertTrue(repository.findPrism("world", 49, 55, 1).isEmpty());

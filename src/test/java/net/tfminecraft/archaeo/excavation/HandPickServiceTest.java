@@ -99,6 +99,13 @@ public class HandPickServiceTest {
                     && site.isInPrism(invocation.getArgument(1), invocation.getArgument(2), invocation.getArgument(3));
             return inside ? Optional.of(site) : Optional.empty();
         });
+        when(sites.hasEstablishedIn(anyString(), anyInt(), anyInt(), anyInt(), anyInt())).thenAnswer(invocation ->
+                site.getStatus() == SiteStatus.ESTABLISHED
+                        && world.getName().equals(invocation.getArgument(0))
+                        && site.getChunkX() >= (int) invocation.getArgument(1)
+                        && site.getChunkX() <= (int) invocation.getArgument(2)
+                        && site.getChunkZ() >= (int) invocation.getArgument(3)
+                        && site.getChunkZ() <= (int) invocation.getArgument(4));
         catalogs = mock(CatalogRegistry.class);
         when(catalogs.toolWear()).thenReturn(new ToolWearSettings(0, 0, false));
         profile = profile(1, 0, 20);
@@ -357,6 +364,67 @@ public class HandPickServiceTest {
         service.syncHeldTool(player);
         service.stop();
         assertEquals(List.of(unrelated), List.copyOf(speed.getModifiers()));
+    }
+
+    @Test
+    public void heldToolIsCheckedBeforeTheCrosshairIsTraced() {
+        var speed = player.getAttribute(Attribute.BLOCK_BREAK_SPEED);
+        service.syncHeldTool(player);
+        assertEquals(1, speed.getModifiers().size());
+        player.getInventory().setItemInMainHand(new ItemStack(Material.STICK));
+        clearInvocations(player);
+        service.syncHeldTool(player);
+        ticks(3);
+        verify(player, never()).getTargetBlockExact(anyInt());
+        assertTrue(speed.getModifiers().isEmpty());
+        assertTrue(actionBars.isEmpty());
+    }
+
+    @Test
+    public void noEstablishedSiteWithinReachSkipsTheTraceUntilOneIs() {
+        var speed = player.getAttribute(Attribute.BLOCK_BREAK_SPEED);
+        // The site's chunk ends at x 15. Standing at x 24 the six-block trace cannot reach it.
+        player.teleport(new Location(world, 24, 42, 8));
+        clearInvocations(player);
+        ticks(2);
+        service.syncHeldTool(player);
+        verify(player, never()).getTargetBlockExact(anyInt());
+        assertTrue(speed.getModifiers().isEmpty());
+        assertTrue(actionBars.isEmpty());
+        player.teleport(new Location(world, 23, 42, 8));
+        ticks(1);
+        verify(player, times(1)).getTargetBlockExact(6);
+        assertEquals(1, speed.getModifiers().size());
+        assertEquals("STRATUM I  ⛏ 10", actionBars.getLast());
+        site.setStatus(SiteStatus.HIDDEN);
+        clearInvocations(player);
+        ticks(1);
+        verify(player, never()).getTargetBlockExact(anyInt());
+        assertTrue(speed.getModifiers().isEmpty());
+    }
+
+    @Test
+    public void oneTracePerTickServesTheLockAndTheHudAndCyclingNeedsNone() {
+        var speed = player.getAttribute(Attribute.BLOCK_BREAK_SPEED);
+        clearInvocations(player);
+        ticks(1);
+        verify(player, times(1)).getTargetBlockExact(6);
+        assertEquals(1, speed.getModifiers().size());
+        assertEquals(List.of("STRATUM I  ⛏ 10"), actionBars);
+        // Aiming at opened air in the prism shows the HUD but frees vanilla mining.
+        target.setType(Material.AIR);
+        ticks(1);
+        assertTrue(speed.getModifiers().isEmpty());
+        assertEquals(2, actionBars.size());
+        target.setType(Material.STONE);
+        service.noteMining(player, target);
+        target = null;
+        clearInvocations(player);
+        ticks(1);
+        verify(player, never()).getTargetBlockExact(anyInt());
+        assertEquals(1, speed.getModifiers().size());
+        assertEquals("STRATUM I  ⛏ 10", actionBars.getLast());
+        assertEquals(3, actionBars.size());
     }
 
     @Test

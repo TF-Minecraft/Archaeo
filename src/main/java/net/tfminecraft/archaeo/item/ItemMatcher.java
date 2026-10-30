@@ -168,11 +168,18 @@ public final class ItemMatcher {
      * @return whether this stack is that entry
      */
     public boolean matches(ItemStack stack, ItemRef ref) {
-        return switch (ref.kind()) {
-            case VANILLA -> matchesVanilla(stack, ref);
-            case ITEMSADDER -> matchesItemsAdder(stack, ref);
-            case MMOITEMS -> matchesMmoItems(stack, ref);
-        };
+        return probe(stack).matches(ref);
+    }
+
+    /**
+     * The pack APIs read the item's data on every call, so checking one stack against a whole
+     * whitelist should share a single probe.
+     *
+     * @param stack main-hand stack, or {@code null}
+     * @return lookups for that stack, shared by every whitelist entry it is checked against
+     */
+    public Probe probe(ItemStack stack) {
+        return new Probe(stack);
     }
 
     /**
@@ -235,11 +242,12 @@ public final class ItemMatcher {
     }
 
     /**
-     * @param stack live stack
+     * @param probe live stack
      * @param ref vanilla material
      * @return whether the Bukkit type matches and the stack is not a pack item
      */
-    private boolean matchesVanilla(ItemStack stack, ItemRef ref) {
+    private boolean matchesVanilla(Probe probe, ItemRef ref) {
+        ItemStack stack = probe.stack;
         Material wanted = ref.vanillaMaterial();
         Material type = stack == null || stack.getType().isAir()
                 ? Material.AIR
@@ -250,27 +258,27 @@ public final class ItemMatcher {
         if (wanted == Material.AIR) {
             return true;
         }
-        return !isCustom(stack);
+        return probe.itemsAdderId() == null && probe.mmoType() == null;
     }
 
     /**
-     * @param stack live stack
+     * @param probe live stack
      * @param ref ItemsAdder id
      * @return whether namespaced ids match
      */
-    private boolean matchesItemsAdder(ItemStack stack, ItemRef ref) {
-        String id = itemsAdderId(stack);
+    private boolean matchesItemsAdder(Probe probe, ItemRef ref) {
+        String id = probe.itemsAdderId();
         return id != null && id.equalsIgnoreCase(ref.primary());
     }
 
     /**
-     * @param stack live stack
+     * @param probe live stack
      * @param ref MMOItems type+id
      * @return whether type and id match
      */
-    private boolean matchesMmoItems(ItemStack stack, ItemRef ref) {
-        String type = mmoType(stack);
-        String id = mmoId(stack);
+    private boolean matchesMmoItems(Probe probe, ItemRef ref) {
+        String type = probe.mmoType();
+        String id = probe.mmoId();
         if (type == null || id == null) {
             return false;
         }
@@ -454,5 +462,73 @@ public final class ItemMatcher {
     private static boolean pluginEnabled(JavaPlugin plugin, String name) {
         Plugin other = plugin.getServer().getPluginManager().getPlugin(name);
         return other != null && other.isEnabled();
+    }
+
+    /**
+     * One stack's pack ids, each asked of its plugin at most once. Use it for a single check
+     * against a whitelist, never across ticks: the item can change in between.
+     */
+    public final class Probe {
+        private final ItemStack stack;
+        private boolean itemsAdderRead;
+        private String itemsAdderId;
+        private boolean mmoTypeRead;
+        private String mmoType;
+        private boolean mmoIdRead;
+        private String mmoId;
+
+        /**
+         * @param stack live stack, or {@code null}
+         */
+        private Probe(ItemStack stack) {
+            this.stack = stack;
+        }
+
+        /**
+         * Same answer as {@link ItemMatcher#matches(ItemStack, ItemRef)} for this stack.
+         *
+         * @param ref whitelist entry
+         * @return whether the probed stack is that entry
+         */
+        public boolean matches(ItemRef ref) {
+            return switch (ref.kind()) {
+                case VANILLA -> matchesVanilla(this, ref);
+                case ITEMSADDER -> matchesItemsAdder(this, ref);
+                case MMOITEMS -> matchesMmoItems(this, ref);
+            };
+        }
+
+        /**
+         * @return {@code namespace:id}, or {@code null}
+         */
+        private String itemsAdderId() {
+            if (!itemsAdderRead) {
+                itemsAdderId = ItemMatcher.this.itemsAdderId(stack);
+                itemsAdderRead = true;
+            }
+            return itemsAdderId;
+        }
+
+        /**
+         * @return MMOItems type name, or {@code null}
+         */
+        private String mmoType() {
+            if (!mmoTypeRead) {
+                mmoType = ItemMatcher.this.mmoType(stack);
+                mmoTypeRead = true;
+            }
+            return mmoType;
+        }
+
+        /**
+         * @return MMOItems template id, or {@code null}
+         */
+        private String mmoId() {
+            if (!mmoIdRead) {
+                mmoId = ItemMatcher.this.mmoId(stack);
+                mmoIdRead = true;
+            }
+            return mmoId;
+        }
     }
 }

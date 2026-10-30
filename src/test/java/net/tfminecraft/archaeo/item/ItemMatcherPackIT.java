@@ -175,6 +175,27 @@ public class ItemMatcherPackIT {
         }
     }
 
+    @Test public void oneProbeAsksEachPackApiOnceAcrossAWholeWhitelist() throws Exception {
+        when(plugins.getPlugin("ItemsAdder")).thenReturn(enabled); when(plugins.getPlugin("MMOItems")).thenReturn(enabled);
+        singleton.set(null, mock(mmoApi));
+        ItemStack stack = new ItemStack(Material.IRON_PICKAXE);
+        try (var ia = mockStatic(stackApi); var mi = mockStatic(mmoApi)) {
+            mi.when(() -> mmoApi.getMethod("getTypeName", ItemStack.class).invoke(null, stack)).thenReturn("TOOL");
+            mi.when(() -> mmoApi.getMethod("getID", ItemStack.class).invoke(null, stack)).thenReturn("PICK");
+            ItemMatcher matcher = ItemMatcher.detect(plugin);
+            ItemRef[] whitelist = {ref("ia:museum:pick"), ItemRef.vanilla(Material.IRON_PICKAXE), ref("ia:museum:shovel"),
+                    ref("mi:tool:shovel"), ref("mi:tool:pick")};
+            ItemMatcher.Probe probe = matcher.probe(stack);
+            boolean[] shared = new boolean[whitelist.length];
+            for (int i = 0; i < whitelist.length; i++) shared[i] = probe.matches(whitelist[i]);
+            ia.verify(() -> stackApi.getMethod("byItemStack", ItemStack.class).invoke(null, stack), times(1));
+            mi.verify(() -> mmoApi.getMethod("getTypeName", ItemStack.class).invoke(null, stack), times(1));
+            mi.verify(() -> mmoApi.getMethod("getID", ItemStack.class).invoke(null, stack), times(1));
+            assertArrayEquals(new boolean[]{false, false, false, false, true}, shared);
+            for (int i = 0; i < whitelist.length; i++) assertEquals(matcher.matches(stack, whitelist[i]), shared[i]);
+        }
+    }
+
     @Test public void packObjectsWithoutAnIdAreNeitherCustomItemsNorCabinets() throws Exception {
         when(plugins.getPlugin("ItemsAdder")).thenReturn(enabled);
         ItemStack stack = new ItemStack(Material.STONE); Block block = mock(Block.class);
