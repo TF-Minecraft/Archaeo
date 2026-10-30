@@ -87,8 +87,10 @@ public class DigToolsTest {
         ItemRef custom = new ItemRef(ItemRef.Kind.ITEMSADDER, "pack:pick", "");
         ItemMatcher matcher = mock(ItemMatcher.class);
         ItemStack stack = new ItemStack(Material.WOODEN_PICKAXE);
+        ItemMatcher.Probe probe = mock(ItemMatcher.Probe.class);
         when(matcher.create(custom)).thenReturn(stack);
-        when(matcher.matches(stack, custom)).thenReturn(true);
+        when(matcher.probe(stack)).thenReturn(probe);
+        when(probe.matches(custom)).thenReturn(true);
         tools.setProfiles(List.of(profile("custom", custom)));
         tools.setMatcher(matcher);
         assertTrue(tools.isAllowed(stack));

@@ -55,6 +55,14 @@ public class HandPickService {
     private static final int STALE_TICKS = 16;
     /** Progress is counted only while packets still arrive; must be less than {@link #STALE_TICKS}. */
     private static final int ACTIVE_HOLD_TICKS = 8;
+    /** Crosshair trace length, in blocks. */
+    private static final int REACH = 6;
+    /**
+     * Blocks from the player's own block to the farthest cell a {@link #REACH} trace can return:
+     * the reach, one for where the eye sits inside its block, and one for a cell whose far face
+     * the ray hits.
+     */
+    private static final int REACH_CELLS = REACH + 2;
 
     private final JavaPlugin plugin;
     private final net.tfminecraft.archaeo.ownership.CharacterWork identity;
@@ -194,10 +202,10 @@ public class HandPickService {
     public void syncHeldTool(Player player, ItemStack held) {
         boolean allowed = tools.isAllowed(held);
         if (allowed) {
-            tools.restoreVanillaSpeedIfSealed(held);
+            tools.restoreAllowedTool(held);
         }
-        boolean atCut = isCycling(player) || isTargetingCut(player);
-        setVanillaMineLocked(player, allowed && atCut);
+        // Without a whitelisted tool the lock always comes off, so the crosshair is not traced.
+        setVanillaMineLocked(player, allowed && (isCycling(player) || isTargetingCut(player)));
     }
 
     /**
@@ -381,12 +389,37 @@ public class HandPickService {
             }
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
-            ItemStack held = player.getInventory().getItemInMainHand();
-            boolean holding = tools.isAllowed(held);
-            syncHeldTool(player, held);
-            if (holding && (isCycling(player) || isTargetingCut(player) || isTargetingPrism(player))) {
-                showHud(player);
-            }
+            syncAndShowHud(player);
+        }
+    }
+
+    /**
+     * Per-tick {@link #syncHeldTool} plus the HUD, with one tool match and at most one crosshair
+     * trace. The HUD shows while cycling, or while the crosshair is inside an established prism
+     * (opened air included, so neighbour traces can sit on the empty cube like a minesweeper
+     * number). The mining lock covers cycling and aiming at prism fill.
+     *
+     * @param player online player
+     */
+    private void syncAndShowHud(Player player) {
+        ItemStack held = player.getInventory().getItemInMainHand();
+        if (!tools.isAllowed(held)) {
+            setVanillaMineLocked(player, false);
+            return;
+        }
+        tools.restoreAllowedTool(held);
+        Cycle cycle = cycles.get(player.getUniqueId());
+        if (cycle != null) {
+            setVanillaMineLocked(player, true);
+            Block cell = player.getWorld().getBlockAt(cycle.x, cycle.y, cycle.z);
+            showHud(player, cycle, cell, establishedAt(cell));
+            return;
+        }
+        Block target = aimedNearSite(player);
+        Site site = target == null ? null : establishedAt(target);
+        setVanillaMineLocked(player, site != null && PrismFill.isTerrainFill(target.getType()));
+        if (site != null) {
+            showHud(player, null, target, site);
         }
     }
 
@@ -395,26 +428,42 @@ public class HandPickService {
      * @return whether the crosshair is on prism fill
      */
     private boolean isTargetingCut(Player player) {
-        Block target = player.getTargetBlockExact(6);
+        Block target = aimedNearSite(player);
         return target != null && isExcavationFill(target);
     }
 
     /**
-     * Includes opened air so neighbour traces can sit on the empty cube like a minesweeper number.
+     * The crosshair cell, traced only when an established excavation is within reach; otherwise
+     * no cell the trace could return is in a prism, so {@code null} answers the same.
      *
      * @param player viewer
-     * @return whether the crosshair is inside an established prism
+     * @return aimed cell, or {@code null} when nothing is aimed or no established site is in reach
      */
-    private boolean isTargetingPrism(Player player) {
-        Block target = player.getTargetBlockExact(6);
-        if (target == null) {
-            return false;
+    private Block aimedNearSite(Player player) {
+        Location at = player.getLocation();
+        int x = at.getBlockX();
+        int z = at.getBlockZ();
+        if (!sites.hasEstablishedIn(
+                player.getWorld().getName(),
+                (x - REACH_CELLS) >> 4,
+                (x + REACH_CELLS) >> 4,
+                (z - REACH_CELLS) >> 4,
+                (z + REACH_CELLS) >> 4)) {
+            return null;
         }
+        return player.getTargetBlockExact(REACH);
+    }
+
+    /**
+     * @param block world cell
+     * @return established excavation whose prism holds this cell, fill or opened air, or {@code null}
+     */
+    private Site establishedAt(Block block) {
         return sites.findEstablishedPrism(
-                target.getWorld().getName(),
-                target.getX(),
-                target.getY(),
-                target.getZ()).isPresent();
+                block.getWorld().getName(),
+                block.getX(),
+                block.getY(),
+                block.getZ()).orElse(null);
     }
 
     /**
@@ -732,18 +781,11 @@ public class HandPickService {
 
     /**
      * @param player viewer
+     * @param cycle open hold, or {@code null}
+     * @param target held cell while cycling, otherwise the aimed cell
+     * @param site established excavation at {@code target}, or {@code null}
      */
-    private void showHud(Player player) {
-        // Only called while cycling or while the crosshair is on the prism, so a target exists.
-        Cycle cycle = cycles.get(player.getUniqueId());
-        Block target = cycle != null
-                ? player.getWorld().getBlockAt(cycle.x, cycle.y, cycle.z)
-                : player.getTargetBlockExact(6);
-        Site site = sites.findEstablishedPrism(
-                target.getWorld().getName(),
-                target.getX(),
-                target.getY(),
-                target.getZ()).orElse(null);
+    private void showHud(Player player, Cycle cycle, Block target, Site site) {
         if (site == null) {
             return;
         }
@@ -787,7 +829,7 @@ public class HandPickService {
         if (cycle != null) {
             return null;
         }
-        List<Block> line = player.getLastTwoTargetBlocks(null, 6);
+        List<Block> line = player.getLastTwoTargetBlocks(null, REACH);
         if (line.size() < 2) {
             return null;
         }

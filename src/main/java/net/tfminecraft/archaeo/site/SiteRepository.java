@@ -262,6 +262,29 @@ public class SiteRepository {
     }
 
     /**
+     * Cheap test before a block lookup near a player. A prism only spans its ruin chunk, so when
+     * this is {@code false} {@link #findEstablishedPrism} finds nothing anywhere in the range.
+     *
+     * @param world world name
+     * @param minChunkX lowest chunk X, inclusive
+     * @param maxChunkX highest chunk X, inclusive
+     * @param minChunkZ lowest chunk Z, inclusive
+     * @param maxChunkZ highest chunk Z, inclusive
+     * @return whether an established excavation's ruin chunk lies in that range
+     */
+    public boolean hasEstablishedIn(String world, int minChunkX, int maxChunkX, int minChunkZ, int maxChunkZ) {
+        for (Site site : byId.values()) {
+            if (site.getChunkX() >= minChunkX && site.getChunkX() <= maxChunkX
+                    && site.getChunkZ() >= minChunkZ && site.getChunkZ() <= maxChunkZ
+                    && site.getStatus() == SiteStatus.ESTABLISHED
+                    && world.equals(site.getWorldName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Ruin or live excavation whose prism contains this block (not yet exhausted or closed).
      * Unclaimed hidden ruins still occupy a prism so vanilla mining can smash finds.
      *

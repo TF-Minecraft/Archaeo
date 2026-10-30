@@ -48,9 +48,10 @@ public class DigTools {
      * @return profile for this stack
      */
     public Optional<ExcavationTool> match(ItemStack stack) {
+        ItemMatcher.Probe probe = matcher.probe(stack);
         for (ExcavationTool profile : profiles) {
             for (ItemRef ref : profile.materials()) {
-                if (matcher.matches(stack, ref)) {
+                if (probe.matches(ref)) {
                     return Optional.of(profile);
                 }
             }
@@ -144,7 +145,19 @@ public class DigTools {
      * @param stack main-hand stack, or {@code null}
      */
     public void restoreVanillaSpeedIfSealed(ItemStack stack) {
-        if (!isAllowed(stack) || stack == null || stack.getType().isAir() || !stack.hasItemMeta()) {
+        if (isAllowed(stack)) {
+            restoreAllowedTool(stack);
+        }
+    }
+
+    /**
+     * {@link #restoreVanillaSpeedIfSealed} for a stack the caller has just matched with
+     * {@link #isAllowed}, so the whitelist is not checked a second time.
+     *
+     * @param stack whitelisted main-hand stack, or {@code null}
+     */
+    void restoreAllowedTool(ItemStack stack) {
+        if (stack == null || stack.getType().isAir() || !stack.hasItemMeta()) {
             return;
         }
         ItemMeta meta = stack.getItemMeta();
