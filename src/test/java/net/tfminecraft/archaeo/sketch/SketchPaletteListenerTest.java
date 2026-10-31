@@ -28,6 +28,7 @@ public class SketchPaletteListenerTest {
     @Before
     public void setup() {
         when(top.getHolder()).thenReturn(palette);
+        when(top.getHolder(false)).thenReturn(palette);
         when(view.getTopInventory()).thenReturn(top);
         when(sketches.editing(player)).thenReturn(true);
     }

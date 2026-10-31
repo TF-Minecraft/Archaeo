@@ -15,7 +15,7 @@ public final class CharacterTestSupport {
     public static final Map<UUID,Optional<CharacterRef>> heirs=new HashMap<>();
     public static ServerMock mock(){return install(MockBukkit.mock());}
     public static <T extends ServerMock> T mock(T server){return install(MockBukkit.mock(server));}
-    private static <T extends ServerMock> T install(T server){sessions.clear();heirs.clear();var plugin=MockBukkit.createMockPlugin("TLibs");
+    private static <T extends ServerMock> T install(T server){HolderLookupPatch.install();sessions.clear();heirs.clear();var plugin=MockBukkit.createMockPlugin("TLibs");
         server.getServicesManager().register(CharacterIdentity.class,new CharacterIdentity(){
             public Optional<CharacterSession> currentSession(Player player){return Optional.ofNullable(sessions.computeIfAbsent(player.getUniqueId(),id->new CharacterSession(new CharacterRef(id,id),1)));}
             public boolean isCurrent(CharacterSession session){return session!=null&&session.equals(sessions.get(session.ref().ownerId()));}

@@ -180,7 +180,7 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onCabinetClick(InventoryClickEvent event) {
-        if (!(event.getView().getTopInventory().getHolder() instanceof SketchCabinet)) {
+        if (!(event.getView().getTopInventory().getHolder(false) instanceof SketchCabinet)) {
             return;
         }
         Player player = (Player) event.getWhoClicked();
@@ -208,7 +208,7 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onLabClick(InventoryClickEvent event) {
-        if (!(event.getView().getTopInventory().getHolder() instanceof CabinetLabBoard board)) {
+        if (!(event.getView().getTopInventory().getHolder(false) instanceof CabinetLabBoard board)) {
             return;
         }
         Player player = (Player) event.getWhoClicked();
@@ -226,7 +226,7 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onCabinetDrag(InventoryDragEvent event) {
-        if (!(event.getView().getTopInventory().getHolder() instanceof SketchCabinet)) {
+        if (!(event.getView().getTopInventory().getHolder(false) instanceof SketchCabinet)) {
             return;
         }
         int topSize = event.getView().getTopInventory().getSize();
@@ -245,7 +245,7 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onLabDrag(InventoryDragEvent event) {
-        if (event.getView().getTopInventory().getHolder() instanceof CabinetLabBoard) {
+        if (event.getView().getTopInventory().getHolder(false) instanceof CabinetLabBoard) {
             event.setCancelled(true);
         }
     }
@@ -257,7 +257,7 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onCabinetClose(InventoryCloseEvent event) {
-        if (!(event.getInventory().getHolder() instanceof SketchCabinet cabinet)) {
+        if (!(event.getInventory().getHolder(false) instanceof SketchCabinet cabinet)) {
             return;
         }
         cabinet.returnContents((Player) event.getPlayer());
@@ -270,7 +270,7 @@ public class SketchListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onLabClose(InventoryCloseEvent event) {
-        if (!(event.getInventory().getHolder() instanceof CabinetLabBoard board)) {
+        if (!(event.getInventory().getHolder(false) instanceof CabinetLabBoard board)) {
             return;
         }
         sketches.handleLabClose((Player) event.getPlayer(), board);
@@ -610,7 +610,7 @@ public class SketchListener implements Listener {
     /** Swatches are buttons, including when players shift-click or use hotbar keys. */
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onPaletteClick(InventoryClickEvent event) {
-        if (!(event.getView().getTopInventory().getHolder() instanceof SketchPalette palette)) {
+        if (!(event.getView().getTopInventory().getHolder(false) instanceof SketchPalette palette)) {
             return;
         }
         event.setCancelled(true);
@@ -624,7 +624,7 @@ public class SketchListener implements Listener {
     /** No swatches or player stacks may be dragged through the picker. */
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onPaletteDrag(InventoryDragEvent event) {
-        if (event.getView().getTopInventory().getHolder() instanceof SketchPalette) {
+        if (event.getView().getTopInventory().getHolder(false) instanceof SketchPalette) {
             event.setCancelled(true);
         }
     }
@@ -665,7 +665,7 @@ public class SketchListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onInventoryClose(InventoryCloseEvent event) {
         if (event.getPlayer() instanceof Player player) {
-            if (event.getInventory().getHolder() instanceof SketchPalette palette) {
+            if (event.getInventory().getHolder(false) instanceof SketchPalette palette) {
                 sketches.handlePaletteClose(player, palette);
                 return;
             }

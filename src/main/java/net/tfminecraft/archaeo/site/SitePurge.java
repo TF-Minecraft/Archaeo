@@ -127,7 +127,7 @@ public final class SitePurge {
      */
     private void closeBoards(UUID siteId) {
         for (Player player : plugin.getServer().getOnlinePlayers()) {
-            InventoryHolder holder = player.getOpenInventory().getTopInventory().getHolder();
+            InventoryHolder holder = player.getOpenInventory().getTopInventory().getHolder(false);
             if (siteId.equals(boardSiteId(holder))) {
                 player.closeInventory();
             }
