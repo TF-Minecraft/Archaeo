@@ -63,6 +63,7 @@ public class SketchPaletteServiceTest {
         when(player.getOpenInventory()).thenReturn(view);
         when(view.getTopInventory()).thenReturn(inventory);
         when(inventory.getHolder()).thenReturn(palette);
+        when(inventory.getHolder(false)).thenReturn(palette);
         when(player.getCurrentInput()).thenReturn(input);
         sketches = spy(new SketchService(plugin, null, null, null, null, mock(SketchSettings.class)));
         Field field = SketchService.class.getDeclaredField("sessions");
@@ -109,6 +110,7 @@ public class SketchPaletteServiceTest {
         sessions.put(playerId, session);
         sketches.handlePaletteClick(player, palette, 21);
         when(inventory.getHolder()).thenReturn(null);
+        when(inventory.getHolder(false)).thenReturn(null);
         tasks.removeFirst().run();
         assertEquals(SketchInk.CHARCOAL, session.ink());
         verify(player, never()).closeInventory();
@@ -136,6 +138,7 @@ public class SketchPaletteServiceTest {
     @Test
     public void spaceOpensOnceWithoutMovingOrPaintingAndClosingRequiresFreshInput() throws Exception {
         when(inventory.getHolder()).thenReturn(null);
+        when(inventory.getHolder(false)).thenReturn(null);
         doAnswer(call -> {
             session.pauseInput();
             return null;

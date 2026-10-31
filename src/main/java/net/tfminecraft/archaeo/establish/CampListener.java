@@ -46,6 +46,7 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -345,7 +346,7 @@ public class CampListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBoardClick(InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder() instanceof CampBoard board)) {
+        if (!(event.getInventory().getHolder(false) instanceof CampBoard board)) {
             return;
         }
         Player player = topClicker(event);
@@ -408,7 +409,7 @@ public class CampListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onStaffClick(InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder() instanceof CampStaffBoard staff)) {
+        if (!(event.getInventory().getHolder(false) instanceof CampStaffBoard staff)) {
             return;
         }
         Player player = topClicker(event);
@@ -453,7 +454,7 @@ public class CampListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onWorkerClick(InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder() instanceof CampWorkerBoard file)) {
+        if (!(event.getInventory().getHolder(false) instanceof CampWorkerBoard file)) {
             return;
         }
         Player player = topClicker(event);
@@ -491,7 +492,7 @@ public class CampListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onFindsClick(InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder() instanceof CampFindsBoard board)) {
+        if (!(event.getInventory().getHolder(false) instanceof CampFindsBoard board)) {
             return;
         }
         Player player = topClicker(event);
@@ -524,7 +525,7 @@ public class CampListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onFindFileClick(InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder() instanceof CampFindBoard file)) {
+        if (!(event.getInventory().getHolder(false) instanceof CampFindBoard file)) {
             return;
         }
         Player player = topClicker(event);
@@ -552,7 +553,7 @@ public class CampListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onIdentifyClick(InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder() instanceof CampIdentifyBoard board)) {
+        if (!(event.getInventory().getHolder(false) instanceof CampIdentifyBoard board)) {
             return;
         }
         Player player = topClicker(event);
@@ -715,7 +716,7 @@ public class CampListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onWoolPickerClick(InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder() instanceof CampWoolPicker picker)) {
+        if (!(event.getInventory().getHolder(false) instanceof CampWoolPicker picker)) {
             return;
         }
         Player player = topClicker(event);
@@ -745,14 +746,15 @@ public class CampListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBoardDrag(InventoryDragEvent event) {
-        if (event.getInventory().getHolder() instanceof CampBoard
-                || event.getInventory().getHolder() instanceof CampWoolPicker
-                || event.getInventory().getHolder() instanceof CampStaffBoard
-                || event.getInventory().getHolder() instanceof CampWorkerBoard
-                || event.getInventory().getHolder() instanceof CampFindsBoard
-                || event.getInventory().getHolder() instanceof CampFindBoard
-                || event.getInventory().getHolder() instanceof CampIdentifyBoard
-                || event.getInventory().getHolder() instanceof SketchCabinet) {
+        InventoryHolder holder = event.getInventory().getHolder(false);
+        if (holder instanceof CampBoard
+                || holder instanceof CampWoolPicker
+                || holder instanceof CampStaffBoard
+                || holder instanceof CampWorkerBoard
+                || holder instanceof CampFindsBoard
+                || holder instanceof CampFindBoard
+                || holder instanceof CampIdentifyBoard
+                || holder instanceof SketchCabinet) {
             event.setCancelled(true);
         }
     }

@@ -474,7 +474,7 @@ public class SketchService {
      * @param top furnace cabinet
      */
     public void tryRegisterCabinet(Player player, Inventory top) {
-        SketchCabinet cabinet = (SketchCabinet) top.getHolder();
+        SketchCabinet cabinet = (SketchCabinet) top.getHolder(false);
         Site site = sites.findById(cabinet.siteId()).orElse(null);
         BuriedFind find = site == null ? null : site.findById(cabinet.findId()).orElse(null);
         if (find == null) {
@@ -689,7 +689,7 @@ public class SketchService {
         thaw(player);
         hideHud(player);
         Inventory openInventory = player.getOpenInventory().getTopInventory();
-        if (openInventory != null && openInventory.getHolder() instanceof SketchPalette palette
+        if (openInventory != null && openInventory.getHolder(false) instanceof SketchPalette palette
                 && palette.belongsTo(session)) {
             player.closeInventory();
         }
@@ -903,7 +903,7 @@ public class SketchService {
     /** @return whether this inventory is the current editor's own palette */
     boolean isPaletteFor(Player player, Inventory inventory) {
         SketchSession session = session(player);
-        return session != null && inventory != null && inventory.getHolder() instanceof SketchPalette palette
+        return session != null && inventory != null && inventory.getHolder(false) instanceof SketchPalette palette
                 && palette.belongsTo(session);
     }
 
@@ -926,7 +926,7 @@ public class SketchService {
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             SketchSession session = session(player);
             if (!player.isOnline() || session == null || !palette.belongsTo(session)
-                    || player.getOpenInventory().getTopInventory().getHolder() != palette) {
+                    || player.getOpenInventory().getTopInventory().getHolder(false) != palette) {
                 return;
             }
             session.selectInk(ink);
@@ -1070,7 +1070,7 @@ public class SketchService {
      */
     private void applyInput(Player player, SketchSession session) {
         Inventory openInventory = player.getOpenInventory().getTopInventory();
-        if (openInventory != null && openInventory.getHolder() instanceof SketchPalette) {
+        if (openInventory != null && openInventory.getHolder(false) instanceof SketchPalette) {
             return;
         }
         Input input = player.getCurrentInput();
