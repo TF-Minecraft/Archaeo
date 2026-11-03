@@ -31,12 +31,19 @@ public final class SiteEstates implements EstateParticipant {
         return (raw!=null&&raw.get("name") instanceof String title&&!title.isBlank()?title:"Ruin site")+" "+id.substring(0,Math.min(8,id.length()));
     }
     private record Journal(Path path,Map<String,Object> value){}
+    /** The death a journal file's text belongs to (null: not an estate journal), so later estates in a pass skip it without parsing it again. */
+    private record JournalOwner(String text,UUID death){}
+    private static final Map<Path,JournalOwner> JOURNAL_OWNERS=new java.util.concurrent.ConcurrentHashMap<>();
     private record Inspection(List<Journal> journals,Map<Long,Set<String>> receipts,Map<Long,String> decisions,Map<String,Object> completion){}
     private static Inspection inspect(SiteOwnership store,EstateDecision decision)throws IOException{
         try{
             List<Journal> journals=new ArrayList<>();Map<Long,Set<String>> receipts=new TreeMap<>();Set<String> completedIds=new HashSet<>(),recoverableHolds=new HashSet<>();Map<String,Set<String>> recoverable=new HashMap<>();Map<Long,String> decisions=new HashMap<>();
-            for(Path path:store.files("ownership/journals")){
-                var journal=SiteDocuments.parse(Files.readString(path));if(!journal.containsKey("estate")&&!"estate".equals(journal.get("kind")))continue;var header=SiteDocuments.map(journal.get("estate"));UUID death=UUID.fromString((String)header.get("death"));if(!decision.deathId().equals(death))continue;store.validateReceipt(path,journal);if(!decision.testator().equals(CharacterActors.ref(header.get("from"))))throw new SiteOwnership.Conflict("Site receipt testator conflict");
+            List<Path> journalPaths=store.files("ownership/journals");
+            for(Path path:journalPaths){
+                String text=Files.readString(path);JournalOwner known=JOURNAL_OWNERS.get(path);
+                // Same bytes as a journal already parsed for another estate: it parses the same, so it is skipped the same.
+                if(known!=null&&known.text().equals(text)&&!decision.deathId().equals(known.death()))continue;
+                var journal=SiteDocuments.parse(text);if(!journal.containsKey("estate")&&!"estate".equals(journal.get("kind"))){JOURNAL_OWNERS.put(path,new JournalOwner(text,null));continue;}var header=SiteDocuments.map(journal.get("estate"));UUID death=UUID.fromString((String)header.get("death"));JOURNAL_OWNERS.put(path,new JournalOwner(text,death));if(!decision.deathId().equals(death))continue;store.validateReceipt(path,journal);if(!decision.testator().equals(CharacterActors.ref(header.get("from"))))throw new SiteOwnership.Conflict("Site receipt testator conflict");
                 long revision=SiteOwnership.integral(header.get("revision"));bindDecision(decisions,revision,(String)header.get("decision"));if(revision==decision.revision()&&(!decision.toString().equals(header.get("decision"))||!decision.property().character().map(CharacterActors::ref).equals(Optional.ofNullable(header.get("to")))))throw new SiteOwnership.Conflict("Same-revision site decision conflict");journals.add(new Journal(path,journal));String name=(String)journal.get("file");String id=name.replace(".yml","");
                 if(Boolean.TRUE.equals(journal.get("done"))){if(!completedIds.add(id))throw new SiteOwnership.Conflict("Duplicate completed source receipt "+id);receipts.computeIfAbsent(revision,ignored->new TreeSet<>()).add(id);}
                 else{
@@ -47,6 +54,7 @@ public final class SiteEstates implements EstateParticipant {
                     if(store.publicationHeld(name,(String)journal.get("id")))recoverableHolds.add(name);
                 }
             }
+            JOURNAL_OWNERS.keySet().retainAll(new HashSet<>(journalPaths));
             for(Path path:store.files("ownership/superseded")){
                 var journal=SiteDocuments.parse(Files.readString(path));if(!"estate".equals(journal.get("kind"))||!Boolean.FALSE.equals(journal.get("done")))throw new SiteOwnership.Conflict("Invalid superseded estate evidence");var header=SiteDocuments.map(journal.get("estate"));if(!decision.deathId().toString().equals(header.get("death")))continue;store.validateReceipt(path,journal);if(!decision.testator().equals(CharacterActors.ref(header.get("from"))))throw new SiteOwnership.Conflict("Superseded receipt testator conflict");bindDecision(decisions,SiteOwnership.integral(header.get("revision")),(String)header.get("decision"));
             }

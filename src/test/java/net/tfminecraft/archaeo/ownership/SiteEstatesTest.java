@@ -40,6 +40,19 @@ public class SiteEstatesTest {
         var current=decision(1,recipient);activate(current);restartRepository();var result=new SiteEstates(repository).settle(current);assertEquals(Outcome.Kind.DONE,result.kind());assertTrue(store.held(other.getId()+".yml"));assertTrue(repository.chunkOccupied("world",2,0));assertEquals(1,repository.countDirectedCamps(third));assertEquals(proof,Files.readString(snapshot));restartRepository();assertEquals(result,new SiteEstates(repository).settle(current));
         var own=new EstateDecision(UUID.randomUUID(),third,Optional.of(Instant.EPOCH),Instant.EPOCH,Optional.empty(),Optional.empty(),Optional.empty(),Recipient.FROZEN,Recipient.FROZEN,Recipient.FROZEN,Recipient.SENDER,1);activate(own);assertEquals(Outcome.Kind.BLOCKED,new SiteEstates(repository).settle(own).kind());assertTrue(store.files("ownership/completions/"+own.deathId()).isEmpty());assertEquals(proof,Files.readString(snapshot));
     }
+    @Test public void unrelatedEstateSkipsAJournalOnlyWhileItsTextIsUnchanged()throws Exception{
+        realRepository();repository.save(runtime(id,from,4));var participant=new SiteEstates(repository);var own=decision(1,Recipient.character(to));assertEquals(Outcome.Kind.DONE,participant.settle(own).kind());
+        Path journal=store.files("ownership/journals").getFirst();String receipt=Files.readString(journal);assertTrue(receipt.contains(death.toString()));
+        var third=new CharacterRef(UUID.randomUUID(),UUID.randomUUID());UUID otherDeath=UUID.randomUUID();
+        var unrelated=new EstateDecision(otherDeath,third,Optional.of(Instant.EPOCH),Instant.EPOCH,Optional.empty(),Optional.empty(),Optional.empty(),Recipient.FROZEN,Recipient.FROZEN,Recipient.FROZEN,Recipient.SENDER,1);activate(unrelated);
+        var first=participant.settle(unrelated);assertEquals(Outcome.Kind.DONE,first.kind());assertEquals(first,participant.settle(unrelated));
+        // Relabelled to the unrelated death, the receipt must be read again rather than skipped by its old owner.
+        Files.writeString(journal,receipt.replace(death.toString(),otherDeath.toString()));
+        assertEquals(Outcome.Kind.BLOCKED,participant.settle(unrelated).kind());
+        Files.writeString(journal,receipt);assertEquals(first,participant.settle(unrelated));assertEquals(Outcome.Kind.DONE,participant.settle(own).kind());
+        // A deleted journal leaves the cache with the next pass.
+        Files.delete(journal);assertEquals(first,participant.settle(unrelated));
+    }
     @Test public void deletedPresentConflictAllowsUnrelatedCharacterEstateAcrossRestarts()throws Exception{deletedAfterCaptureAllowsUnrelatedEstate(Recipient.character(to));}
     @Test public void deletedPresentConflictAllowsUnrelatedFrozenEstateAcrossRestarts()throws Exception{deletedAfterCaptureAllowsUnrelatedEstate(Recipient.FROZEN);}
 
