@@ -50,7 +50,7 @@ public class SiteEstatesTest {
         Files.writeString(journal,receipt.replace(death.toString(),otherDeath.toString()));
         assertEquals(Outcome.Kind.BLOCKED,participant.settle(unrelated).kind());
         Files.writeString(journal,receipt);assertEquals(first,participant.settle(unrelated));assertEquals(Outcome.Kind.DONE,participant.settle(own).kind());
-        // A deleted journal leaves the cache with the next pass.
+        // A deleted journal no longer counts for any estate.
         Files.delete(journal);assertEquals(first,participant.settle(unrelated));
     }
     @Test public void deletedPresentConflictAllowsUnrelatedCharacterEstateAcrossRestarts()throws Exception{deletedAfterCaptureAllowsUnrelatedEstate(Recipient.character(to));}
