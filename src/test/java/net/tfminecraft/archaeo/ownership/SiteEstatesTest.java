@@ -45,7 +45,9 @@ public class SiteEstatesTest {
         Path journal=store.files("ownership/journals").getFirst();String receipt=Files.readString(journal);assertTrue(receipt.contains(death.toString()));
         var third=new CharacterRef(UUID.randomUUID(),UUID.randomUUID());UUID otherDeath=UUID.randomUUID();
         var unrelated=new EstateDecision(otherDeath,third,Optional.of(Instant.EPOCH),Instant.EPOCH,Optional.empty(),Optional.empty(),Optional.empty(),Recipient.FROZEN,Recipient.FROZEN,Recipient.FROZEN,Recipient.SENDER,1);activate(unrelated);
-        var first=participant.settle(unrelated);assertEquals(Outcome.Kind.DONE,first.kind());assertEquals(first,participant.settle(unrelated));
+        Outcome first;
+        // The receipt's text is unchanged and already known to belong to another death, so neither pass parses it again.
+        try(var docs=mockStatic(SiteDocuments.class,CALLS_REAL_METHODS)){first=participant.settle(unrelated);assertEquals(Outcome.Kind.DONE,first.kind());assertEquals(first,participant.settle(unrelated));docs.verify(()->SiteDocuments.parse(receipt),never());}
         // Relabelled to the unrelated death, the receipt must be read again rather than skipped by its old owner.
         Files.writeString(journal,receipt.replace(death.toString(),otherDeath.toString()));
         assertEquals(Outcome.Kind.BLOCKED,participant.settle(unrelated).kind());
