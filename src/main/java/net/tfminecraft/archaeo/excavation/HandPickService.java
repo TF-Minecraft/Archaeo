@@ -63,6 +63,12 @@ public class HandPickService {
      * the ray hits.
      */
     private static final int REACH_CELLS = REACH + 2;
+    /**
+     * Ticks a per-tick shortcut is trusted before the server is asked again: the held tool's
+     * whitelist match (pack registries can reload under an unchanged stack) and a confirmed
+     * mining unlock (another plugin could restore the modifier).
+     */
+    private static final int RECHECK_TICKS = 20;
 
     private final JavaPlugin plugin;
     private final net.tfminecraft.archaeo.ownership.CharacterWork identity;
@@ -75,6 +81,7 @@ public class HandPickService {
     private int gameTick;
     private final Map<UUID, Cycle> cycles = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastWarn = new ConcurrentHashMap<>();
+    private final Map<UUID, HeldState> held = new ConcurrentHashMap<>();
     /** Wall clock in milliseconds for the warning cooldown; tests replace it to step past the cooldown. */
     LongSupplier clock = System::currentTimeMillis;
 
@@ -108,6 +115,7 @@ public class HandPickService {
     public void setSettings(PickSettings settings) {
         this.settings = settings;
         this.tools.setProfiles(settings.profiles());
+        held.clear();
     }
 
     /**
@@ -131,6 +139,16 @@ public class HandPickService {
             setVanillaMineLocked(player, false);
         }
         cycles.clear();
+        held.clear();
+    }
+
+    /**
+     * Drops the per-tick shortcuts kept for a player who is leaving.
+     *
+     * @param player quitting player
+     */
+    public void forget(Player player) {
+        held.remove(player.getUniqueId());
     }
 
     /**
@@ -352,7 +370,7 @@ public class HandPickService {
                 continue;
             }
             if (!net.tfminecraft.archaeo.ownership.CharacterActors.current(cycle.actor, player)) { finish(player); continue; }
-            ExcavationTool held = tools.match(player.getInventory().getItemInMainHand()).orElse(null);
+            ExcavationTool held = heldTool(player, player.getInventory().getItemInMainHand(), false);
             if (held == null || !held.id().equals(cycle.tool.id())) {
                 finish(player);
                 continue;
@@ -403,11 +421,10 @@ public class HandPickService {
      */
     private void syncAndShowHud(Player player) {
         ItemStack held = player.getInventory().getItemInMainHand();
-        if (!tools.isAllowed(held)) {
-            setVanillaMineLocked(player, false);
+        if (heldTool(player, held, true) == null) {
+            keepVanillaMineUnlocked(player);
             return;
         }
-        tools.restoreAllowedTool(held);
         Cycle cycle = cycles.get(player.getUniqueId());
         if (cycle != null) {
             setVanillaMineLocked(player, true);
@@ -417,10 +434,80 @@ public class HandPickService {
         }
         Block target = aimedNearSite(player);
         Site site = target == null ? null : establishedAt(target);
-        setVanillaMineLocked(player, site != null && PrismFill.isTerrainFill(target.getType()));
+        if (site != null && PrismFill.isTerrainFill(target.getType())) {
+            setVanillaMineLocked(player, true);
+        } else {
+            keepVanillaMineUnlocked(player);
+        }
         if (site != null) {
             showHud(player, null, target, site);
         }
+    }
+
+    /**
+     * The whitelist profile for the main-hand stack, matched again only when the stack differs
+     * from the one matched last (any change to type, amount, or data) or after
+     * {@link #RECHECK_TICKS}. Matching asks every whitelist entry and the pack plugins, which is
+     * too slow to repeat for every online player on every tick.
+     *
+     * @param player holder
+     * @param stack current main-hand stack
+     * @param restore whether to strip a legacy mine lock from a whitelisted stack, as
+     *                {@link DigTools#restoreAllowedTool} does; skipped while the stack is the one
+     *                already restored, since a restored stack has nothing left to strip
+     * @return matching profile, or {@code null} when the stack is not an excavation tool
+     */
+    private ExcavationTool heldTool(Player player, ItemStack stack, boolean restore) {
+        HeldState state = state(player);
+        boolean same = stack != null
+                && state.stack != null
+                && gameTick - state.matchedTick < RECHECK_TICKS
+                && state.stack.equals(stack);
+        if (!same) {
+            state.tool = tools.match(stack).orElse(null);
+            state.matchedTick = gameTick;
+            state.restored = false;
+        }
+        if (restore && !state.restored) {
+            if (state.tool != null) {
+                tools.restoreAllowedTool(stack);
+            }
+            state.restored = true;
+            // Restoring may have changed the stack, so remember it as it is now.
+            same = false;
+        }
+        if (!same) {
+            state.stack = stack == null ? null : stack.clone();
+        }
+        return state.tool;
+    }
+
+    /**
+     * Unlocks vanilla mining, skipping the attribute read while an unlock was already confirmed
+     * within {@link #RECHECK_TICKS}. Only {@link #setVanillaMineLocked} adds the lock, and it
+     * clears that confirmation when it does.
+     *
+     * @param player holder
+     */
+    private void keepVanillaMineUnlocked(Player player) {
+        HeldState state = state(player);
+        if (state.unlocked && gameTick - state.unlockedTick < RECHECK_TICKS) {
+            return;
+        }
+        setVanillaMineLocked(player, false);
+    }
+
+    /**
+     * @param player online player
+     * @return shortcuts for this player object; a rejoin gets a fresh one
+     */
+    private HeldState state(Player player) {
+        HeldState state = held.get(player.getUniqueId());
+        if (state == null || state.player != player) {
+            state = new HeldState(player);
+            held.put(player.getUniqueId(), state);
+        }
+        return state;
     }
 
     /**
@@ -766,6 +853,9 @@ public class HandPickService {
                 break;
             }
         }
+        HeldState state = state(player);
+        state.unlocked = !locked;
+        state.unlockedTick = gameTick;
         if (locked && found == null) {
             speed.addModifier(new AttributeModifier(
                     noVanillaMineKey,
@@ -855,6 +945,29 @@ public class HandPickService {
         }
         lastWarn.put(player.getUniqueId(), now);
         player.sendMessage(message);
+    }
+
+    /**
+     * Per-tick shortcuts for one online player object.
+     */
+    private static final class HeldState {
+        private final Player player;
+        /** Copy of the main-hand stack last matched, or {@code null} before the first match. */
+        private ItemStack stack;
+        private ExcavationTool tool;
+        private int matchedTick;
+        /** Whether {@link DigTools#restoreAllowedTool} already ran on {@link #stack}. */
+        private boolean restored;
+        /** Whether the mining lock was last seen absent, at {@link #unlockedTick}. */
+        private boolean unlocked;
+        private int unlockedTick;
+
+        /**
+         * @param player online player object
+         */
+        private HeldState(Player player) {
+            this.player = player;
+        }
     }
 
     /**

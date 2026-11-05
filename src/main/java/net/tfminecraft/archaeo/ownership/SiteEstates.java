@@ -121,5 +121,19 @@ public final class SiteEstates implements EstateParticipant {
         if(!Objects.equals(SiteDocuments.read(source),journal.get("before"))||!Estates.guardHolds(current)||!Files.readString(path).equals(original))throw new SiteOwnership.Conflict("Untouched plan changed during supersession");Files.delete(path);SiteDocuments.forceDirectory(path.getParent());
     }
     private static Outcome done(Set<String> moved){return Outcome.done(Map.of("sites",moved.size()),List.copyOf(moved));}
-    public static void start(Plugin plugin,SiteRepository repository){SiteEstates participant=new SiteEstates(repository);Bukkit.getServicesManager().register(EstateParticipant.class,participant,plugin,ServicePriority.Normal);Bukkit.getScheduler().runTaskTimer(plugin,()->{for(EstateDecision decision:Estates.decided())try{Estates.report(decision.deathId(),participant.id(),decision.revision(),participant.settle(decision));}catch(Exception failure){plugin.getLogger().warning("Site estate "+decision.deathId()+" revision "+decision.revision()+": "+failure.getMessage());}},3L,20L*60*60);}
+    /** Ticks between estate passes. */
+    static final long PASS_PERIOD_TICKS=20L*60*60;
+    /** Delay of the startup pass. */
+    static final long STARTUP_PASS_TICKS=3L;
+    /**
+     * First hourly pass, a quarter hour later than a plain hourly timer would run it, so it does
+     * not land on the same tick as the hourly jobs other plugins start at enable time.
+     */
+    static final long FIRST_HOURLY_PASS_TICKS=STARTUP_PASS_TICKS+PASS_PERIOD_TICKS+20L*60*15;
+    public static void start(Plugin plugin,SiteRepository repository){
+        SiteEstates participant=new SiteEstates(repository);Bukkit.getServicesManager().register(EstateParticipant.class,participant,plugin,ServicePriority.Normal);
+        Runnable pass=()->{for(EstateDecision decision:Estates.decided())try{Estates.report(decision.deathId(),participant.id(),decision.revision(),participant.settle(decision));}catch(Exception failure){plugin.getLogger().warning("Site estate "+decision.deathId()+" revision "+decision.revision()+": "+failure.getMessage());}};
+        Bukkit.getScheduler().runTaskLater(plugin,pass,STARTUP_PASS_TICKS);
+        Bukkit.getScheduler().runTaskTimer(plugin,pass,FIRST_HOURLY_PASS_TICKS,PASS_PERIOD_TICKS);
+    }
 }

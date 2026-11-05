@@ -188,6 +188,48 @@ public class SiteRepositoryTest {
         assertThrows(UnsupportedOperationException.class, () -> repository.all().clear());
     }
 
+    @Test public void chunkLookupsFollowSitesAddedRemovedReloadedAndTheirLiveStatus() {
+        assertTrue(repository.loadAll());
+        Site hidden = site(1, "world", 0, 0, SiteStatus.HIDDEN);
+        net.tfminecraft.archaeo.CharacterTestSupport.touch(repository, hidden);
+        assertEquals(Optional.of(hidden), repository.findByChunk("world", 0, 0));
+        assertFalse(repository.hasEstablishedIn("world", 0, 0, 0, 0));
+        // Status lives on the site, so a change needs no repository call to show.
+        hidden.setStatus(SiteStatus.ESTABLISHED);
+        assertTrue(repository.hasEstablishedIn("world", -1, 0, 0, 1));
+        assertFalse(repository.hasEstablishedIn("other", -1, 0, 0, 1));
+        // Saving the same object again keeps it; a new site shows at once.
+        net.tfminecraft.archaeo.CharacterTestSupport.touch(repository, hidden);
+        Site later = site(2, "world", 5, -5, SiteStatus.ESTABLISHED);
+        net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, later);
+        assertEquals(Optional.of(later), repository.findByChunk("world", 5, -5));
+        assertTrue(repository.hasEstablishedIn("world", 5, 5, -5, -5));
+        // Ranges too wide to look up chunk by chunk, empty ranges, and ranges at the int limits.
+        assertTrue(repository.hasEstablishedIn("world", -100, 100, -100, 100));
+        assertFalse(repository.hasEstablishedIn("world", 1, 0, 0, 0));
+        assertFalse(repository.hasEstablishedIn("world", Integer.MAX_VALUE - 1, Integer.MAX_VALUE, 0, 0));
+        assertFalse(repository.hasEstablishedIn("world", 0, 0, Integer.MIN_VALUE, Integer.MIN_VALUE + 1));
+        repository.delete(hidden);
+        assertTrue(repository.findByChunk("world", 0, 0).isEmpty());
+        assertFalse(repository.hasEstablishedIn("world", 0, 0, 0, 0));
+        SiteRepository restored = new SiteRepository(plugin);
+        assertTrue(restored.loadAll());
+        assertEquals(later.getId(), restored.findByChunk("world", 5, -5).orElseThrow().getId());
+        repository.erase(later);
+        assertTrue(repository.findByChunk("world", 5, -5).isEmpty());
+        assertFalse(repository.hasEstablishedIn("world", 5, 5, -5, -5));
+    }
+
+    @Test public void twoSitesInOneChunkAnswerInTheRepositorysOwnOrder() {
+        Site first = site(1, "world", 3, 3, SiteStatus.HIDDEN);
+        Site second = site(2, "world", 3, 3, SiteStatus.ESTABLISHED);
+        net.tfminecraft.archaeo.CharacterTestSupport.touch(repository, first);
+        net.tfminecraft.archaeo.CharacterTestSupport.touch(repository, second);
+        assertEquals(Optional.of(repository.all().iterator().next()), repository.findByChunk("world", 3, 3));
+        assertTrue(repository.hasEstablishedIn("world", 3, 3, 3, 3));
+        assertTrue(repository.findByChunk("other", 3, 3).isEmpty());
+    }
+
     @Test public void flushTimerStartsOnceStopsAndWritesPendingChanges() {
         Server server = mock(Server.class); BukkitScheduler scheduler = mock(BukkitScheduler.class);
         BukkitTask task = mock(BukkitTask.class);

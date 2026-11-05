@@ -44,6 +44,8 @@ public class HandPickServiceTest {
     private SnapshotWorld world;
     private PlayerMock player;
     private SiteRepository sites;
+    private JavaPlugin plugin;
+    private DigTools tools;
     private CatalogRegistry catalogs;
     private HandPickService service;
     private Site site;
@@ -60,7 +62,7 @@ public class HandPickServiceTest {
         world = new SnapshotWorld();
         world.setName("pick");
         server.addWorld(world);
-        JavaPlugin plugin = MockBukkit.createMockPlugin();
+        plugin = MockBukkit.createMockPlugin();
         player = spy(new PlayerMock(server, "Digger"));
         server.addPlayer(player);
         // This newer player attribute is absent from MockBukkit's default player attributes.
@@ -109,7 +111,7 @@ public class HandPickServiceTest {
         catalogs = mock(CatalogRegistry.class);
         when(catalogs.toolWear()).thenReturn(new ToolWearSettings(0, 0, false));
         profile = profile(1, 0, 20);
-        DigTools tools = mock(DigTools.class);
+        tools = mock(DigTools.class);
         when(tools.match(any())).thenAnswer(invocation -> Optional.ofNullable(held(invocation.getArgument(0))));
         when(tools.isAllowed(any())).thenAnswer(invocation -> held(invocation.getArgument(0)) != null);
         service = new HandPickService(plugin, sites, catalogs, tools, settings(true, 10));
@@ -868,6 +870,83 @@ public class HandPickServiceTest {
         service.noteMining(player, target);
         verify(player, times(2)).sendMessage("You are not authorised to work on this excavation.");
         assertFalse(service.isCycling(player));
+    }
+
+    @Test
+    public void heldToolIsMatchedOncePerStackUntilTheStackChangesOrASecondPasses() {
+        ticks(1);
+        clearInvocations(tools);
+        ticks(19);
+        verify(tools, never()).match(any());
+        verify(tools, never()).isAllowed(any());
+        verify(tools, never()).restoreAllowedTool(any());
+        // Same type, different data: matched and restored again on the next tick.
+        ItemStack worn = new ItemStack(Material.IRON_PICKAXE);
+        org.bukkit.inventory.meta.Damageable wear = (org.bukkit.inventory.meta.Damageable) worn.getItemMeta();
+        wear.setDamage(3);
+        worn.setItemMeta(wear);
+        player.getInventory().setItemInMainHand(worn);
+        ticks(1);
+        verify(tools, times(1)).match(any());
+        verify(tools, times(1)).restoreAllowedTool(any());
+        clearInvocations(tools);
+        ticks(19);
+        verify(tools, never()).match(any());
+        // A second later the unchanged stack is asked again, in case a pack plugin reloaded.
+        ticks(1);
+        verify(tools, times(1)).match(any());
+        verify(tools, times(1)).restoreAllowedTool(any());
+        // New settings can change the whitelist, so the next tick matches at once.
+        clearInvocations(tools);
+        service.setSettings(settings(true, 10));
+        ticks(1);
+        verify(tools, times(1)).match(any());
+        assertEquals("STRATUM I  ⛏ 10", actionBars.getLast());
+    }
+
+    @Test
+    public void heldToolMatchIsSharedBetweenTheHoldAndTheHud() {
+        profile = profile(20, 0, 20);
+        service.setSettings(settings(true, 10));
+        service.noteMining(player, target);
+        ticks(1);
+        clearInvocations(tools);
+        ticks(2);
+        assertTrue(service.isCycling(player));
+        verify(tools, never()).match(any());
+        player.getInventory().setItemInMainHand(new ItemStack(Material.STICK));
+        ticks(1);
+        assertFalse(service.isCycling(player));
+        verify(tools, times(1)).match(any());
+    }
+
+    @Test
+    public void confirmedUnlockIsReadAgainOnlyEverySecondAndAfterARejoin() {
+        player.getInventory().setItemInMainHand(new ItemStack(Material.STICK));
+        var speed = player.getAttribute(Attribute.BLOCK_BREAK_SPEED);
+        ticks(1);
+        clearInvocations(player);
+        ticks(19);
+        verify(player, never()).getAttribute(Attribute.BLOCK_BREAK_SPEED);
+        // A lock put back behind the service's back comes off within a second.
+        speed.addModifier(new AttributeModifier(new NamespacedKey(plugin, "no_vanilla_mine"), -1.0,
+                AttributeModifier.Operation.MULTIPLY_SCALAR_1));
+        ticks(1);
+        verify(player, times(1)).getAttribute(Attribute.BLOCK_BREAK_SPEED);
+        assertTrue(speed.getModifiers().isEmpty());
+        // Locking drops the confirmation, so the next unlock is applied on the very next tick.
+        player.getInventory().setItemInMainHand(new ItemStack(Material.IRON_PICKAXE));
+        ticks(1);
+        assertEquals(1, speed.getModifiers().size());
+        player.getInventory().setItemInMainHand(new ItemStack(Material.STICK));
+        ticks(1);
+        assertTrue(speed.getModifiers().isEmpty());
+        clearInvocations(player);
+        ticks(1);
+        verify(player, never()).getAttribute(Attribute.BLOCK_BREAK_SPEED);
+        service.forget(player);
+        ticks(1);
+        verify(player, times(1)).getAttribute(Attribute.BLOCK_BREAK_SPEED);
     }
 
     private ExcavationTool held(ItemStack stack) {

@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 
 /**
@@ -48,6 +49,8 @@ public class SiteRepository {
     public static final int SCHEMA = net.tfminecraft.archaeo.ownership.SiteOwnership.SCHEMA;
     /** Dirty sites are flushed at least this often (~1 s). */
     private static final long FLUSH_PERIOD_TICKS = 20L;
+    /** Larger {@link #hasEstablishedIn} ranges scan every site instead of looking up each chunk. */
+    private static final long INDEXED_RANGE_CHUNKS = 64L;
 
     private final JavaPlugin plugin;
     private final net.tfminecraft.archaeo.ownership.SiteOwnership ownership;
@@ -63,6 +66,12 @@ public class SiteRepository {
     private final File sitesFolder;
     private final File indexFile;
     private final Map<UUID, Site> byId = new ConcurrentHashMap<>();
+    /**
+     * Bumped after every change to which sites {@link #byId} holds, so {@link #chunkIndex()} is
+     * rebuilt. A site's world and ruin chunk are set before it is first stored and never change.
+     */
+    private final AtomicLong layoutVersion = new AtomicLong();
+    private volatile ChunkIndex chunkIndex = new ChunkIndex(-1L, Map.of());
     private final Set<UUID> dirty = ConcurrentHashMap.newKeySet();
     private int nextSerial = 1;
     private final Set<UUID> retryWrites = new HashSet<>();
@@ -131,6 +140,7 @@ public class SiteRepository {
         byId.forEach((id,site)->{if(loaded.get(id)!=site)site.setOwnershipHeld(true);});
         byId.clear();
         byId.putAll(loaded);
+        layoutChanged();
         dirty.clear();
         nextSerial = serial;
         persistedSerial = serial;
@@ -143,7 +153,7 @@ public class SiteRepository {
         if(!ownership.ready()||ownership.held(name))return;
         try{YamlConfiguration yaml=new YamlConfiguration();yaml.loadFromString(ownership.before(name));Site site=read(yaml);
             net.tfminecraft.archaeo.ownership.SiteRawOverlay.validateReadable(ownership.documents().get(name),net.tfminecraft.archaeo.ownership.SiteDocuments.parse(write(site).saveToString()));
-            byId.putIfAbsent(site.getId(),site);nextSerial=Math.max(nextSerial,site.getSerial()+1);
+            if(byId.putIfAbsent(site.getId(),site)==null)layoutChanged();nextSerial=Math.max(nextSerial,site.getSerial()+1);
         }catch(Exception failure){ownership.hold(name,"Unloaded dossier: "+failure.getMessage());plugin.getLogger().log(Level.WARNING,"Could not load released dossier "+name,failure);}
     }
 
@@ -185,6 +195,14 @@ public class SiteRepository {
      * @return site occupying that chunk, if any
      */
     public Optional<Site> findByChunk(String world, int chunkX, int chunkZ) {
+        List<Site> here = chunkIndex().get(new ChunkKey(world, chunkX, chunkZ));
+        if (here == null) {
+            return Optional.empty();
+        }
+        if (here.size() == 1) {
+            return Optional.of(here.getFirst());
+        }
+        // Two ruins in one chunk: keep the map's order, which decides which one answers.
         return byId.values().stream()
                 .filter(site -> site.getWorldName().equals(world)
                         && site.getChunkX() == chunkX
@@ -273,6 +291,25 @@ public class SiteRepository {
      * @return whether an established excavation's ruin chunk lies in that range
      */
     public boolean hasEstablishedIn(String world, int minChunkX, int maxChunkX, int minChunkZ, int maxChunkZ) {
+        long columns = (long) maxChunkX - minChunkX + 1;
+        long rows = (long) maxChunkZ - minChunkZ + 1;
+        if (columns > 0 && rows > 0 && columns * rows <= INDEXED_RANGE_CHUNKS) {
+            Map<ChunkKey, List<Site>> index = chunkIndex();
+            for (long chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+                for (long chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+                    List<Site> here = index.get(new ChunkKey(world, (int) chunkX, (int) chunkZ));
+                    if (here == null) {
+                        continue;
+                    }
+                    for (Site site : here) {
+                        if (site.getStatus() == SiteStatus.ESTABLISHED) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
         for (Site site : byId.values()) {
             if (site.getChunkX() >= minChunkX && site.getChunkX() <= maxChunkX
                     && site.getChunkZ() >= minChunkZ && site.getChunkZ() <= maxChunkZ
@@ -282,6 +319,61 @@ public class SiteRepository {
             }
         }
         return false;
+    }
+
+    /**
+     * Sites by world and ruin chunk, rebuilt from {@link #byId} after it changes. Status is not
+     * part of the key: it changes on the site itself, so callers read it live.
+     *
+     * @return index matching the current set of sites
+     */
+    private Map<ChunkKey, List<Site>> chunkIndex() {
+        ChunkIndex current = chunkIndex;
+        long version = layoutVersion.get();
+        if (current.version() == version) {
+            return current.sites();
+        }
+        Map<ChunkKey, List<Site>> built = new java.util.HashMap<>();
+        for (Site site : byId.values()) {
+            built.computeIfAbsent(
+                    new ChunkKey(site.getWorldName(), site.getChunkX(), site.getChunkZ()),
+                    key -> new ArrayList<>(1)).add(site);
+        }
+        chunkIndex = new ChunkIndex(version, built);
+        return built;
+    }
+
+    /**
+     * Puts {@code site} in {@link #byId}, invalidating the chunk index only when the map changes.
+     *
+     * @param site dossier to hold
+     */
+    private void store(Site site) {
+        if (byId.put(site.getId(), site) != site) {
+            layoutChanged();
+        }
+    }
+
+    /**
+     * Call after {@link #byId} gains or loses a site.
+     */
+    private void layoutChanged() {
+        layoutVersion.incrementAndGet();
+    }
+
+    /**
+     * @param world world name
+     * @param x ruin chunk X
+     * @param z ruin chunk Z
+     */
+    private record ChunkKey(String world, int x, int z) {
+    }
+
+    /**
+     * @param version {@link #layoutVersion} the index was built from
+     * @param sites sites by ruin chunk
+     */
+    private record ChunkIndex(long version, Map<ChunkKey, List<Site>> sites) {
     }
 
     /**
@@ -484,7 +576,7 @@ public class SiteRepository {
                 Files.move(file.toPath(),trash.resolve(id+".yml"),StandardCopyOption.REPLACE_EXISTING);
             }
         }catch(IOException failure){throw new IllegalStateException("Dossier retained: trash publication failed",failure);}
-        byId.remove(id);dirty.remove(id);retryWrites.remove(id);ownership.removed(id+".yml");
+        byId.remove(id);layoutChanged();dirty.remove(id);retryWrites.remove(id);ownership.removed(id+".yml");
     }
 
     /**
@@ -507,6 +599,7 @@ public class SiteRepository {
         File file = new File(sitesFolder, id + ".yml");
         if (file.exists() && !file.delete()) throw new IllegalStateException("Could not delete " + file.getName());
         byId.remove(id);
+        layoutChanged();
         dirty.remove(id);
         ownership.removed(id+".yml");retryWrites.remove(id);
         File trashed = new File(new File(sitesFolder, ".trash"), id + ".yml");
@@ -536,13 +629,13 @@ public class SiteRepository {
         if (site.isOwnershipHeld() && !retryWrites.contains(site.getId())) throw new IllegalStateException("Held dossier " + site.getId());
         String name=site.getId()+".yml";Path path=sitesFolder.toPath().resolve(name);
         boolean firstSave=!ownership.names().contains(name)&&unpublishedPath(path);
-        byId.put(site.getId(), site);
+        store(site);
         try {
             writeAtomic(site);
             dirty.remove(site.getId());
         } catch (RuntimeException exception) {
             if(firstSave&&unpublishedPath(path)){
-                byId.remove(site.getId(),site);dirty.remove(site.getId());retryWrites.remove(site.getId());ownership.removed(name);
+                if(byId.remove(site.getId(),site))layoutChanged();dirty.remove(site.getId());retryWrites.remove(site.getId());ownership.removed(name);
             }else dirty.add(site.getId());
             syncOwnershipHolds();
             throw exception;
@@ -568,7 +661,7 @@ public class SiteRepository {
         }
         rejectStale(site);
         if (site.isOwnershipHeld()) throw new IllegalStateException("Held dossier cannot be changed");
-        byId.put(site.getId(), site);
+        store(site);
         dirty.add(site.getId());
     }
 

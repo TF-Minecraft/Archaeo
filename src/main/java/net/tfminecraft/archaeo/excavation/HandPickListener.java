@@ -178,6 +178,7 @@ public class HandPickListener implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         pick.finish(event.getPlayer());
         pick.syncHeldTool(event.getPlayer(), null);
+        pick.forget(event.getPlayer());
     }
 
     /**
