@@ -115,6 +115,14 @@ public class HandPickService {
     public void setSettings(PickSettings settings) {
         this.settings = settings;
         this.tools.setProfiles(settings.profiles());
+        toolsChanged();
+    }
+
+    /**
+     * Forgets every cached held-tool match, so the next tick matches again. Call after the
+     * whitelist or the pack-plugin lookup behind it changes.
+     */
+    public void toolsChanged() {
         held.clear();
     }
 

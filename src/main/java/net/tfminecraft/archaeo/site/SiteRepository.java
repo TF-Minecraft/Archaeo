@@ -293,7 +293,7 @@ public class SiteRepository {
     public boolean hasEstablishedIn(String world, int minChunkX, int maxChunkX, int minChunkZ, int maxChunkZ) {
         long columns = (long) maxChunkX - minChunkX + 1;
         long rows = (long) maxChunkZ - minChunkZ + 1;
-        if (columns > 0 && rows > 0 && columns * rows <= INDEXED_RANGE_CHUNKS) {
+        if (columns > 0 && rows > 0 && columns <= INDEXED_RANGE_CHUNKS && rows <= INDEXED_RANGE_CHUNKS / columns) {
             Map<ChunkKey, List<Site>> index = chunkIndex();
             for (long chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
                 for (long chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {

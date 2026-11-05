@@ -896,6 +896,20 @@ public class HandPickServiceTest {
         ticks(1);
         verify(tools, times(1)).match(any());
         verify(tools, times(1)).restoreAllowedTool(any());
+        // Changing the held stack in place (wear, data written by another plugin) is seen at once.
+        clearInvocations(tools);
+        ItemStack live = player.getInventory().getItemInMainHand();
+        org.bukkit.inventory.meta.ItemMeta renamed = live.getItemMeta();
+        renamed.setDisplayName("Field pick");
+        live.setItemMeta(renamed);
+        player.getInventory().setItemInMainHand(live);
+        ticks(1);
+        verify(tools, times(1)).match(any());
+        // A rebound pack-plugin lookup is matched again on the next tick.
+        clearInvocations(tools);
+        service.toolsChanged();
+        ticks(1);
+        verify(tools, times(1)).match(any());
         // New settings can change the whitelist, so the next tick matches at once.
         clearInvocations(tools);
         service.setSettings(settings(true, 10));

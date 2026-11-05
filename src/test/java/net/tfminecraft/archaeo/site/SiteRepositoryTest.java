@@ -209,12 +209,20 @@ public class SiteRepositoryTest {
         assertFalse(repository.hasEstablishedIn("world", 1, 0, 0, 0));
         assertFalse(repository.hasEstablishedIn("world", Integer.MAX_VALUE - 1, Integer.MAX_VALUE, 0, 0));
         assertFalse(repository.hasEstablishedIn("world", 0, 0, Integer.MIN_VALUE, Integer.MIN_VALUE + 1));
+        assertTrue(repository.hasEstablishedIn("world", Integer.MIN_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MAX_VALUE));
         repository.delete(hidden);
         assertTrue(repository.findByChunk("world", 0, 0).isEmpty());
         assertFalse(repository.hasEstablishedIn("world", 0, 0, 0, 0));
         SiteRepository restored = new SiteRepository(plugin);
         assertTrue(restored.loadAll());
         assertEquals(later.getId(), restored.findByChunk("world", 5, -5).orElseThrow().getId());
+        // A dossier written elsewhere shows after reloading a repository whose lookup was already in use.
+        Site extra = site(3, "world", 7, 7, SiteStatus.ESTABLISHED);
+        net.tfminecraft.archaeo.CharacterTestSupport.commit(restored, extra);
+        assertTrue(repository.findByChunk("world", 7, 7).isEmpty());
+        assertTrue(repository.loadAll());
+        assertEquals(extra.getId(), repository.findByChunk("world", 7, 7).orElseThrow().getId());
+        assertTrue(repository.hasEstablishedIn("world", 7, 7, 7, 7));
         repository.erase(later);
         assertTrue(repository.findByChunk("world", 5, -5).isEmpty());
         assertFalse(repository.hasEstablishedIn("world", 5, 5, -5, -5));
@@ -267,7 +275,10 @@ public class SiteRepositoryTest {
     @Test public void refusedUnpublishedFirstSaveDoesNotRetainPhantomWhenStorageRecovers() throws Exception {
         Path sites = temporary.getRoot().toPath().resolve("sites"); Files.writeString(sites, "blocked");
         Site site = site(1, "world", 0, 0, SiteStatus.HIDDEN);
+        assertTrue(repository.findByChunk("world", 0, 0).isEmpty());
         assertThrows(IllegalStateException.class, () -> net.tfminecraft.archaeo.CharacterTestSupport.commit(repository, site));
+        // The rolled-back site leaves the chunk lookup too, not only the id map.
+        assertTrue(repository.findByChunk("world", 0, 0).isEmpty());
         repository.flushDirty(); assertTrue(repository.findById(site.getId()).isEmpty());
         assertFalse(repository.loadAll());assertTrue(repository.findById(site.getId()).isEmpty());
         Files.delete(sites);assertTrue(repository.loadAll());Site replacement=site(1,"world",0,0,SiteStatus.HIDDEN);net.tfminecraft.archaeo.CharacterTestSupport.commit(repository,replacement);assertTrue(file(replacement).exists());assertFalse(repository.ownership().held(site.getId()+".yml"));
