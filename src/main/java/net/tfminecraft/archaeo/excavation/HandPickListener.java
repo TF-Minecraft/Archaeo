@@ -185,8 +185,8 @@ public class HandPickListener implements Listener {
     }
 
     /**
-     * A character switch can swap the player's saved attributes, so the next tick reads the
-     * mining lock again instead of trusting what it saw before.
+     * Defensive reset on a character switch: the next tick reads the mining lock again instead
+     * of trusting what it saw for the previous character.
      *
      * @param event character session end
      */

@@ -948,7 +948,7 @@ public class HandPickServiceTest {
     }
 
     @Test
-    public void confirmedUnlockIsReadAgainOnlyEverySecondAndAfterARejoin() {
+    public void confirmedUnlockIsReadAgainOnlyEverySecondAndAfterForget() {
         player.getInventory().setItemInMainHand(new ItemStack(Material.STICK));
         var speed = player.getAttribute(Attribute.BLOCK_BREAK_SPEED);
         ticks(1);
