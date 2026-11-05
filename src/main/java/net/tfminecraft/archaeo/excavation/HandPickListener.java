@@ -176,8 +176,22 @@ public class HandPickListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
-        pick.finish(event.getPlayer());
-        pick.syncHeldTool(event.getPlayer(), null);
+        try {
+            pick.finish(event.getPlayer());
+            pick.syncHeldTool(event.getPlayer(), null);
+        } finally {
+            pick.forget(event.getPlayer());
+        }
+    }
+
+    /**
+     * A character switch can swap the player's saved attributes, so the next tick reads the
+     * mining lock again instead of trusting what it saw before.
+     *
+     * @param event character session end
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onCharacterEnd(net.tfminecraft.tlibs.character.CharacterSessionEndEvent event) {
         pick.forget(event.getPlayer());
     }
 

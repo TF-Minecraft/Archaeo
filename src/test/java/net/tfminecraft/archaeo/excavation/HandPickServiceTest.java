@@ -928,6 +928,19 @@ public class HandPickServiceTest {
         ticks(2);
         assertTrue(service.isCycling(player));
         verify(tools, never()).match(any());
+        // The hold sees a changed stack first; the HUD pass of the same tick still restores it once.
+        ItemStack renamed = new ItemStack(Material.IRON_PICKAXE);
+        org.bukkit.inventory.meta.ItemMeta meta = renamed.getItemMeta();
+        meta.setDisplayName("Field pick");
+        renamed.setItemMeta(meta);
+        player.getInventory().setItemInMainHand(renamed);
+        service.noteMining(player, target);
+        clearInvocations(tools);
+        ticks(1);
+        assertTrue(service.isCycling(player));
+        verify(tools, times(1)).match(any());
+        verify(tools, times(1)).restoreAllowedTool(any());
+        clearInvocations(tools);
         player.getInventory().setItemInMainHand(new ItemStack(Material.STICK));
         ticks(1);
         assertFalse(service.isCycling(player));
