@@ -568,7 +568,9 @@ public class ArchaeoCommandTest {
         assertTrue(complete("ruin", "info", "z").isEmpty());
         assertEquals(List.of("ruin"), complete("ruin", "info", "Old", "r"));
         assertEquals(java.util.Set.of("#1", "#2"), new java.util.HashSet<>(complete("ruin", "tp", "#")));
-        assertEquals(List.of("#2"), complete("ruin", "camps", "2"));
+        // The director's character id is random and is offered too when it starts with the typed digit.
+        assertEquals(List.of("#2"), complete("ruin", "camps", "2").stream().filter(choice -> choice.startsWith("#")).toList());
+        assertTrue(complete("ruin", "camps", "2").stream().allMatch(choice -> choice.equals("#2") || choice.startsWith("2")));
         assertTrue(complete("ruin", "camps", "z").isEmpty());
         assertEquals(List.of("#2"), complete("ruin", "camps", "Archaeologist", "#"));
         assertTrue(complete("ruin", "camps", "Archaeologist", "9").isEmpty());
