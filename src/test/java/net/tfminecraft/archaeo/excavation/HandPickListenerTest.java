@@ -206,6 +206,19 @@ public class HandPickListenerTest {
         order.verify(pick).syncHeldTool(player);
         order.verify(pick).finish(player);
         order.verify(pick).syncHeldTool(player, null);
+        order.verify(pick).forget(player);
+    }
+
+    @Test
+    public void quitForgetsTheHeldStateEvenWhenCleanupFailsAndACharacterSwitchForgetsIt() {
+        doThrow(new IllegalStateException("cleanup failed")).when(pick).finish(player);
+        assertThrows(IllegalStateException.class, () -> listener.onQuit(new PlayerQuitEvent(player, "left")));
+        verify(pick).forget(player);
+        var session = new net.tfminecraft.tlibs.character.CharacterSession(
+                new net.tfminecraft.tlibs.character.CharacterRef(java.util.UUID.randomUUID(), java.util.UUID.randomUUID()), 1);
+        server.getPluginManager().callEvent(new net.tfminecraft.tlibs.character.CharacterSessionEndEvent(
+                player, session, net.tfminecraft.tlibs.character.CharacterSessionEndEvent.Reason.SWITCH));
+        verify(pick, times(2)).forget(player);
     }
 
     @Test

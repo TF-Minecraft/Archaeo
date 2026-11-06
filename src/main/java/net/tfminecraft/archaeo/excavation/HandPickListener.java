@@ -176,8 +176,23 @@ public class HandPickListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
-        pick.finish(event.getPlayer());
-        pick.syncHeldTool(event.getPlayer(), null);
+        try {
+            pick.finish(event.getPlayer());
+            pick.syncHeldTool(event.getPlayer(), null);
+        } finally {
+            pick.forget(event.getPlayer());
+        }
+    }
+
+    /**
+     * Defensive reset on a character switch: the next tick reads the mining lock again instead
+     * of trusting what it saw for the previous character.
+     *
+     * @param event character session end
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onCharacterEnd(net.tfminecraft.tlibs.character.CharacterSessionEndEvent event) {
+        pick.forget(event.getPlayer());
     }
 
     /**

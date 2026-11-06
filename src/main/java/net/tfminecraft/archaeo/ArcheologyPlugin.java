@@ -199,6 +199,7 @@ public class ArcheologyPlugin extends JavaPlugin {
         brushItem.setMatcher(bound);
         sketchSupplies.setMatcher(bound);
         digTools.setMatcher(bound);
+        handPick.toolsChanged();
         recoveredFindItem.setMatcher(bound);
         sketch.setMatcher(bound);
         museum.setMatcher(bound);
