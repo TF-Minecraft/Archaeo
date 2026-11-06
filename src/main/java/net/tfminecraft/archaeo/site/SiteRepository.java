@@ -71,7 +71,7 @@ public class SiteRepository {
      * rebuilt. A site's world and ruin chunk are set before it is first stored and never change.
      */
     private final AtomicLong layoutVersion = new AtomicLong();
-    private volatile ChunkIndex chunkIndex = new ChunkIndex(-1L, Map.of());
+    private volatile ChunkIndex chunkIndex = new ChunkIndex(-1L, Map.of(), Map.of());
     private final Set<UUID> dirty = ConcurrentHashMap.newKeySet();
     private int nextSerial = 1;
     private final Set<UUID> retryWrites = new HashSet<>();
@@ -334,12 +334,13 @@ public class SiteRepository {
             return current.sites();
         }
         Map<ChunkKey, List<Site>> built = new java.util.HashMap<>();
+        Map<java.util.UUID, ChunkKey> keys = new java.util.HashMap<>();
         for (Site site : byId.values()) {
-            built.computeIfAbsent(
-                    new ChunkKey(site.getWorldName(), site.getChunkX(), site.getChunkZ()),
-                    key -> new ArrayList<>(1)).add(site);
+            ChunkKey key = ChunkKey.of(site);
+            built.computeIfAbsent(key, ignored -> new ArrayList<>(1)).add(site);
+            keys.put(site.getId(), key);
         }
-        chunkIndex = new ChunkIndex(version, built);
+        chunkIndex = new ChunkIndex(version, built, keys);
         return built;
     }
 
@@ -349,9 +350,17 @@ public class SiteRepository {
      * @param site dossier to hold
      */
     private void store(Site site) {
-        if (byId.put(site.getId(), site) != site) {
+        if (byId.put(site.getId(), site) != site || moved(site)) {
             layoutChanged();
         }
+    }
+
+    /**
+     * @return whether the index holds {@code site} under another world or chunk than it has now
+     */
+    private boolean moved(Site site) {
+        ChunkKey indexed = chunkIndex.keys().get(site.getId());
+        return indexed != null && !indexed.equals(ChunkKey.of(site));
     }
 
     /**
@@ -367,13 +376,17 @@ public class SiteRepository {
      * @param z ruin chunk Z
      */
     private record ChunkKey(String world, int x, int z) {
+        static ChunkKey of(Site site) {
+            return new ChunkKey(site.getWorldName(), site.getChunkX(), site.getChunkZ());
+        }
     }
 
     /**
      * @param version {@link #layoutVersion} the index was built from
      * @param sites sites by ruin chunk
+     * @param keys the chunk each site was indexed under, by site id
      */
-    private record ChunkIndex(long version, Map<ChunkKey, List<Site>> sites) {
+    private record ChunkIndex(long version, Map<ChunkKey, List<Site>> sites, Map<java.util.UUID, ChunkKey> keys) {
     }
 
     /**

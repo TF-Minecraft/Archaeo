@@ -223,6 +223,12 @@ public class SiteRepositoryTest {
         assertTrue(repository.loadAll());
         assertEquals(extra.getId(), repository.findByChunk("world", 7, 7).orElseThrow().getId());
         assertTrue(repository.hasEstablishedIn("world", 7, 7, 7, 7));
+        // A stored site whose place changes is found at its new chunk once it is saved again.
+        Site moving = repository.findByChunk("world", 7, 7).orElseThrow();
+        moving.setChunkX(9);
+        net.tfminecraft.archaeo.CharacterTestSupport.touch(repository, moving);
+        assertTrue(repository.findByChunk("world", 7, 7).isEmpty());
+        assertEquals(moving.getId(), repository.findByChunk("world", 9, 7).orElseThrow().getId());
         repository.erase(later);
         assertTrue(repository.findByChunk("world", 5, -5).isEmpty());
         assertFalse(repository.hasEstablishedIn("world", 5, 5, -5, -5));
