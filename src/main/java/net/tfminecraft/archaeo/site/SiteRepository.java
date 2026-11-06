@@ -67,8 +67,9 @@ public class SiteRepository {
     private final File indexFile;
     private final Map<UUID, Site> byId = new ConcurrentHashMap<>();
     /**
-     * Bumped after every change to which sites {@link #byId} holds, so {@link #chunkIndex()} is
-     * rebuilt. A site's world and ruin chunk are set before it is first stored and never change.
+     * Bumped after every change to which sites {@link #byId} holds, and when a stored site is
+     * saved again at another world or ruin chunk, so {@link #chunkIndex()} is rebuilt. A site's
+     * place is normally set before it is first stored.
      */
     private final AtomicLong layoutVersion = new AtomicLong();
     private volatile ChunkIndex chunkIndex = new ChunkIndex(-1L, Map.of(), Map.of());
