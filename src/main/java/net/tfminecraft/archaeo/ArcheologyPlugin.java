@@ -194,6 +194,7 @@ public class ArcheologyPlugin extends JavaPlugin {
         // Callers (enable, reload, the pack-plugin hook) run only after onEnable built every item.
         ItemMatcher bound = matcher == null ? ItemMatcher.vanillaOnly() : matcher;
         trackerItem.setMatcher(bound);
+        tracker.itemChanged();
         prospectItem.setMatcher(bound);
         establishItem.setMatcher(bound);
         brushItem.setMatcher(bound);

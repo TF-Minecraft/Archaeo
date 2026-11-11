@@ -78,6 +78,8 @@ public class SketchService {
     private final Map<UUID, SketchSession> sessions = new HashMap<>();
     private final Map<Integer, SketchSheet> sheets = new HashMap<>();
     private final Map<UUID, BossBar> bars = new HashMap<>();
+    /** Newest queued {@link #stampKitsLater} request per player; an older one leaves the pass to it. */
+    private final Map<UUID, Object> kitPasses = new HashMap<>();
     private BukkitTask task;
     private int autosaveClock;
 
@@ -600,12 +602,20 @@ public class SketchService {
 
     /**
      * Unstacks sketch maps and restores how-to lore on Archaeo-given vanilla kits only.
+     * Several inventory events in one tick (a pile of drops picked up, a click and a close) each
+     * ask before the scheduler runs; only the newest request for a player scans the bag, since
+     * it runs last and repeats the same pass.
      *
      * @param player holder
      */
     public void stampKitsLater(Player player) {
         var actor=net.tfminecraft.archaeo.ownership.CharacterActors.session(player).orElse(null);
+        Object pass = new Object();
+        kitPasses.put(player.getUniqueId(), pass);
         plugin.getServer().getScheduler().runTask(plugin, () -> {
+            if (!kitPasses.remove(player.getUniqueId(), pass)) {
+                return;
+            }
             if (!player.isOnline()||!net.tfminecraft.archaeo.ownership.CharacterActors.current(actor,player)) {
                 return;
             }
@@ -1316,11 +1326,14 @@ public class SketchService {
 
     /**
      * Filled maps with the same view would otherwise stack; each sketch is one sheet.
+     * Only a filled map carries {@link MapMeta}, so every other item is skipped by its type
+     * without copying its metadata.
      *
      * @param stack sketch, or empty
      */
     private static void markUnstackable(ItemStack stack) {
-        if (stack == null || !(stack.getItemMeta() instanceof MapMeta meta)) {
+        if (stack == null || stack.getType() != Material.FILLED_MAP
+                || !(stack.getItemMeta() instanceof MapMeta meta)) {
             return;
         }
         meta.setMaxStackSize(1);

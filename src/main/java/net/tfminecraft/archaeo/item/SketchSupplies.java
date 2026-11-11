@@ -173,16 +173,20 @@ public class SketchSupplies {
     /**
      * Restores Archaeo how-to lore on a vanilla kit copy this plugin created. Unmarked paper,
      * unmarked feathers, and pack items are left untouched so their own tooltip stays.
+     * A sheet or pencil configured as a pack item never gets lore, so its stacks are not
+     * matched at all: that match reads the item's data through the pack plugin.
      *
      * @param stack possible kit item
      * @return whether lore was written
      */
     public boolean stampInstructions(ItemStack stack) {
-        if (isPaper(stack) && isMarkedKit(stack, true) && ownsTooltip(paper, stack)) {
+        if (paper.kind() == ItemRef.Kind.VANILLA
+                && isPaper(stack) && isMarkedKit(stack, true) && ownsTooltip(paper, stack)) {
             stamped(stack, true);
             return true;
         }
-        if (isPencil(stack) && isMarkedKit(stack, false) && ownsTooltip(pencil, stack)) {
+        if (pencil.kind() == ItemRef.Kind.VANILLA
+                && isPencil(stack) && isMarkedKit(stack, false) && ownsTooltip(pencil, stack)) {
             stamped(stack, false);
             return true;
         }

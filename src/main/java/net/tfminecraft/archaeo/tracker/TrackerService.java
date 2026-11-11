@@ -11,12 +11,15 @@ import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -24,6 +27,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * how well that look lines up with a hidden ruin and how far it is.
  */
 public class TrackerService {
+    /**
+     * Ticks an unchanged pair of hands keeps its last answer before the tracker item is matched
+     * again (pack registries can reload under an unchanged stack).
+     */
+    private static final int RECHECK_TICKS = 20;
+
     private final JavaPlugin plugin;
     private final SiteRepository sites;
     private final TrackerItem item;
@@ -31,6 +40,8 @@ public class TrackerService {
     private final Map<UUID, Integer> lastBeepTick = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> lastDetectMessageTick = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> lockedSiteId = new ConcurrentHashMap<>();
+    /** Last hands checked per online player object; an entry goes when the player object does. */
+    private final Map<Player, HeldHands> held = new WeakHashMap<>();
     private int tick;
     private BukkitTask task;
 
@@ -48,10 +59,19 @@ public class TrackerService {
     }
 
     /**
-     * @param settings latest values after a catalog reload
+     * @param settings latest values after a catalog reload, which can also change {@code tracker.item}
      */
     public void setSettings(TrackerSettings settings) {
         this.settings = settings;
+        itemChanged();
+    }
+
+    /**
+     * Forgets every remembered hand check, so the next pulse matches again. Call after
+     * {@code tracker.item} or the pack-plugin lookup behind it changes.
+     */
+    public void itemChanged() {
+        held.clear();
     }
 
     /**
@@ -73,6 +93,7 @@ public class TrackerService {
         lastBeepTick.clear();
         lastDetectMessageTick.clear();
         lockedSiteId.clear();
+        held.clear();
     }
 
     /**
@@ -108,12 +129,35 @@ public class TrackerService {
     }
 
     /**
+     * Matches the hands again only when either stack differs from the pair checked last (any
+     * change to type, amount, or data) or after {@link #RECHECK_TICKS}. Matching a pack tracker
+     * reads the item's data through the pack plugin, which is too slow to repeat for every
+     * online player on every pulse.
+     *
      * @param player online player
      * @return {@code true} if main or off hand is a tracker
      */
     private boolean holdingTracker(Player player) {
-        return item.isTracker(player.getInventory().getItemInMainHand())
-                || item.isTracker(player.getInventory().getItemInOffHand());
+        ItemStack main = player.getInventory().getItemInMainHand();
+        ItemStack off = player.getInventory().getItemInOffHand();
+        HeldHands hands = held.get(player);
+        if (hands != null
+                && tick - hands.checkedTick < RECHECK_TICKS
+                && Objects.equals(hands.main, main)
+                && Objects.equals(hands.off, off)) {
+            return hands.tracker;
+        }
+        boolean tracker = item.isTracker(main) || item.isTracker(off);
+        held.put(player, new HeldHands(copy(main), copy(off), tracker, tick));
+        return tracker;
+    }
+
+    /**
+     * @param stack live hand stack, or {@code null}
+     * @return a copy later changes to the live stack cannot reach
+     */
+    private static ItemStack copy(ItemStack stack) {
+        return stack == null ? null : stack.clone();
     }
 
     /**
@@ -494,6 +538,17 @@ public class TrackerService {
         lastDetectMessageTick.put(scanner.getUniqueId(), tick);
         scanner.sendMessage("Archaeological signal detected.");
         scanner.sendMessage("Prospect the area to determine the site location.");
+    }
+
+    /**
+     * One player's hands as last checked for a tracker.
+     *
+     * @param main copy of the main-hand stack
+     * @param off copy of the off-hand stack
+     * @param tracker whether either was the tracker
+     * @param checkedTick service tick of that check
+     */
+    private record HeldHands(ItemStack main, ItemStack off, boolean tracker, int checkedTick) {
     }
 
     /**

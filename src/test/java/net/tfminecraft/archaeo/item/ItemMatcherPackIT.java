@@ -170,6 +170,8 @@ public class ItemMatcherPackIT {
             }
             assertTrue(matcher.matches(null, ItemRef.air())); assertTrue(matcher.matches(dirt, ItemRef.vanilla(Material.DIRT)));
             assertFalse(matcher.isCustom(dirt));
+            // The id is a second read of the item's data; a stack without the wanted type is not asked for it.
+            mi.verify(() -> mmoApi.getMethod("getID", ItemStack.class).invoke(null, dirt), never());
             mi.when(() -> mmoApi.getMethod("getTypeName", ItemStack.class).invoke(null, dirt)).thenReturn("TOOL");
             assertFalse(matcher.matches(dirt, ref("mi:tool:brush")));
         }
