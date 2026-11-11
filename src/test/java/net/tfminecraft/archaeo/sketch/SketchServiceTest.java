@@ -190,6 +190,38 @@ public class SketchServiceTest {
         assertTrue(player.getInventory().getItem(4).getItemMeta().hasLore());
     }
 
+    @Test public void kitRequestsQueuedInOneTickScanTheBagOnceForEachPlayer() {
+        SketchSupplies counted = spy(supplies);
+        SketchService queued = new SketchService(plugin, counted, recovered, sites, catalogs, SketchSettings.defaults());
+        ItemStack sheet = supplies.createPaper(); var meta = sheet.getItemMeta(); meta.setLore(null); sheet.setItemMeta(meta);
+        player.getInventory().setItem(4, sheet);
+        // Three inventory events in one tick; the newest request runs last and makes the only pass.
+        queued.stampKitsLater(player); queued.stampKitsLater(player); queued.stampKitsLater(player);
+        server.getScheduler().performOneTick();
+        verify(counted, times(1)).stampAll(any());
+        assertTrue(player.getInventory().getItem(4).getItemMeta().hasLore());
+        // Nothing is left queued, and a request in a later tick is a pass of its own.
+        server.getScheduler().performOneTick();
+        verify(counted, times(1)).stampAll(any());
+        queued.stampKitsLater(player); server.getScheduler().performOneTick();
+        verify(counted, times(2)).stampAll(any());
+        // Another player's request never stands in for this one's.
+        PlayerMock other = server.addPlayer(); other.getInventory().setItem(2, supplies.createPencil());
+        queued.stampKitsLater(player); queued.stampKitsLater(other); queued.stampKitsLater(player);
+        server.getScheduler().performOneTick();
+        verify(counted, times(4)).stampAll(any());
+    }
+
+    @Test public void unstackingCarriedSketchesCopiesMetadataOnlyForFilledMaps() {
+        ItemStack stone = spy(new ItemStack(Material.STONE, 3)); ItemStack plain = new ItemStack(Material.FILLED_MAP);
+        org.bukkit.entity.Player carrier = mock(org.bukkit.entity.Player.class); PlayerInventory bag = mock(PlayerInventory.class);
+        when(carrier.getInventory()).thenReturn(bag); when(bag.getContents()).thenReturn(new ItemStack[]{stone, null, plain});
+        service.unstackCarried(carrier);
+        verify(stone, never()).getItemMeta(); assertEquals(3, stone.getAmount());
+        // Any filled map, sketch or not, is still capped at one per slot.
+        assertEquals(1, plain.getItemMeta().getMaxStackSize());
+    }
+
     @Test public void cabinetAcceptsOnlySignedDrawingsAndDoesNotOverwriteExistingDeposit() {
         Inventory cabinet = server.createInventory(null, 9);
         ItemStack unsigned = service.createUnsigned(player.getWorld());

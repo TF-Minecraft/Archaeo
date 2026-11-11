@@ -278,11 +278,12 @@ public final class ItemMatcher {
      */
     private boolean matchesMmoItems(Probe probe, ItemRef ref) {
         String type = probe.mmoType();
-        String id = probe.mmoId();
-        if (type == null || id == null) {
+        if (type == null || !type.equalsIgnoreCase(ref.primary())) {
             return false;
         }
-        return type.equalsIgnoreCase(ref.primary()) && id.equalsIgnoreCase(ref.secondary());
+        // The id is a second read of the item's data, so it is asked only once the type fits.
+        String id = probe.mmoId();
+        return id != null && id.equalsIgnoreCase(ref.secondary());
     }
 
     /**

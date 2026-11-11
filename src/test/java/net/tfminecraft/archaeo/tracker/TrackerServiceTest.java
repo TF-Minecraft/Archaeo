@@ -238,6 +238,52 @@ public class TrackerServiceTest {
         assertNull(player.nextMessage());
     }
 
+    @Test
+    public void handsAreMatchedOncePerPairUntilAStackChangesOrASecondPasses() {
+        TrackerItem item = spy(new TrackerItem(ItemRef.vanilla(Material.COMPASS)));
+        SiteRepository repository = mock(SiteRepository.class);
+        when(repository.all()).thenAnswer(invocation -> sites);
+        when(repository.findById(any())).thenAnswer(invocation -> sites.stream().filter(s -> s.getId().equals(invocation.getArgument(0))).findFirst());
+        tracker = new TrackerService(MockBukkit.createMockPlugin(), repository, item, settings(true, false));
+        site(0, 0);
+        player.teleport(new Location(world, 8, 5, 8));
+        player.getInventory().setItemInMainHand(new ItemStack(Material.STONE));
+        tracker.pulse();
+        verify(item, times(2)).isTracker(any());
+        // Nine more pulses stay inside the second: neither hand is asked again.
+        for (int pulse = 0; pulse < 9; pulse++) tracker.pulse();
+        verify(item, times(2)).isTracker(any());
+        // A second later the unchanged hands are asked again, in case a pack plugin reloaded.
+        tracker.pulse();
+        verify(item, times(4)).isTracker(any());
+        assertNull(player.nextMessage());
+        // A tracker moved into the off hand is seen on the very next pulse.
+        player.getInventory().setItemInOffHand(new ItemStack(Material.COMPASS));
+        tracker.pulse();
+        verify(item, times(6)).isTracker(any());
+        assertEquals("Archaeological signal detected.", player.nextMessage()); player.nextMessage();
+        // Same type, different data: matched again, and still a tracker.
+        clearInvocations(item);
+        ItemStack renamed = new ItemStack(Material.COMPASS);
+        org.bukkit.inventory.meta.ItemMeta meta = renamed.getItemMeta(); meta.setDisplayName("Old compass"); renamed.setItemMeta(meta);
+        player.getInventory().setItemInOffHand(renamed);
+        tracker.pulse();
+        verify(item, times(2)).isTracker(any());
+        // Putting it away is matched on the next pulse; the pulse after reuses that answer.
+        clearInvocations(item);
+        player.getInventory().setItemInOffHand(null);
+        tracker.pulse(); tracker.pulse();
+        verify(item, times(2)).isTracker(any());
+        // A rebound pack-plugin lookup or a reload matches again on the next pulse.
+        clearInvocations(item);
+        tracker.itemChanged(); tracker.pulse();
+        verify(item, times(2)).isTracker(any());
+        tracker.setSettings(settings(true, false)); tracker.pulse();
+        verify(item, times(4)).isTracker(any());
+        tracker.stop(); tracker.pulse();
+        verify(item, times(6)).isTracker(any());
+    }
+
     private List<Float> chimes() {
         var pitches = org.mockito.ArgumentCaptor.forClass(Float.class);
         verify(world, atLeast(0)).playSound(any(Location.class), eq(org.bukkit.Sound.BLOCK_NOTE_BLOCK_CHIME), eq(org.bukkit.SoundCategory.PLAYERS), anyFloat(), pitches.capture());

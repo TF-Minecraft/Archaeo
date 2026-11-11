@@ -378,7 +378,7 @@ public class HandPickService {
                 continue;
             }
             if (!net.tfminecraft.archaeo.ownership.CharacterActors.current(cycle.actor, player)) { finish(player); continue; }
-            ExcavationTool held = heldTool(player, player.getInventory().getItemInMainHand(), false);
+            ExcavationTool held = heldTool(state(player), player.getInventory().getItemInMainHand(), false);
             if (held == null || !held.id().equals(cycle.tool.id())) {
                 finish(player);
                 continue;
@@ -423,19 +423,21 @@ public class HandPickService {
      * Per-tick {@link #syncHeldTool} plus the HUD, with one tool match and at most one crosshair
      * trace. The HUD shows while cycling, or while the crosshair is inside an established prism
      * (opened air included, so neighbour traces can sit on the empty cube like a minesweeper
-     * number). The mining lock covers cycling and aiming at prism fill.
+     * number). The mining lock covers cycling and aiming at prism fill. The player's shortcuts
+     * are looked up once here and handed to each step.
      *
      * @param player online player
      */
     private void syncAndShowHud(Player player) {
+        HeldState state = state(player);
         ItemStack held = player.getInventory().getItemInMainHand();
-        if (heldTool(player, held, true) == null) {
-            keepVanillaMineUnlocked(player);
+        if (heldTool(state, held, true) == null) {
+            keepVanillaMineUnlocked(player, state);
             return;
         }
         Cycle cycle = cycles.get(player.getUniqueId());
         if (cycle != null) {
-            setVanillaMineLocked(player, true);
+            setVanillaMineLocked(player, state, true);
             Block cell = player.getWorld().getBlockAt(cycle.x, cycle.y, cycle.z);
             showHud(player, cycle, cell, establishedAt(cell));
             return;
@@ -443,9 +445,9 @@ public class HandPickService {
         Block target = aimedNearSite(player);
         Site site = target == null ? null : establishedAt(target);
         if (site != null && PrismFill.isTerrainFill(target.getType())) {
-            setVanillaMineLocked(player, true);
+            setVanillaMineLocked(player, state, true);
         } else {
-            keepVanillaMineUnlocked(player);
+            keepVanillaMineUnlocked(player, state);
         }
         if (site != null) {
             showHud(player, null, target, site);
@@ -458,15 +460,14 @@ public class HandPickService {
      * {@link #RECHECK_TICKS}. Matching asks every whitelist entry and the pack plugins, which is
      * too slow to repeat for every online player on every tick.
      *
-     * @param player holder
+     * @param state the holder's shortcuts
      * @param stack current main-hand stack
      * @param restore whether to strip a legacy mine lock from a whitelisted stack, as
      *                {@link DigTools#restoreAllowedTool} does; skipped while the stack is the one
      *                already restored, since a restored stack has nothing left to strip
      * @return matching profile, or {@code null} when the stack is not an excavation tool
      */
-    private ExcavationTool heldTool(Player player, ItemStack stack, boolean restore) {
-        HeldState state = state(player);
+    private ExcavationTool heldTool(HeldState state, ItemStack stack, boolean restore) {
         boolean same = stack != null
                 && state.stack != null
                 && gameTick - state.matchedTick < RECHECK_TICKS
@@ -496,13 +497,13 @@ public class HandPickService {
      * clears that confirmation when it does.
      *
      * @param player holder
+     * @param state the holder's shortcuts
      */
-    private void keepVanillaMineUnlocked(Player player) {
-        HeldState state = state(player);
+    private void keepVanillaMineUnlocked(Player player, HeldState state) {
         if (state.unlocked && gameTick - state.unlockedTick < RECHECK_TICKS) {
             return;
         }
-        setVanillaMineLocked(player, false);
+        setVanillaMineLocked(player, state, false);
     }
 
     /**
@@ -850,6 +851,18 @@ public class HandPickService {
      * @param locked whether vanilla destroy progress must stay at zero on the client
      */
     private void setVanillaMineLocked(Player player, boolean locked) {
+        setVanillaMineLocked(player, state(player), locked);
+    }
+
+    /**
+     * {@link #setVanillaMineLocked(Player, boolean)} for a caller that already holds the
+     * player's shortcuts, so they are not looked up again.
+     *
+     * @param player holder
+     * @param state the holder's shortcuts
+     * @param locked whether vanilla destroy progress must stay at zero on the client
+     */
+    private void setVanillaMineLocked(Player player, HeldState state, boolean locked) {
         AttributeInstance speed = player.getAttribute(Attribute.BLOCK_BREAK_SPEED);
         if (speed == null) {
             return;
@@ -861,7 +874,6 @@ public class HandPickService {
                 break;
             }
         }
-        HeldState state = state(player);
         state.unlocked = !locked;
         state.unlockedTick = gameTick;
         if (locked && found == null) {

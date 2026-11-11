@@ -138,6 +138,8 @@ public class SketchSuppliesTest {
         when(matcher.create(packPencil)).thenReturn(custom); supplies.setMatcher(matcher);
         ItemStack given = supplies.createPencil(); when(matcher.matches(given, packPencil)).thenReturn(true);
         assertFalse(supplies.stampInstructions(given)); assertEquals(List.of("Pack pencil"), given.getItemMeta().getLore());
+        // A pack pencil can never be stamped, so the pack plugin is not asked whether this stack is one.
+        verify(matcher, never()).matches(given, packPencil); verify(matcher).matches(given, paper);
         // Switching sketch.pencil back to a vanilla stick must not overwrite pencils already handed out from the pack.
         ItemRef vanillaStick = ItemRef.vanilla(Material.STICK); supplies.update(paper, vanillaStick, 0);
         when(matcher.matches(given, vanillaStick)).thenReturn(true); when(matcher.isCustom(given)).thenReturn(true);
@@ -160,6 +162,11 @@ public class SketchSuppliesTest {
         assertEquals(List.of("Pack instructions"), custom.getItemMeta().getLore());
         when(matcher.matches(custom, customRef)).thenReturn(true);
         assertFalse(supplies.stampInstructions(custom));
+        // With both supplies from a pack, scanning a bag reads no item through the pack plugins.
+        supplies.stampAll(new ItemStack[]{custom, null, new ItemStack(Material.FEATHER)});
+        verify(matcher, never()).matches(any(), any());
+        verify(matcher, never()).isCustom(any());
+        assertEquals(List.of("Pack instructions"), custom.getItemMeta().getLore());
         when(matcher.create(customRef)).thenReturn(null);
         assertNull(supplies.createPaper());
         when(matcher.create(customRef)).thenReturn(new ItemStack(Material.AIR));
